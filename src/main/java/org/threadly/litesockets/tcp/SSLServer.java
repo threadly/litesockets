@@ -9,7 +9,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 
 public class SSLServer extends TCPServer {
-  private SSLContext sctx;
+  private final SSLContext sctx;
 
   public SSLServer(String host, int port, SSLContext sslctx) throws IOException {
     super(host, port);

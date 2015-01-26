@@ -29,12 +29,12 @@ public class SimpleByteStats {
   }
   
   public int getReadRate() {
-    double sec = ((Clock.lastKnownForwardProgressingMillis() - startTime)/1000.0);
+    double sec = (Clock.lastKnownForwardProgressingMillis() - startTime)/1000.0;
     return (int)(bytesRead/sec);
   }
   
   public int getWriteRate() {
-    double sec = ((Clock.lastKnownForwardProgressingMillis() - startTime)/1000.0);
+    double sec = (Clock.lastKnownForwardProgressingMillis() - startTime)/1000.0;
     return (int)(bytesWritten/sec);
   }
 }

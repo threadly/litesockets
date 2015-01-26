@@ -7,7 +7,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class TransactionalByteBuffers extends MergedByteBuffers {
   private static final String ACCESS_ERROR = "Can not call method from different thread then the transaction begain with";
   private final ReentrantLock lock = new ReentrantLock();
-  private ArrayDeque<ByteBuffer> consumedBuffers = new ArrayDeque<ByteBuffer>(8); 
+  private final ArrayDeque<ByteBuffer> consumedBuffers = new ArrayDeque<ByteBuffer>(8); 
   private int consumedSinceBegin = 0;
   
   /**

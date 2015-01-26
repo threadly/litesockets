@@ -35,15 +35,8 @@ public class SSLClient extends TCPClient implements Reader{
   private static final String SSL_HANDSHAKE_ERROR = "Problem doing SSL Handshake";
   private static final TrustManager[] OPEN_TRUST_MANAGER = new TrustManager [] {new GenericTrustManager() };
   private static final SSLContext OPEN_SSL_CTX; 
-  static {
-    //System.setProperty ("jsse.enableSNIExtension", "false");
-    try {
-      OPEN_SSL_CTX = SSLContext.getInstance("TLS");
-      OPEN_SSL_CTX.init(null, OPEN_TRUST_MANAGER, null);
-    } catch (KeyManagementException | NoSuchAlgorithmException e) {
-      throw new RuntimeException(e);
-    }
-  }
+
+  private final MergedByteBuffers decryptedReadList = new MergedByteBuffers();
   private final SSLEngine ssle;
   
   private ByteBuffer tmpAppBuffer;
@@ -54,7 +47,17 @@ public class SSLClient extends TCPClient implements Reader{
   
   private volatile Reader sslReader; 
   
-  private MergedByteBuffers decryptedReadList = new MergedByteBuffers();
+  
+  
+  static {
+    //System.setProperty ("jsse.enableSNIExtension", "false");
+    try {
+      OPEN_SSL_CTX = SSLContext.getInstance("TLS");
+      OPEN_SSL_CTX.init(null, OPEN_TRUST_MANAGER, null);
+    } catch (KeyManagementException | NoSuchAlgorithmException e) {
+      throw new RuntimeException(e);
+    }
+  }
 
   public SSLClient(String host, int port) throws IOException {
     super(host, port);
@@ -153,7 +156,7 @@ public class SSLClient extends TCPClient implements Reader{
   }
   
   
-  public void doHandShake() throws IOException {
+  private void doHandShake() throws IOException {
     ByteBuffer appDataBuffer = ByteBuffer.allocate(ssle.getSession().getApplicationBufferSize());
     ByteBuffer netDataBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize());
     

@@ -485,11 +485,17 @@ public abstract class Client {
 
     @Override
     protected void addWrite(int size) {
+      if(size < 0) {
+        throw new IllegalArgumentException("Size must be positive number");
+      }
       super.addWrite(size);
     }
     
     @Override
     protected void addRead(int size) {
+      if(size < 0) {
+        throw new IllegalArgumentException("Size must be positive number");
+      }
       super.addRead(size);
     }
   }

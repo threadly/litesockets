@@ -17,7 +17,7 @@ public class UDPServer extends Server {
   protected final DatagramChannel channel;
   private volatile ClientAcceptor clientAcceptor;
   private KeyDistributedScheduler clientDistributer;
-  private ConcurrentHashMap<SocketAddress, UDPClient> clients = new ConcurrentHashMap<SocketAddress, UDPClient>();
+  private final ConcurrentHashMap<SocketAddress, UDPClient> clients = new ConcurrentHashMap<SocketAddress, UDPClient>();
   
   
   public UDPServer(String host, int port) throws IOException {
