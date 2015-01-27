@@ -6,6 +6,8 @@ repositories {
   mavenCentral()
 }
 
+project.archivesBaseName='litesockets'
+
 task wrapper(type: Wrapper) {
     gradleVersion = '2.0'
 }
@@ -31,6 +33,11 @@ jar {
     attributes 'Implementation-Title': 'litesockets', 'Implementation-Version': version
   }
 }
+
+jar {
+  baseName = 'litesockets'
+}
+
 
 javadoc {
   source = sourceSets.main.allJava
