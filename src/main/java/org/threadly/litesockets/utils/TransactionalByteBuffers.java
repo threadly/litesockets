@@ -4,6 +4,17 @@ import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.concurrent.locks.ReentrantLock;
 
+
+/**
+ * 
+ * This allows you to used MergedByteBuffers in a transactional way.  This can be useful when reading
+ * from the socket using a protocol that is not framed.
+ * 
+ * NOTE:  If you are modifying the data in the underlying byteArrays that will not be reverted
+ * 
+ * @author lwahlmeier
+ *
+ */
 public class TransactionalByteBuffers extends MergedByteBuffers {
   private static final String ACCESS_ERROR = "Can not call method from different thread then the transaction begain with";
   private final ReentrantLock lock = new ReentrantLock();

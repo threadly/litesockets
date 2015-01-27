@@ -66,7 +66,6 @@ public class SSLClient extends TCPClient implements Reader{
       //We dont allow SSL by default connections anymore
       ssle = OPEN_SSL_CTX.createSSLEngine(host, port);
       ssle.setUseClientMode(true);
-      System.out.println("HS:"+ (System.currentTimeMillis()-start));
       doHandShake();
     } catch (Exception e) {
       throw new IOException(SSL_ERROR, e);
@@ -100,8 +99,6 @@ public class SSLClient extends TCPClient implements Reader{
     if(client.getReadBufferSize() > 0) {
       throw new IllegalStateException("Can not add a TCPClient with pending Reads!");
     }
-    System.out.println(client.getCloser());
-    System.out.println(client.getReader());
     this.setCloser(client.getCloser());
     this.setReader(client.getReader());
     this.ssle = ssle;
@@ -248,7 +245,6 @@ public class SSLClient extends TCPClient implements Reader{
   
   @Override
   public void setReader(Reader reader) {
-    System.out.println("SetReader:"+reader);
     this.sslReader = reader;
   }
 

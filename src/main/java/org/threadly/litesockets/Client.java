@@ -173,7 +173,8 @@ public abstract class Client {
    * This is used by the SocketExecuter to set the ThreadExecuter this client is supposed to use.
    * The ThreadExecuter works in a single threaded manor to keep all the client operations in order.
    * 
-   * You should not be overriding this.
+   * This might need to be exposed to your package but in general You should not be assigning this or
+   * changing it.
    *  
    * @param sei the ThreadExecuter to use for this client.
    */
