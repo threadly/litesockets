@@ -7,6 +7,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 
 import org.threadly.litesockets.Client;
+import org.threadly.util.Clock;
 
 /**
  * This is a generic Client for TCP connections.  This client can be either from the "client" side or
@@ -19,8 +20,18 @@ import org.threadly.litesockets.Client;
  *
  */
 public class TCPClient extends Client {
+  public static int DEFAULT_SOCKET_TIMEOUT = 10000;
+  
+  protected final String host;
+  protected final int port;
+  protected final long startTime = Clock.lastKnownForwardProgressingMillis();
+  protected final int setTimeout;
  
   protected final SocketChannel channel;
+  
+  public TCPClient(String host, int port) throws IOException {
+    this(host, port, DEFAULT_SOCKET_TIMEOUT);
+  }
   
   /**
    * This creates a connection to the specified port and IP.
@@ -29,8 +40,12 @@ public class TCPClient extends Client {
    * @param port port on that host to try and connect too.
    * @throws IOException if for any reason a connection can not be made an IOException will throw with more details about why. 
    */
-  public TCPClient(String host, int port) throws IOException {
-    channel = SocketChannel.open(new InetSocketAddress(host, port));
+  public TCPClient(String host, int port, int timeout) throws IOException {
+    setTimeout = timeout;
+    this.host = host;
+    this.port = port;
+    channel = SocketChannel.open();
+    channel.socket().connect(new InetSocketAddress(host, port), timeout);
     channel.configureBlocking(false);
   }
   
@@ -41,6 +56,9 @@ public class TCPClient extends Client {
    * @throws IOException if there is anything wrong with the SocketChannel this will throw.
    */
   public TCPClient(SocketChannel channel) throws IOException {
+    setTimeout = DEFAULT_SOCKET_TIMEOUT;
+    host = channel.socket().getInetAddress().getHostAddress();
+    port = channel.socket().getPort();
     if(! channel.isOpen()) {
       throw new ClosedChannelException();
     }
@@ -97,5 +115,16 @@ public class TCPClient extends Client {
   @Override
   public Closer getCloser() {
     return super.getCloser();
+  }
+  
+  /**
+   * This is used by SSLClient to close the TCPClient object w/o closing its socket.
+   * We need to do this to make the TCPClient unuseable.
+   */
+  protected void fakeClose() {
+    this.closed.set(true);
+    if(getSocketExecuter() != null) {
+      this.getSocketExecuter().removeClient(this);
+    }
   }
 }

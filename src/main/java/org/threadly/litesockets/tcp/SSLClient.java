@@ -27,11 +27,17 @@ import javax.net.ssl.X509TrustManager;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.utils.MergedByteBuffers;
+import org.threadly.util.Clock;
 import org.threadly.util.ExceptionUtils;
 
-
+/**
+ * This is a generic SSLClient that can be used to create an encrypted connection to a server.
+ * By default it will not check the servers certs and will only do TLS connections.
+ * 
+ * @author lwahlmeier
+ *
+ */
 public class SSLClient extends TCPClient implements Reader{
-  private static final String SSL_ERROR = "Problem connecting SSL Client";
   private static final String SSL_HANDSHAKE_ERROR = "Problem doing SSL Handshake";
   private static final TrustManager[] OPEN_TRUST_MANAGER = new TrustManager [] {new GenericTrustManager() };
   private static final SSLContext OPEN_SSL_CTX; 
@@ -46,12 +52,14 @@ public class SSLClient extends TCPClient implements Reader{
   private ByteBuffer decryptedReadBuffer;
   
   private volatile Reader sslReader; 
-  
-  
+
+  public static void disableSNI() {
+    System.setProperty ("jsse.enableSNIExtension", "false");
+  }
   
   static {
-    //System.setProperty ("jsse.enableSNIExtension", "false");
     try {
+      //We dont allow SSL by default connections anymore
       OPEN_SSL_CTX = SSLContext.getInstance("TLS");
       OPEN_SSL_CTX.init(null, OPEN_TRUST_MANAGER, null);
     } catch (KeyManagementException | NoSuchAlgorithmException e) {
@@ -60,22 +68,15 @@ public class SSLClient extends TCPClient implements Reader{
   }
 
   public SSLClient(String host, int port) throws IOException {
-    super(host, port);
-    try {
-      long start = System.currentTimeMillis();
-      //We dont allow SSL by default connections anymore
-      ssle = OPEN_SSL_CTX.createSSLEngine(host, port);
-      ssle.setUseClientMode(true);
-      doHandShake();
-    } catch (Exception e) {
-      throw new IOException(SSL_ERROR, e);
-    }
-    super.setReader(this);
-    encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize());
+    this(host, port, OPEN_SSL_CTX.createSSLEngine(host, port));
+  }
+  
+  public SSLClient(String host, int port, SSLEngine ssle) throws IOException {
+    this(host, port, ssle, TCPClient.DEFAULT_SOCKET_TIMEOUT);
   }
 
-  public SSLClient(String host, int port, SSLEngine ssle) throws IOException {
-    super(host, port);
+  public SSLClient(String host, int port, SSLEngine ssle, int timeout) throws IOException {
+    super(host, port, timeout);
     this.ssle = ssle;
     ssle.setUseClientMode(true);
     doHandShake();
@@ -94,13 +95,15 @@ public class SSLClient extends TCPClient implements Reader{
 
   public SSLClient(TCPClient client, SSLEngine ssle, boolean clientSSL) throws IOException {
     super(client.getChannel());
-    
-    
-    if(client.getReadBufferSize() > 0) {
-      throw new IllegalStateException("Can not add a TCPClient with pending Reads!");
+    if(client.getReadBufferSize() > 0 || client.getWriteBufferSize() > 0) {
+      throw new IllegalStateException("Can not add a TCPClient with pending Reads or Writes!");
     }
-    this.setCloser(client.getCloser());
-    this.setReader(client.getReader());
+    if(client.isClosed()) {
+      throw new IllegalStateException("Can not add closed TCPClient to sslConstructor");
+    }
+    client.fakeClose();
+    setCloser(client.getCloser());
+    setReader(client.getReader());
     this.ssle = ssle;
     ssle.setUseClientMode(clientSSL);
     doHandShake();
@@ -165,15 +168,18 @@ public class SSLClient extends TCPClient implements Reader{
     SSLEngineResult.HandshakeStatus hs = ssle.getHandshakeStatus();
     Selector select = Selector.open();
     
-    while (hs != FINISHED && hs != NOT_HANDSHAKING) {
+    while (hs != FINISHED && hs != NOT_HANDSHAKING ) {
+      if(Clock.lastKnownForwardProgressingMillis() - startTime > setTimeout) {
+        throw new IOException("Timeout doing SSLHandshake!");
+      }
 
       select.selectedKeys().clear();
       if(hs == NEED_UNWRAP) {
         channel.register(select, SelectionKey.OP_READ);
-        select.select();
+        select.select(100);
       } else if (hs == NEED_WRAP) {
         channel.register(select, SelectionKey.OP_WRITE);
-        select.select();
+        select.select(100);
       }
       channel.register(select, 0);
 
@@ -306,5 +312,29 @@ public class SSLClient extends TCPClient implements Reader{
       return new X509Certificate[0];
     }
   }
+  
+  
+  /**
+   * Java 7 introduced SNI by default when you establish SSl connections.
+   * The problem is there is no way to turn it off or on at a per connection level.
+   * So if you are knowingly going to connect to a server that has a non SNI valid cert
+   * you have to disable SNI for the whole VM. 
+   * 
+   * The default is whatever the VM is started with you can enable it by running this method.
+   * 
+   */
+  public static void enableSNI() {
+    System.setProperty ("jsse.enableSNIExtension", "true");
+  }
+  
+  /**
+   * Java 7 introduced SNI by default when you establish SSl connections.
+   * The problem is there is no way to turn it off or on at a per connection level.
+   * So if you are knowingly going to connect to a server that has a non SNI valid cert
+   * you have to disable SNI for the whole VM. 
+   * 
+   * The default is whatever the VM is started with you can disable it by running this method.
+   * 
+   */
 
 }
