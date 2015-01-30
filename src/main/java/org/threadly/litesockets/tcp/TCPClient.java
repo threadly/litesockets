@@ -7,6 +7,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 
 import org.threadly.litesockets.Client;
+import org.threadly.litesockets.SocketExecuterBase.WireProtocol;
 import org.threadly.util.Clock;
 
 /**
@@ -87,7 +88,9 @@ public class TCPClient extends Client {
   public void close() {
     if(closed.compareAndSet(false, true)) {
       try {
-        ce.removeClient(this);
+        if(ce != null) {
+          ce.removeClient(this);
+        }
         channel.close();
       } catch (IOException e) {
         //we dont care
@@ -126,5 +129,10 @@ public class TCPClient extends Client {
     if(getSocketExecuter() != null) {
       this.getSocketExecuter().removeClient(this);
     }
+  }
+
+  @Override
+  public WireProtocol getProtocol() {
+    return WireProtocol.TCP;
   }
 }

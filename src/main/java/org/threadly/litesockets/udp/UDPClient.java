@@ -8,6 +8,7 @@ import java.nio.channels.SocketChannel;
 
 import org.threadly.concurrent.SubmitterExecutorInterface;
 import org.threadly.litesockets.Client;
+import org.threadly.litesockets.SocketExecuterBase.WireProtocol;
 
 public class UDPClient extends Client {
   protected final SocketAddress sa;
@@ -37,7 +38,7 @@ public class UDPClient extends Client {
   }
   
   @Override
-  protected void setThreadExecuter(SubmitterExecutorInterface sei) {
+  protected void setThreadExecuter(SubmitterExecutorInterface  sei) {
     super.setThreadExecuter(sei);
   }
 
@@ -113,6 +114,11 @@ public class UDPClient extends Client {
   @Override
   public Closer getCloser() {
     return super.getCloser();
+  }
+
+  @Override
+  public WireProtocol getProtocol() {
+    return WireProtocol.UDP;
   }
 
 }

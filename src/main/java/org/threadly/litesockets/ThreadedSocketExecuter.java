@@ -49,18 +49,20 @@ public class ThreadedSocketExecuter extends SocketExecuterBase {
 
   @Override
   public void addClient(final Client client) {
-    if(! client.isClosed() && client.getChannel() != null && isRunning()) {
+    if(! client.isClosed() && client.getProtocol() == WireProtocol.TCP && isRunning()) {
       client.setThreadExecuter(clientDistributer.getSubmitterForKey(client));
       client.setSocketExecuter(this);
-      Client nc = clients.putIfAbsent(client.getChannel(), client);
-      if(nc == null) {
-        if(client.canRead()) {
-          readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
-          readSelector.wakeup();
-        }
-        if(client.canWrite()) {
-          writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
-          writeSelector.wakeup();  
+      if(client.getChannel() != null) {
+        Client nc = clients.putIfAbsent(client.getChannel(), client);
+        if(nc == null) {
+          if(client.canRead()) {
+            readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
+            readSelector.wakeup();
+          }
+          if(client.canWrite()) {
+            writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
+            writeSelector.wakeup();  
+          }
         }
       }
     }
@@ -96,9 +98,9 @@ public class ThreadedSocketExecuter extends SocketExecuterBase {
             SelectionKey key = server.getSelectableChannel().keyFor(acceptSelector);
             if(key == null) {
               try {
-                if(server.getServerType() == Server.ServerProtocol.TCP) {
+                if(server.getServerType() == WireProtocol.TCP) {
                   server.getSelectableChannel().register(acceptSelector, SelectionKey.OP_ACCEPT);
-                } else if(server.getServerType() == Server.ServerProtocol.UDP) {
+                } else if(server.getServerType() == WireProtocol.UDP) {
                   server.getSelectableChannel().register(acceptSelector, SelectionKey.OP_READ);
                 }
               } catch (ClosedChannelException e) {

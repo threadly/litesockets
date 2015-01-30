@@ -4,6 +4,7 @@ import java.nio.channels.SelectableChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.concurrent.SchedulerServiceInterface;
+import org.threadly.litesockets.SocketExecuterBase.WireProtocol;
 
 /**
  * This is the main Server object for litesockets.  
@@ -19,7 +20,7 @@ import org.threadly.concurrent.SchedulerServiceInterface;
  *
  */
 public abstract class Server {
-  public static enum ServerProtocol {TCP, UDP}
+  
   private volatile ServerCloser closer;
   protected volatile SchedulerServiceInterface sei;
   protected volatile SocketExecuterBase se;
@@ -107,7 +108,7 @@ public abstract class Server {
    * UDP or TCP
    * @return returns the type of protocol this socket uses.
    */
-  public abstract ServerProtocol getServerType();
+  public abstract WireProtocol getServerType();
   
   /**
    * 

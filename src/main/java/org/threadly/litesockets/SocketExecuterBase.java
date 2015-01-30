@@ -4,6 +4,7 @@ import org.threadly.concurrent.AbstractService;
 import org.threadly.concurrent.SchedulerServiceInterface;
 
 public abstract class SocketExecuterBase extends AbstractService {
+  public static enum WireProtocol {TCP, UDP}
   
   /**
    * Add a client object to the SocketExecuter.  This will allow the client to read

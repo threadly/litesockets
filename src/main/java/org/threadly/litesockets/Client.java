@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.threadly.concurrent.SubmitterExecutorInterface;
+import org.threadly.litesockets.SocketExecuterBase.WireProtocol;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
 
@@ -458,6 +459,8 @@ public abstract class Client {
    * @return the SocketChannel for this client.
    */
   public abstract SocketChannel getChannel();
+  
+  public abstract WireProtocol getProtocol();
   
   /**
    * 
