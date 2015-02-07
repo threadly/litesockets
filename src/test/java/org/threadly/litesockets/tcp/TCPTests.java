@@ -1,8 +1,6 @@
 package org.threadly.litesockets.tcp;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -16,11 +14,10 @@ import org.junit.Before;
 import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.Client;
-import org.threadly.litesockets.Client.ClientByteStats;
 import org.threadly.litesockets.Client.Reader;
+import org.threadly.litesockets.SocketExecuterBase;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.test.concurrent.TestCondition;
-import org.threadly.util.Clock;
 
 
 public class TCPTests {
@@ -39,7 +36,7 @@ public class TCPTests {
   PriorityScheduler PS;
   int port = Utils.findTCPPort();
   final String GET = "hello";
-  ThreadedSocketExecuter SE;
+  SocketExecuterBase SE;
   TCPServer server;
   FakeTCPServerClient serverFC;
   
@@ -58,7 +55,7 @@ public class TCPTests {
   
   @After
   public void stop() {    
-    SE.stop();
+    SE.stopIfRunning();
     PS.shutdown();
   }
 
@@ -217,6 +214,59 @@ public class TCPTests {
     SocketChannel cs = SocketChannel.open(new InetSocketAddress("localhost", port));
     cs.configureBlocking(true);
     TCPClient client = new TCPClient(cs);
+    server.close();
+  }
+  
+  @Test
+  public void clientDoubleAdd() throws IOException, InterruptedException {
+    SocketChannel cs = SocketChannel.open(new InetSocketAddress("localhost", port));
+    cs.configureBlocking(true);
+    TCPClient client = new TCPClient(cs);
+    SE.addClient(client);
+    SE.addClient(client);
+    SE.removeClient(client);
+    SE.addClient(client);
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return SE.getClientCount() == 2;
+      }
+    }.blockTillTrue(5000, 100);    
+    
+    client.close();
+    server.close();
+  }
+  
+  @Test
+  public void clientAddToStopedSE() throws IOException, InterruptedException {
+    SocketChannel cs = SocketChannel.open(new InetSocketAddress("localhost", port));
+    cs.configureBlocking(true);
+    TCPClient client = new TCPClient(cs);
+    SE.addClient(client);
+    SE.stop();
+    assertEquals(0, SE.getClientCount());
+    SE.addClient(client);
+    SE.removeClient(client);
+    SE.addClient(client);
+    assertEquals(0, SE.getClientCount());
+    client.close();
+    server.close();
+  }
+  
+  @Test
+  public void clientAddClosed() throws IOException, InterruptedException {
+    SocketChannel cs = SocketChannel.open(new InetSocketAddress("localhost", port));
+    cs.configureBlocking(true);
+    TCPClient client = new TCPClient(cs);
+    client.close();
+    SE.addClient(client);
+    SE.stop();
+    assertEquals(0, SE.getClientCount());
+    SE.addClient(client);
+    SE.removeClient(client);
+    SE.addClient(client);
+    assertEquals(0, SE.getClientCount());
+    client.close();
     server.close();
   }
   

@@ -10,6 +10,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
+import org.threadly.litesockets.SocketExecuterBase;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.tcp.Utils;
 import org.threadly.test.concurrent.TestCondition;
@@ -18,7 +19,7 @@ public class UDPTest {
   PriorityScheduler PS;
   int port = Utils.findUDPPort();
   final String GET = "hello";
-  ThreadedSocketExecuter SE;
+  SocketExecuterBase SE;
   UDPServer server;
   FakeUDPServerClient serverFC;
 
@@ -64,6 +65,7 @@ public class UDPTest {
     }.blockTillTrue(5000);
     System.out.println(serverFC.clients.get(rc).remaining());
     assertEquals(GET, serverFC.clients.get(rc).getAsString(serverFC.clients.get(rc).remaining()));
+    SE.removeServer(newServer);
     c.close();
     newServer.close();
   }
@@ -136,6 +138,21 @@ public class UDPTest {
     UDPClient newc = server.createUDPClient("127.0.0.1", newPort);
     assertEquals(rc, newc);
     assertFalse(c.equals(newc));
+    c.close();
+    newServer.close();
+  }
+  
+  
+  @Test
+  public void tryAddClient() throws IOException {
+    int newPort = Utils.findUDPPort();
+    FakeUDPServerClient newFC = new FakeUDPServerClient(SE);
+    UDPServer newServer = new UDPServer("localhost", newPort);
+    newFC.AddUDPServer(newServer);
+    UDPClient c = newServer.createUDPClient("127.0.0.1", port);
+    newFC.accept(c);
+    SE.addClient(c);
+    assertEquals(0, SE.getClientCount());
     c.close();
     newServer.close();
   }

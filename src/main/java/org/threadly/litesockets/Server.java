@@ -45,6 +45,7 @@ public abstract class Server {
   }
   
   /**
+   * Gets the Current SocketExecuter this Server is assigned to.
    * 
    * @return the current SocketExecuter for this Server.
    */
@@ -53,6 +54,7 @@ public abstract class Server {
   }
   
   /**
+   * Get the current ServerCloser callback assigned to this Server.
    * 
    * @return the currently set Closer.
    */
@@ -84,6 +86,7 @@ public abstract class Server {
   
   /**
    * This is called when a new SocketChannel is created for this server.
+   * 
    * @param client SelectableChannel that was created.
    */
   protected void callAcceptor(final SelectableChannel client) {
@@ -100,30 +103,34 @@ public abstract class Server {
    * At this point it needs to do what is needed to turn this Channel into
    * A client of some kind.
    * 
-   * @param c
+   * @param c The SelectableChannel that was just accepted by this Server.
    */
   public abstract void accept(SelectableChannel c);
   
   /**
-   * UDP or TCP
+   * This is used by the SocketExecuter to know how to handle this Server 
+   * when its added to it.
+   * 
    * @return returns the type of protocol this socket uses.
    */
   public abstract WireProtocol getServerType();
   
   /**
+   * Get the SelectableChannel used by this Server.
    * 
    * @return the SelectableChannel for this server.
    */
   public abstract SelectableChannel getSelectableChannel();
   
   /**
+   * Gets the current ClientAcceptor Callback for this Server. 
    * 
    * @return the currently set clientAcceptor.
    */
   public abstract ClientAcceptor getClientAcceptor();
   
   /**
-   *   Set the ClientAcceptor for this Server.
+   * Set the ClientAcceptor for this Server.
    *   
    * @param clientAcceptor
    */

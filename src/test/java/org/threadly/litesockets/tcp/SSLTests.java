@@ -25,6 +25,7 @@ import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server;
+import org.threadly.litesockets.SocketExecuterBase;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.tcp.SSLClient.GenericTrustManager;
 import org.threadly.test.concurrent.TestCondition;
@@ -34,7 +35,7 @@ public class SSLTests {
   PriorityScheduler PS;
   int port = Utils.findTCPPort();
   final String GET = "hello";
-  ThreadedSocketExecuter SE;
+  SocketExecuterBase SE;
   TrustManager[] myTMs = new TrustManager [] {new GenericTrustManager() };
   KeyStore KS;
   KeyManagerFactory kmf;

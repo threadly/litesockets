@@ -91,7 +91,7 @@ public abstract class Client {
    * 
    * @return A ByteBuffer for the ReadThread to use during its read operations.
    */
-  protected ByteBuffer getBuffer() {
+  protected ByteBuffer provideEmptyReadBuffer() {
     if(! ce.verifyReadThread()) {
       ce.removeClient(this);
       throw new IllegalStateException("Only the Client Executers ReadThread can access this function!! Client removed from Executer!");
@@ -147,6 +147,9 @@ public abstract class Client {
   }
   
   /**
+   * This is used to get the current size of the unRead readBuffer.
+   * If this is > then the maxBufferSize the client will be removed
+   * from the SocketExecuters reading operations.
    * 
    * @return the current size of the ReadBuffer.
    */
@@ -155,6 +158,9 @@ public abstract class Client {
   }
   
   /**
+   * This is used to get the current size of the unWriten writeBuffer.
+   * If this is > then the maxBufferSize the client will stop accepting
+   * new writes (except for forced writes).
    * 
    * @return the current size of the writeBuffer.
    */
@@ -163,6 +169,7 @@ public abstract class Client {
   }
   
   /**
+   * This is used to get the currently set max buffer size.
    * 
    * @return the current MaxBuffer size allowed.  The read and write buffer use this independently.
    */
@@ -184,8 +191,10 @@ public abstract class Client {
   }
   
   /**
+   * This returns the SubmitterExecutorInterface for this client.
+   * This executer works in a single threaded way so blocking this executer is very determinantal to the client flow.
    * 
-   * @return the ThreadExecuter for this client.  This executer works in a single threaded way so blocking this executer is very determinatal to the client flow.
+   * @return the ThreadExecuter for this client.  
    */
   protected SubmitterExecutorInterface getThreadExecuter() {
     return sei;
@@ -203,6 +212,7 @@ public abstract class Client {
   }
   
   /**
+   * This is used to get the clients currently assigned SocketExecuter.
    * 
    * @return the SocketExecuter set for this client. if none, null is returned.
    */
@@ -243,6 +253,7 @@ public abstract class Client {
   }
   
   /**
+   * This is used to get the current Closer for this client.
    * 
    * @return the current Closer interface for this client.
    */
@@ -276,6 +287,7 @@ public abstract class Client {
   }
   
   /**
+   * Returns the currently set Reader callback.
    * 
    * @return the current Reader for this client.
    */
@@ -423,7 +435,7 @@ public abstract class Client {
     synchronized(writeBuffers) {
       //This is to keep from doing a ton of little writes if we can.  We will try to 
       //do at least 8k at a time, and up to 65k if we are already having to combine buffers
-      if(this.currentWriteBuffer == null || this.currentWriteBuffer.remaining() == 0) {
+      if(currentWriteBuffer == null || currentWriteBuffer.remaining() == 0) {
         if(writeBuffers.nextPopSize() < 65536/8 && writeBuffers.remaining() > writeBuffers.nextPopSize()) {
           if(writeBuffers.remaining() < 65536) {
             currentWriteBuffer = writeBuffers.pull(writeBuffers.remaining());
@@ -455,14 +467,23 @@ public abstract class Client {
   }
   
   /**
+   * Returns the SocketChannel for this client.  If the client does not have a SocketChannel
+   * it will return null (ie UDPClient).
    * 
    * @return the SocketChannel for this client.
    */
   public abstract SocketChannel getChannel();
   
+  /**
+   * This is used by the SocketExecuter to help understand how to manage this client.
+   * Currently only UDP and TCP exist.
+   * 
+   * @return The IP protocol type of this client.
+   */
   public abstract WireProtocol getProtocol();
   
   /**
+   * Gets the raw Socket object for this Client.
    * 
    * @return the Socket for this client.
    */
@@ -482,7 +503,13 @@ public abstract class Client {
   public abstract void close();
 
 
-  public static class ClientByteStats extends SimpleByteStats {
+  /**
+   * A simple byte counter to get rate states from a client. 
+   * 
+   * @author lwahlmeier
+   *
+   */
+  protected static class ClientByteStats extends SimpleByteStats {
     public ClientByteStats() {
       super();
     }
@@ -522,6 +549,14 @@ public abstract class Client {
    *
    */
   public interface Reader {
+    /**
+     * When this callback is called it will pass you the Client object
+     * that did the read.  .getRead() should be called on once and only once
+     * before returning.  If it is failed to be called or called more then once
+     * you could end up with uncalled data on the wire or getting a null.
+     * 
+     * @param client This is the client the read is being called for.
+     */
     public void onRead(Client client);
   }
   
@@ -536,6 +571,11 @@ public abstract class Client {
    *
    */
   public interface Closer {
+    /**
+     * This notifies the callback about the client being closed.
+     * 
+     * @param client This is the client the close is being called for.
+     */
     public void onClose(Client client);
   }
   

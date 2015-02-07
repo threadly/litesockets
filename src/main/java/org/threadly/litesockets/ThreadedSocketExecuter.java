@@ -118,7 +118,17 @@ public class ThreadedSocketExecuter extends SocketExecuterBase {
   public void removeServer(Server server) {
     if(isRunning()) {
       servers.remove(server.getSelectableChannel());
+      SelectionKey key = null;
+      if(server.getServerType() == WireProtocol.TCP) {
+        key = server.getSelectableChannel().keyFor(acceptSelector);
+      } else {
+        key = server.getSelectableChannel().keyFor(readSelector);
+      }
+      if(key != null && key.isValid()) {
+        key.cancel();
+      }
       acceptSelector.wakeup();
+      readSelector.wakeup();
     }
   }
 
@@ -158,6 +168,8 @@ public class ThreadedSocketExecuter extends SocketExecuterBase {
       writeSelector.close();
     } catch (IOException e) {
     }
+    clients.clear();
+    servers.clear();
 
   }
 
@@ -255,7 +267,7 @@ public class ThreadedSocketExecuter extends SocketExecuterBase {
               final Client client = clients.get(sc);
               if(client != null) {
                 try {
-                  ByteBuffer readByteBuffer = client.getBuffer();
+                  ByteBuffer readByteBuffer = client.provideEmptyReadBuffer();
                   int origPos = readByteBuffer.position();
                   int read = sc.read(readByteBuffer);
                   if(read < 0) {
