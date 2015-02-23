@@ -112,8 +112,8 @@ public class SSLClient extends TCPClient implements Reader{
   }
   
   private ByteBuffer getDecryptedByteBuffer() {
-    if(decryptedReadBuffer == null || decryptedReadBuffer.remaining() < ssle.getSession().getApplicationBufferSize()) {
-      decryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getApplicationBufferSize()*2);
+    if(decryptedReadBuffer == null || decryptedReadBuffer.remaining() < ssle.getSession().getApplicationBufferSize()*1.5) {
+      decryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getApplicationBufferSize()*3);
     }
     return decryptedReadBuffer;
   }
@@ -213,8 +213,8 @@ public class SSLClient extends TCPClient implements Reader{
   }
   
   private ByteBuffer getAppWriteBuffer() {
-    if(this.writeBuffer == null || this.writeBuffer.remaining() < ssle.getSession().getPacketBufferSize()) {
-      this.writeBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()*2);
+    if(this.writeBuffer == null || this.writeBuffer.remaining() < ssle.getSession().getPacketBufferSize()*1.5) {
+      this.writeBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()*3);
     }
     return writeBuffer;
   }

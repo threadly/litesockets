@@ -13,14 +13,15 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.threadly.concurrent.ConfigurableThreadFactory;
 import org.threadly.concurrent.KeyDistributedScheduler;
 import org.threadly.concurrent.SchedulerServiceInterface;
 import org.threadly.concurrent.SingleThreadScheduler;
 
 public class ThreadedSocketExecuter extends SocketExecuterBase {
-  private final SingleThreadScheduler acceptScheduler = new SingleThreadScheduler();
-  private final SingleThreadScheduler readScheduler = new SingleThreadScheduler();
-  private final SingleThreadScheduler writeScheduler = new SingleThreadScheduler();
+  private final SingleThreadScheduler acceptScheduler = new SingleThreadScheduler(new ConfigurableThreadFactory("SocketAcceptor", false, true, Thread.currentThread().getPriority(), null, null));
+  private final SingleThreadScheduler readScheduler = new SingleThreadScheduler(new ConfigurableThreadFactory("SocketReader", false, true, Thread.currentThread().getPriority(), null, null));
+  private final SingleThreadScheduler writeScheduler = new SingleThreadScheduler(new ConfigurableThreadFactory("SocketWriter", false, true, Thread.currentThread().getPriority(), null, null));
   private final KeyDistributedScheduler clientDistributer;
   private final SchedulerServiceInterface schedulerPool;
   private final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
@@ -38,7 +39,7 @@ public class ThreadedSocketExecuter extends SocketExecuterBase {
 
 
   public ThreadedSocketExecuter() {
-    schedulerPool = new SingleThreadScheduler();
+    schedulerPool = new SingleThreadScheduler(new ConfigurableThreadFactory("SocketClientThread", false, true, Thread.currentThread().getPriority(), null, null));
     clientDistributer = new KeyDistributedScheduler(schedulerPool);
   }
 
@@ -284,7 +285,7 @@ public class ThreadedSocketExecuter extends SocketExecuterBase {
                       client.getChannel().register(readSelector, 0);
                     }
                   }
-                } catch(IOException e) {
+                } catch(Exception e) {
                   removeClient(client);
                   client.close();
                 }
@@ -320,7 +321,7 @@ public class ThreadedSocketExecuter extends SocketExecuterBase {
                   if(! client.canWrite()) {
                     client.getChannel().register(writeSelector, 0);
                   }
-                } catch(IOException e) {
+                } catch(Exception e) {
                   removeClient(client);
                   client.close();
                 }
