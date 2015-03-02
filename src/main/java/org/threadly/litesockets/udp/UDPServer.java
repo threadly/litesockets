@@ -22,7 +22,6 @@ public class UDPServer extends Server {
   
   
   public UDPServer(String host, int port) throws IOException {
-
     channel = DatagramChannel.open();
     channel.socket().bind(new InetSocketAddress(host, port));
     channel.configureBlocking(false);

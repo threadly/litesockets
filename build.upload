@@ -72,7 +72,7 @@ jar {
 
 javadoc {
   source = sourceSets.main.allJava
-  options.memberLevel = org.gradle.external.javadoc.JavadocMemberLevel.PUBLIC
+  options.memberLevel = org.gradle.external.javadoc.JavadocMemberLevel.PROTECTED
 }
 
 task javadocJar(type: Jar, dependsOn: javadoc) {
