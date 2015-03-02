@@ -65,7 +65,7 @@ public abstract class Server {
   /**
    * Set the ServerCloser for this server.
    * 
-   * @param closer
+   * @param closer The ServerCloser to set for this Server. 
    */
   public void setCloser(ServerCloser closer) {
     this.closer = closer;
@@ -132,7 +132,7 @@ public abstract class Server {
   /**
    * Set the ClientAcceptor for this Server.
    *   
-   * @param clientAcceptor
+   * @param clientAcceptor Sets the ClientAcceptor callback for this server.
    */
   public abstract void setClientAcceptor(ClientAcceptor clientAcceptor);
   

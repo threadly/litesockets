@@ -39,7 +39,7 @@ public abstract class SocketExecuterBase extends AbstractService {
    * but if they dont Server objects can not be used by the 
    * SocketExecuter. 
    * 
-   * @param server
+   * @param server adds a server to the SocketExecuter.
    */
   public abstract void addServer(Server server);
   
@@ -52,7 +52,7 @@ public abstract class SocketExecuterBase extends AbstractService {
    * but if they dont Server objects can not be used by the 
    * SocketExecuter. 
    * 
-   * @param server
+   * @param server removes a Server from the SocketExecuter
    */
   public abstract void removeServer(Server server);
   

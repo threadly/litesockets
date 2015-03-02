@@ -1,0 +1,46 @@
+<project>
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.threadly</groupId>
+  <artifactId>litesockets</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
+
+  <name>LiteSockets</name>
+  <description>A light weight socket library designed for highly concurrent applications.  LiteSockets leverages threadly to make it easy to maintain concurrent connections while keeping threading on a per-client basis single threaded.</description>
+  <url>https://github.com/threadly/litesockets</url>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.threadly</groupId>
+      <artifactId>threadly</artifactId>
+      <version>3.4.1</version>
+      <type>jar</type>
+      <optional>false</optional>
+    </dependency>
+  </dependencies>
+
+  <licenses>
+    <license>
+      <name>The MIT License (MIT)</name>
+      <url>http://opensource.org/licenses/MIT</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <scm>
+    <connection>scm:git@github.com:threadly/litesockets.git</connection>
+    <developerConnection>scm:git@github.com:threadly/litesockets.git</developerConnection>
+    <url>git@github.com:threadly/litesockets.git</url>
+  </scm>
+
+  <developers>
+    <developer>
+      <id>lwahlmeier</id>
+      <name>Luke Wahlmeier</name>
+    </developer>
+    <developer>
+      <id>jent</id>
+      <name>Mike Jensen</name>
+    </developer>
+  </developers>
+</project>

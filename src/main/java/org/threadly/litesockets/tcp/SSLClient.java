@@ -62,7 +62,9 @@ public class SSLClient extends TCPClient implements Reader{
       //We dont allow SSL by default connections anymore
       OPEN_SSL_CTX = SSLContext.getInstance("TLS");
       OPEN_SSL_CTX.init(null, OPEN_TRUST_MANAGER, null);
-    } catch (KeyManagementException | NoSuchAlgorithmException e) {
+    } catch (NoSuchAlgorithmException e) {
+      throw new RuntimeException(e);
+    } catch (KeyManagementException e) {
       throw new RuntimeException(e);
     }
   }
