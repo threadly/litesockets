@@ -1,0 +1,145 @@
+apply plugin: 'java'
+apply plugin: 'maven'
+apply plugin: 'signing'
+
+sourceCompatibility = 1.6
+targetCompatibility = 1.6
+
+repositories {
+  mavenCentral()
+}
+
+project.archivesBaseName='litesockets'
+
+dependencies {
+  testCompile group: 'junit', name: 'junit', version: '4.12'
+
+  compile (
+    'org.threadly:threadly:3.4.1'
+  )
+}
+
+compileJava {
+  options.compilerArgs << "-Xlint:all" << "-Xlint:-deprecation" << "-Werror"
+  
+  String[] java6Paths = new String[5]
+  java6Paths[0] = "/usr/lib/jvm/java-6-openjdk-amd64/jre/lib/rt.jar"
+  java6Paths[1] = "/usr/lib/jvm/java-6-openjdk/jre/lib/rt.jar"
+  java6Paths[2] = "/usr/lib/jvm/java-1.6.0-openjdk-amd64/jre/lib/rt.jar"
+  java6Paths[3] = "/usr/lib/jvm/java-1.6.0-openjdk/jre/lib/rt.jar"
+  java6Paths[4] = "/usr/lib/jvm/java-6-sun/jre/lib/rt.jar"
+  for (String path : java6Paths) {
+    if (new java.io.File(path).exists()) {
+      println 'Using java 6 rt.jar: ' + path
+      options.bootClasspath = path
+      break
+    }
+  }
+  if (options.bootClasspath == null) {
+    println 'Unable to find java 6 rt.jar, will cause failure so exiting now'
+    println ''
+    System.exit(1)
+  }
+}
+
+compileTestJava {
+  options.compilerArgs << "-Xlint:all" << "-Xlint:-deprecation" << "-Werror"
+  
+  String[] java6Paths = new String[5]
+  java6Paths[0] = "/usr/lib/jvm/java-6-openjdk-amd64/jre/lib/rt.jar"
+  java6Paths[1] = "/usr/lib/jvm/java-6-openjdk/jre/lib/rt.jar"
+  java6Paths[2] = "/usr/lib/jvm/java-1.6.0-openjdk-amd64/jre/lib/rt.jar"
+  java6Paths[3] = "/usr/lib/jvm/java-1.6.0-openjdk/jre/lib/rt.jar"
+  java6Paths[4] = "/usr/lib/jvm/java-6-sun/jre/lib/rt.jar"
+  for (String path : java6Paths) {
+    if (new java.io.File(path).exists()) {
+      options.bootClasspath = path
+      break
+    }
+  }
+}
+
+test {
+  getReports().getJunitXml().setDestination(file("$buildDir/test-results/xml"))
+}
+
+jar {
+  manifest {
+    attributes 'Implementation-Title': 'litesockets', 'Implementation-Version': version
+  }
+  baseName = 'litesockets'
+}
+
+javadoc {
+  source = sourceSets.main.allJava
+  options.memberLevel = org.gradle.external.javadoc.JavadocMemberLevel.PUBLIC
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+  classifier = 'javadoc'
+  from 'build/docs/javadoc'
+}
+
+task sourcesJar(type: Jar) {
+  from sourceSets.main.allSource
+  classifier = 'sources'
+}
+
+artifacts {
+  archives jar
+  archives javadocJar
+  archives sourcesJar
+}
+
+signing {
+  sign configurations.archives
+}
+
+uploadArchives {
+  repositories {
+    mavenDeployer {
+      beforeDeployment {
+        MavenDeployment deployment -> signing.signPom(deployment)
+      }
+ 
+      repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+        authentication(userName: sonatypeUsername, password: sonatypePassword)
+      }
+      snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots") {
+        authentication(userName: sonatypeUsername, password: sonatypePassword)
+      }
+ 
+      pom.project {
+        name 'LiteSockets'
+        packaging 'jar'
+        description 'A light weight socket library designed for highly concurrent applications.  LiteSockets leverages threadly to make it easy to maintain concurrent connections while keeping threading on a per-client basis single threaded.'
+        url 'https://github.com/threadly/litesockets'
+ 
+        scm {
+          url 'scm:git@github.com:threadly/litesockets.git'
+          connection 'scm:git@github.com:threadly/litesockets.git'
+          developerConnection 'scm:git@github.com:threadly/litesockets.git'
+        }
+ 
+        licenses {
+          license {
+            name 'The MIT License (MIT)'
+            url 'https://www.mozilla.org/MPL/2.0/'
+            distribution 'repo'
+          }
+        }
+ 
+        developers {
+          developer {
+            id 'lwahlmeier'
+            name 'Luke Wahlmeier'
+          }
+          developer {
+            id 'jent'
+            name 'Mike Jensen'
+          }
+        }
+      }
+    }
+  }
+}
