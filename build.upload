@@ -124,7 +124,7 @@ uploadArchives {
         licenses {
           license {
             name 'The MIT License (MIT)'
-            url 'https://www.mozilla.org/MPL/2.0/'
+            url 'http://opensource.org/licenses/MIT'
             distribution 'repo'
           }
         }
