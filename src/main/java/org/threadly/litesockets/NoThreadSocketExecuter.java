@@ -39,7 +39,11 @@ public class NoThreadSocketExecuter extends SocketExecuterBase {
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
   private Selector selector;
 
-  public NoThreadSocketExecuter() throws IOException {
+  /**
+   * Constructs a NoThreadSocketExecuter.
+   * 
+   */
+  public NoThreadSocketExecuter() {
 
   }
 

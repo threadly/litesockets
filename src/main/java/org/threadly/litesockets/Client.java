@@ -73,7 +73,7 @@ public abstract class Client {
 
   /**
    * Returns true if this client can accept more ByteBuffers to write.
-   * False is returned if the number of bytes pending write is > then the max buffer size.
+   * False is returned if the number of bytes pending write is greater than the max buffer size.
    * 
    * @return true if it can write more false if it cant.
    */
@@ -148,7 +148,7 @@ public abstract class Client {
   
   /**
    * This is used to get the current size of the unRead readBuffer.
-   * If this is > then the maxBufferSize the client will be removed
+   * If this is greater then the maxBufferSize the client will be removed
    * from the SocketExecuters reading operations.
    * 
    * @return the current size of the ReadBuffer.
@@ -159,7 +159,7 @@ public abstract class Client {
   
   /**
    * This is used to get the current size of the unWriten writeBuffer.
-   * If this is > then the maxBufferSize the client will stop accepting
+   * If this is greater then the maxBufferSize the client will stop accepting
    * new writes (except for forced writes).
    * 
    * @return the current size of the writeBuffer.
@@ -358,7 +358,7 @@ public abstract class Client {
   
   /**
    * This will try to write a ByteBuffer to the client. 
-   * If the current writeBuffer size is < the Max buffer size this will return true.
+   * If the current writeBuffer size is less than the Max buffer size this will return true.
    * 
    * Otherwise you will get a false.  If a false is received the buffer *will not* write to the 
    * socket unless you call another write again. 
@@ -386,7 +386,7 @@ public abstract class Client {
   /**
    * This write will block until the write can be done.  This block will only happen if the clients
    * current writeBuffer size is more than the set maxBuffer.  This block will persist either until
-   * the clients writeBuffer is < the maxWriteBuffer or the client is closed.
+   * the clients writeBuffer is less than the maxWriteBuffer or the client is closed.
    * 
    * Care should be taken when using this.  The pending writes for the client will happen on another unblockable 
    * thread but if a lot of clients use there read thread to write and block its possible to consume all threads
@@ -394,7 +394,7 @@ public abstract class Client {
    * using the same thread pool.
    * 
    * @param bb the ByteBuffer to write.
-   * @throws InterruptedException
+   * @throws InterruptedException This happens only if the thread that is blocked is interrupted while waiting. 
    */
   public void writeBlocking(ByteBuffer bb) throws InterruptedException {
     if (bb.hasRemaining()) {

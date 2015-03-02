@@ -29,7 +29,13 @@ public class TCPClient extends Client {
   protected final int setTimeout;
  
   protected final SocketChannel channel;
-  
+  /**
+   * This creates a connection to the specified port and IP.
+   * 
+   * @param host hostname or ip address to connect too.
+   * @param port port on that host to try and connect too.
+   * @throws IOException if for any reason a connection can not be made an IOException will throw with more details about why. 
+   */
   public TCPClient(String host, int port) throws IOException {
     this(host, port, DEFAULT_SOCKET_TIMEOUT);
   }
@@ -39,6 +45,7 @@ public class TCPClient extends Client {
    * 
    * @param host hostname or ip address to connect too.
    * @param port port on that host to try and connect too.
+   * @param timeout this is the max amount of time we will wait for a connection to be made (default is 10000 milliseconds).
    * @throws IOException if for any reason a connection can not be made an IOException will throw with more details about why. 
    */
   public TCPClient(String host, int port, int timeout) throws IOException {
@@ -58,11 +65,11 @@ public class TCPClient extends Client {
    */
   public TCPClient(SocketChannel channel) throws IOException {
     setTimeout = DEFAULT_SOCKET_TIMEOUT;
-    host = channel.socket().getInetAddress().getHostAddress();
-    port = channel.socket().getPort();
     if(! channel.isOpen()) {
       throw new ClosedChannelException();
     }
+    host = channel.socket().getInetAddress().getHostAddress();
+    port = channel.socket().getPort();
     if(channel.isBlocking()) {
       channel.configureBlocking(false);
     }
