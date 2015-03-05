@@ -38,9 +38,9 @@ import org.threadly.util.ExceptionUtils;
  *
  */
 public class SSLClient extends TCPClient implements Reader{
-  private static final String SSL_HANDSHAKE_ERROR = "Problem doing SSL Handshake";
-  private static final TrustManager[] OPEN_TRUST_MANAGER = new TrustManager [] {new GenericTrustManager() };
-  private static final SSLContext OPEN_SSL_CTX; 
+  public static final String SSL_HANDSHAKE_ERROR = "Problem doing SSL Handshake";
+  public static final TrustManager[] OPEN_TRUST_MANAGER = new TrustManager [] {new GenericTrustManager() };
+  public static final SSLContext OPEN_SSL_CTX; 
 
   private final MergedByteBuffers decryptedReadList = new MergedByteBuffers();
   private final SSLEngine ssle;

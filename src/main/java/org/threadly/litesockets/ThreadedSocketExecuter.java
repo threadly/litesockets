@@ -51,8 +51,8 @@ public class ThreadedSocketExecuter extends SocketExecuterBase {
   @Override
   public void addClient(final Client client) {
     if(! client.isClosed() && client.getProtocol() == WireProtocol.TCP && isRunning()) {
-      client.setThreadExecuter(clientDistributer.getSubmitterForKey(client));
-      client.setSocketExecuter(this);
+      client.setClientsThreadExecutor(clientDistributer.getSubmitterForKey(client));
+      client.setClientsSocketExecuter(this);
       if(client.getChannel() != null) {
         Client nc = clients.putIfAbsent(client.getChannel(), client);
         if(nc == null) {
@@ -175,7 +175,7 @@ public class ThreadedSocketExecuter extends SocketExecuterBase {
   }
 
   @Override
-  protected void flagNewWrite(Client client) {
+  public void flagNewWrite(Client client) {
     if(isRunning() && clients.containsKey(client.getChannel())) {
       writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
       writeSelector.wakeup();
@@ -183,7 +183,7 @@ public class ThreadedSocketExecuter extends SocketExecuterBase {
   }
 
   @Override
-  protected void flagNewRead(Client client) {
+  public void flagNewRead(Client client) {
     if(isRunning() && clients.containsKey(client.getChannel())) {
       readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
       readSelector.wakeup();
@@ -280,7 +280,7 @@ public class ThreadedSocketExecuter extends SocketExecuterBase {
                     readByteBuffer.position(origPos+read);
                     resultBuffer.limit(read);
                     client.addReadBuffer(resultBuffer.asReadOnlyBuffer());
-                    client.callReader();
+                    //client.callReader();
                     if(! client.canRead()) {
                       client.getChannel().register(readSelector, 0);
                     }

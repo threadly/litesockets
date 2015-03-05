@@ -72,7 +72,7 @@ public abstract class SocketExecuterBase extends AbstractService {
    * 
    * @param client the Client object to flag for new write.
    */
-  protected abstract void flagNewWrite(Client client);
+  public abstract void flagNewWrite(Client client);
   
   /**
    * This will add the client to the ReadThread.  This can be called by the client
@@ -81,7 +81,7 @@ public abstract class SocketExecuterBase extends AbstractService {
    * 
    * @param client the Client object to flag for new Read.
    */
-  protected abstract void flagNewRead(Client client);
+  public abstract void flagNewRead(Client client);
   
   /**
    * Get the count of clients in this SocketExecuter.

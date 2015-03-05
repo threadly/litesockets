@@ -3,12 +3,9 @@ package org.threadly.litesockets;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.threadly.concurrent.SubmitterExecutorInterface;
 import org.threadly.litesockets.SocketExecuterBase.WireProtocol;
-import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
 
 /**
@@ -26,37 +23,14 @@ import org.threadly.litesockets.utils.SimpleByteStats;
  * @author lwahlmeier
  *
  */
-public abstract class Client {
-  public static final int DEFAULT_MAX_BUFFER_SIZE = 64*1024;
-  public static final int MIN_READ= 4*1024;
-  
-  private final AtomicInteger readBufferSize = new AtomicInteger(0);
-  private final AtomicInteger writeBufferSize = new AtomicInteger(0);
-  
-  protected ClientByteStats stats = new ClientByteStats();
-  
-  protected int maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;
-  protected int minAllowedReadBuffer = MIN_READ;
-  
-  private final MergedByteBuffers readBuffers = new MergedByteBuffers();
-  private final MergedByteBuffers writeBuffers = new MergedByteBuffers();
-  private ByteBuffer currentWriteBuffer;
-  private ByteBuffer readByteBuffer = ByteBuffer.allocate(maxBufferSize*2);
-  
-  protected volatile Closer closer;
-  protected volatile Reader reader;
-  protected volatile SubmitterExecutorInterface sei;
-  protected volatile SocketExecuterBase ce;
-  protected AtomicBoolean closed = new AtomicBoolean(false);
+public interface Client {
   
   /**
    * Returns the SimpleByteStats object for this client.
    * 
    * @return the byte stats for this client.
    */
-  public SimpleByteStats getStats() {
-    return stats;
-  }
+  public SimpleByteStats getStats();
   
   /**
    * Returns true if this client can read or false if it can not read any more data.
@@ -64,12 +38,7 @@ public abstract class Client {
    * 
    * @return true if more reads can be added, false if not.
    */
-  public boolean canRead() {
-    if(readBufferSize.get() > maxBufferSize) {
-      return false;
-    } 
-    return true;
-  }
+  public boolean canRead();
 
   /**
    * Returns true if this client can accept more ByteBuffers to write.
@@ -77,12 +46,7 @@ public abstract class Client {
    * 
    * @return true if it can write more false if it cant.
    */
-  public boolean canWrite() {
-    if(writeBufferSize.get() > 0) {
-      return true;
-    }
-    return false;
-  }
+  public boolean canWrite();
   
   /**
    * When this clients socket has a read pending this is where the byteBuffer for the read comes from.
@@ -91,60 +55,7 @@ public abstract class Client {
    * 
    * @return A ByteBuffer for the ReadThread to use during its read operations.
    */
-  protected ByteBuffer provideEmptyReadBuffer() {
-    if(! ce.verifyReadThread()) {
-      ce.removeClient(this);
-      throw new IllegalStateException("Only the Client Executers ReadThread can access this function!! Client removed from Executer!");
-    }
-    if(readByteBuffer.remaining() < minAllowedReadBuffer) {
-      readByteBuffer = ByteBuffer.allocate(maxBufferSize*2);
-    }
-    return readByteBuffer;
-  }
-  
-  /**
-   * When a read is read from the socket the size of the read is reported to the client.
-   * This also reports the read size to the statistics of this client.
-   * 
-   * This should be called by the client when the SocketExecuter calls addReadBuffer().
-   * 
-   * @param size The size if the read in bytes from the socket.
-   */
-  protected void addToReadSize(int size) {
-    stats.addRead(size);
-    readBufferSize.addAndGet(size);
-  }
-  
-  /**
-   * When a write is added to the client this is called to report the size of the write
-   * to the client.  This write is added to the buffer size with this call.
-   * 
-   * 
-   * @param size The size of the write in bytes.
-   */
-  protected void addToWriteSize(int size) {
-    writeBufferSize.addAndGet(size);
-  }
-  
-  /**
-   * This should be called when getRead() is called.  This reduces the read buffer by said amount. 
-   * 
-   * @param size The size in bytes that is being removed from the buffers.
-   */
-  protected void removeFromReadSize(int size) {
-    readBufferSize.addAndGet(-size);
-  }
-  
-  /**
-   * This should be called when reduceWrite(int size) is called. This removes the size
-   * from the total buffer size and adds the write to the clients write stats.
-   * 
-   * @param size The amount written to the socket.
-   */
-  protected void removeFromWriteSize(int size) {
-    stats.addWrite(size);
-    writeBufferSize.addAndGet(-size);
-  }
+  public ByteBuffer provideEmptyReadBuffer();
   
   /**
    * This is used to get the current size of the unRead readBuffer.
@@ -153,9 +64,7 @@ public abstract class Client {
    * 
    * @return the current size of the ReadBuffer.
    */
-  public int getReadBufferSize() {
-    return readBufferSize.get();
-  }
+  public int getReadBufferSize();
   
   /**
    * This is used to get the current size of the unWriten writeBuffer.
@@ -164,102 +73,32 @@ public abstract class Client {
    * 
    * @return the current size of the writeBuffer.
    */
-  public int getWriteBufferSize() {
-    return writeBufferSize.get();
-  }
+  public int getWriteBufferSize();
   
   /**
    * This is used to get the currently set max buffer size.
    * 
    * @return the current MaxBuffer size allowed.  The read and write buffer use this independently.
    */
-  public int getMaxBufferSize() {
-    return maxBufferSize;
-  }
+  public int getMaxBufferSize();
   
-  /**
-   * This is used by the SocketExecuter to set the ThreadExecuter this client is supposed to use.
-   * The ThreadExecuter works in a single threaded manor to keep all the client operations in order.
-   * 
-   * This might need to be exposed to your package but in general You should not be assigning this or
-   * changing it.
-   *  
-   * @param sei the ThreadExecuter to use for this client.
-   */
-  protected void setThreadExecuter(SubmitterExecutorInterface sei) {
-    this.sei = sei;
-  }
-  
-  /**
-   * This returns the SubmitterExecutorInterface for this client.
-   * This executer works in a single threaded way so blocking this executer is very determinantal to the client flow.
-   * 
-   * @return the ThreadExecuter for this client.  
-   */
-  protected SubmitterExecutorInterface getThreadExecuter() {
-    return sei;
-  }
-
-  /**
-   * Sets this client to the specified SocketExecuter.  This happens when the client is added to the SocketExecuter.
-   * This method should not be overridden. 
-   * 
-   * 
-   * @param ce the SocketExecuter to set for this client.
-   */
-  protected void setSocketExecuter(SocketExecuterBase ce) {
-    this.ce = ce;
-  }
+  public SubmitterExecutorInterface getClientsThreadExecutor();
+  public void setClientsThreadExecutor(SubmitterExecutorInterface cte);
   
   /**
    * This is used to get the clients currently assigned SocketExecuter.
    * 
    * @return the SocketExecuter set for this client. if none, null is returned.
    */
-  protected SocketExecuterBase getSocketExecuter() {
-    return ce;
-  }
-  
-  /**
-   * Used by extending classes to notify the SocketExecuter when this client can Read again.
-   */
-  protected void flagReadable() {
-    if(ce != null) {
-      ce.flagNewRead(this);
-    }
-  }
-  
-  /**
-   * Used by extending classes to notify the SocketExecuter when this client can write again.
-   */
-  protected void flagWriteable() {
-    if(ce != null) {
-      ce.flagNewWrite(this);
-    }
-  }
-  
-  /**
-   * The SocketExecuter calls this method when it detects a socket close event. 
-   * This notifies the clients Closer if set.
-   */
-  protected void callCloser() {
-    if(sei != null && closer != null) {
-      sei.execute(new Runnable() {
-        @Override
-        public void run() {
-          getCloser().onClose(Client.this);
-        }});
-    }
-  }
+  public SocketExecuterBase getClientsSocketExecuter();
+  public void setClientsSocketExecuter(SocketExecuterBase cse);
   
   /**
    * This is used to get the current Closer for this client.
    * 
    * @return the current Closer interface for this client.
    */
-  protected Closer getCloser() {
-    return closer;
-  }
+  public Closer getCloser();
 
   /**
    * This sets the Closer interface for this client.  
@@ -267,33 +106,14 @@ public abstract class Client {
    * 
    * @param closer sets this clients Closer interface.
    */
-  protected void setCloser(Closer closer) {
-    if(! closed.get()) {
-      this.closer = closer;
-    }
-  }
-  
-  /**
-   * This is used to notify the clients Reader that a read has been added
-   */
-  protected void callReader() {
-    if(! closed.get() && sei != null && reader != null) {
-      sei.execute(new Runnable() {
-        @Override
-        public void run() {
-          getReader().onRead(Client.this);
-        }});
-    }
-  }
+  public void setCloser(Closer closer);
   
   /**
    * Returns the currently set Reader callback.
    * 
    * @return the current Reader for this client.
    */
-  protected Reader getReader() {
-    return reader;
-  }
+  public Reader getReader();
 
   /**
    * This sets the Reader for the client. 
@@ -302,11 +122,7 @@ public abstract class Client {
    * 
    * @param reader the Reader interface to set for this client.
    */
-  protected void setReader(Reader reader) {
-    if(! closed.get()) {
-      this.reader = reader;
-    }
-  }
+  public void setReader(Reader reader);
 
   /**
    * This allows you to set/change the max buffer size for this client object.
@@ -314,33 +130,14 @@ public abstract class Client {
    * 
    * @param size in bytes.
    */
-  public void setMaxBufferSize(int size) {
-    if(size > 0) {
-      maxBufferSize = size;
-    } else {
-      throw new IllegalArgumentException("Default size must be more then 0");
-    }
-  }
+  public void setMaxBufferSize(int size);
   
   /**
    * Whenever a Reader is called for this client a .getRead() should be called.
    * 
    * @return a ByteBuffer of a read for this client.
    */
-  public ByteBuffer getRead() {
-    ByteBuffer bb = null;
-    synchronized(readBuffers) {
-      if(readBuffers.remaining() == 0) {
-        return null;
-      }
-      bb = readBuffers.pop();
-      removeFromReadSize(bb.remaining());
-    }
-    if(getReadBufferSize() + bb.remaining() >= maxBufferSize &&  getReadBufferSize() < maxBufferSize) {
-      flagReadable();
-    }
-    return bb;
-  }
+  public ByteBuffer getRead();
   
   /**
    * This is for the SocketExecuter.  Once a read is done from the socket this is called.
@@ -349,12 +146,7 @@ public abstract class Client {
    * 
    * @param bb the ByteBuffer read off the Socket.
    */
-  protected void addReadBuffer(ByteBuffer bb) {
-    synchronized(readBuffers) {
-      readBuffers.add(bb);
-      addToReadSize(bb.remaining());
-    }
-  }
+  public void addReadBuffer(ByteBuffer bb);
   
   /**
    * This will try to write a ByteBuffer to the client. 
@@ -369,19 +161,7 @@ public abstract class Client {
    * @param bb the ByteBuffer to write to the client.
    * @return true if the client has taken the ByteBuffer false if it did not.
    */
-  public boolean writeTry(ByteBuffer bb) {
-    if(bb.hasRemaining()) {
-      synchronized(writeBuffers) {
-        if(getWriteBufferSize() < getMaxBufferSize()) {
-          writeForce(bb);
-          return true;
-        } else {
-          return false;
-        }
-      }
-    }
-    return true;
-  }
+  public boolean writeTry(ByteBuffer bb);
   
   /**
    * This write will block until the write can be done.  This block will only happen if the clients
@@ -396,15 +176,7 @@ public abstract class Client {
    * @param bb the ByteBuffer to write.
    * @throws InterruptedException This happens only if the thread that is blocked is interrupted while waiting. 
    */
-  public void writeBlocking(ByteBuffer bb) throws InterruptedException {
-    if (bb.hasRemaining()) {
-      synchronized (writeBuffers) {
-        while(! writeTry(bb) && ! isClosed()) {
-          writeBuffers.wait(1000);
-        }
-      }
-    }
-  }
+  public void writeBlocking(ByteBuffer bb) throws InterruptedException;
   
   /**
    * This write basically forces the client to go over its maxBufferSize.  This technically does not have
@@ -413,17 +185,8 @@ public abstract class Client {
    * 
    * @param bb the ByteBuffer to write to the client.
    */
-  public void writeForce(ByteBuffer bb) {
-    synchronized(writeBuffers) {
-        boolean needNotify = ! canWrite();
-        this.addToWriteSize(bb.remaining());
-        writeBuffers.add(bb.slice());
-        if(needNotify) {
-          this.flagWriteable();
-        }
-    }
-  }
-
+  public void writeForce(ByteBuffer bb);
+  
   /**
    * This is called by the SocketExecuter once the clients socket is able to be written to.
    * It is up to the clients implementer to figure out how to deal with combining or not combining ByteBuffers 
@@ -431,24 +194,7 @@ public abstract class Client {
    * 
    * @return a ByteBuffer that can be used to Read new data off the socket for this client.
    */
-  protected ByteBuffer getWriteBuffer() {
-    synchronized(writeBuffers) {
-      //This is to keep from doing a ton of little writes if we can.  We will try to 
-      //do at least 8k at a time, and up to 65k if we are already having to combine buffers
-      if(currentWriteBuffer == null || currentWriteBuffer.remaining() == 0) {
-        if(writeBuffers.nextPopSize() < 65536/8 && writeBuffers.remaining() > writeBuffers.nextPopSize()) {
-          if(writeBuffers.remaining() < 65536) {
-            currentWriteBuffer = writeBuffers.pull(writeBuffers.remaining());
-          } else {
-            currentWriteBuffer = writeBuffers.pull(65536);
-          }
-        } else {
-          currentWriteBuffer = writeBuffers.pop();
-        }
-      }
-      return currentWriteBuffer;
-    }
-  }
+  public ByteBuffer getWriteBuffer();
   
   /**
    * This is called after a write is written to the clients socket.  This tells the client how much of that ByteBuffer was written.
@@ -456,15 +202,7 @@ public abstract class Client {
    * 
    * @param size the size in bytes of data written on the socket.
    */
-  protected void reduceWrite(int size) {
-    synchronized(writeBuffers) {
-      removeFromWriteSize(size);
-      if(! currentWriteBuffer.hasRemaining()) {
-        currentWriteBuffer = null;
-      }
-      writeBuffers.notifyAll();
-    }
-  }
+  public void reduceWrite(int size);
   
   /**
    * Returns the SocketChannel for this client.  If the client does not have a SocketChannel
@@ -472,7 +210,7 @@ public abstract class Client {
    * 
    * @return the SocketChannel for this client.
    */
-  public abstract SocketChannel getChannel();
+  public SocketChannel getChannel();
   
   /**
    * This is used by the SocketExecuter to help understand how to manage this client.
@@ -480,14 +218,14 @@ public abstract class Client {
    * 
    * @return The IP protocol type of this client.
    */
-  public abstract WireProtocol getProtocol();
+  public WireProtocol getProtocol();
   
   /**
    * Gets the raw Socket object for this Client.
    * 
    * @return the Socket for this client.
    */
-  public abstract Socket getSocket();
+  public Socket getSocket();
   
   /**
    * Returns if this client is closed or not.  Once a client is marked closed there is no way to reOpen it.
@@ -495,41 +233,12 @@ public abstract class Client {
    * 
    * @return true if the client is closed, false if the client is connected.
    */
-  public abstract boolean isClosed();
+  public boolean isClosed();
   
   /**
    * closes this client.  Any pending writes when this is called will just be dropped.
    */
-  public abstract void close();
-
-
-  /**
-   * A simple byte counter to get rate states from a client. 
-   * 
-   * @author lwahlmeier
-   *
-   */
-  protected static class ClientByteStats extends SimpleByteStats {
-    public ClientByteStats() {
-      super();
-    }
-
-    @Override
-    protected void addWrite(int size) {
-      if(size < 0) {
-        throw new IllegalArgumentException("Size must be positive number");
-      }
-      super.addWrite(size);
-    }
-    
-    @Override
-    protected void addRead(int size) {
-      if(size < 0) {
-        throw new IllegalArgumentException("Size must be positive number");
-      }
-      super.addRead(size);
-    }
-  }
+  public void close();
   
   /**
    * This is the Reader Interface for clients.
