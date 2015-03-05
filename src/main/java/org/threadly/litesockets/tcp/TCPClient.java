@@ -33,7 +33,7 @@ public class TCPClient implements Client {
 
   protected ClientByteStats stats = new ClientByteStats();
 
-  protected int maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;
+  protected volatile int maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;
   protected int minAllowedReadBuffer = MIN_READ;
 
   private final MergedByteBuffers readBuffers = new MergedByteBuffers();
@@ -251,6 +251,10 @@ public class TCPClient implements Client {
   public void setMaxBufferSize(int size) {
     if(size > 0) {
       maxBufferSize = size;
+      this.seb.flagNewRead(this);
+      synchronized (writeBuffers) {
+        writeBuffers.notifyAll();
+      }
     } else {
       throw new IllegalArgumentException("Default size must be more then 0");
     }
@@ -265,7 +269,7 @@ public class TCPClient implements Client {
       }
       mbb = readBuffers.duplicateAndClean();
     }
-    if(getReadBufferSize() + mbb.remaining() >= maxBufferSize) {
+    if(mbb.remaining() >= maxBufferSize) {
       seb.flagNewRead(this);
     }
     return mbb;
@@ -329,23 +333,25 @@ public class TCPClient implements Client {
 
   @Override
   public ByteBuffer getWriteBuffer() {
+    if(currentWriteBuffer != null && currentWriteBuffer.remaining() == 0) {
+      return currentWriteBuffer;
+    }
     synchronized(writeBuffers) {
       //This is to keep from doing a ton of little writes if we can.  We will try to 
       //do at least 8k at a time, and up to 65k if we are already having to combine buffers
-      if(currentWriteBuffer == null || currentWriteBuffer.remaining() == 0) {
-        if(writeBuffers.nextPopSize() < 65536/8 && writeBuffers.remaining() > writeBuffers.nextPopSize()) {
-          if(writeBuffers.remaining() < 65536) {
-            currentWriteBuffer = writeBuffers.pull(writeBuffers.remaining());
-          } else {
-            currentWriteBuffer = writeBuffers.pull(65536);
-          }
+      if(writeBuffers.nextPopSize() < 65536/8 && writeBuffers.remaining() > writeBuffers.nextPopSize()) {
+        if(writeBuffers.remaining() < 65536) {
+          currentWriteBuffer = writeBuffers.pull(writeBuffers.remaining());
         } else {
-          currentWriteBuffer = writeBuffers.pop();
+          currentWriteBuffer = writeBuffers.pull(65536);
         }
+      } else {
+        currentWriteBuffer = writeBuffers.pop();
       }
-      return currentWriteBuffer;
     }
+    return currentWriteBuffer;
   }
+
 
   @Override
   public void reduceWrite(int size) {
