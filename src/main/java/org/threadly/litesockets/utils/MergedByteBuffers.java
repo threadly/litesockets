@@ -17,13 +17,13 @@ import java.util.ArrayList;
  */
 public class MergedByteBuffers {
   protected final ArrayDeque<ByteBuffer> availableBuffers = new ArrayDeque<ByteBuffer>();
-  protected int currentSize = 0;
+  protected volatile int currentSize = 0;
 
 
   /**
-   * This method allows you to add ByteBuffers to the Consolidator.  
+   * This method allows you to add ByteBuffers to the MergedByteBuffers.  
    * All must be done in order of how you want to pull the data back out  
-   * @param buffer - The byte buffer to add to the consolidator
+   * @param buffer - The byte buffer to add to the MergedByteBuffers
    */
   public void add(ByteBuffer buffer) {
     if(buffer.hasRemaining()) {
@@ -33,6 +33,25 @@ public class MergedByteBuffers {
       availableBuffers.add(buffer);
       currentSize+=buffer.remaining();
     } 
+  }
+  
+  /**
+   * This method allows you to add a MergedByteBuffers to another MergedByteBuffers.  
+   * All must be done in order of how you want to pull the data back out  
+   * @param buffer - The byte buffer to add to the MergedByteBuffers
+   */
+  public void add(MergedByteBuffers mbb) {
+    for(ByteBuffer bb: mbb.availableBuffers) {
+      add(bb);
+    }
+    mbb.availableBuffers.clear();
+    mbb.currentSize = 0;
+  }
+  
+  public MergedByteBuffers duplicateAndClean() {
+    MergedByteBuffers mbb = new MergedByteBuffers();
+    mbb.add(this);
+    return mbb;
   }
 
   /**

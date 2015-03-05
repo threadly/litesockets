@@ -44,7 +44,7 @@ public class FakeUDPServerClient implements Closer, Reader, ClientAcceptor, Serv
 
   @Override
   public void onRead(Client client) {
-    ByteBuffer bb = client.getRead();
+    MergedByteBuffers bb = client.getRead();
     System.out.println("Got Read:"+bb);
     MergedByteBuffers mbb = clients.get(client);
     if(mbb != null) {

@@ -17,6 +17,7 @@ import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.SocketExecuterBase;
 import org.threadly.litesockets.ThreadedSocketExecuter;
+import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.test.concurrent.TestCondition;
 
 
@@ -193,7 +194,7 @@ public class TCPTests {
         return ! client.canRead();
       }
     }.blockTillTrue(5000, 100);
-    ByteBuffer readBB = client.getRead();
+    MergedByteBuffers readBB = client.getRead();
     while(readBB != null) {
       readBB = client.getRead();
     }
@@ -361,6 +362,8 @@ public class TCPTests {
     new TestCondition(){
       @Override
       public boolean get() {
+        //System.out.println(serverFC.map.get(cf).remaining()+":"+(LARGE_TEXT_BUFFER.remaining()*4));
+        
         return serverFC.map.get(cf).remaining() == LARGE_TEXT_BUFFER.remaining()*4 ;
       }
     }.blockTillTrue(5000, 100);

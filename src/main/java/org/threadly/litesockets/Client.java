@@ -6,6 +6,7 @@ import java.nio.channels.SocketChannel;
 
 import org.threadly.concurrent.SubmitterExecutorInterface;
 import org.threadly.litesockets.SocketExecuterBase.WireProtocol;
+import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
 
 /**
@@ -137,7 +138,7 @@ public interface Client {
    * 
    * @return a ByteBuffer of a read for this client.
    */
-  public ByteBuffer getRead();
+  public MergedByteBuffers getRead();
   
   /**
    * This is for the SocketExecuter.  Once a read is done from the socket this is called.

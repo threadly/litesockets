@@ -27,9 +27,9 @@ public class FakeTCPServerClient implements Reader, Closer, ClientAcceptor, Serv
   @Override
   public void onRead(Client client) {
     map.putIfAbsent(client, new MergedByteBuffers());
-    ByteBuffer bb = client.getRead();
-    System.out.println("GotData:"+bb+":"+client);
-    map.get(client).add(bb);
+    MergedByteBuffers mbb = client.getRead();
+    System.out.println("GotData:"+mbb.remaining()+":"+client);
+    map.get(client).add(mbb);
   }
 
   @Override
