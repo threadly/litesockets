@@ -38,7 +38,7 @@ public class MergedByteBuffers {
   /**
    * This method allows you to add a MergedByteBuffers to another MergedByteBuffers.  
    * All must be done in order of how you want to pull the data back out  
-   * @param buffer - The byte buffer to add to the MergedByteBuffers
+   * @param mbb - The MergedByteBuffers to put into this MergedByteBuffers
    */
   public void add(MergedByteBuffers mbb) {
     for(ByteBuffer bb: mbb.availableBuffers) {
