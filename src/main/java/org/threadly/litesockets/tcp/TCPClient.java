@@ -251,9 +251,11 @@ public class TCPClient implements Client {
   public void setMaxBufferSize(int size) {
     if(size > 0) {
       maxBufferSize = size;
-      this.seb.flagNewRead(this);
-      synchronized (writeBuffers) {
-        writeBuffers.notifyAll();
+      if(this.seb != null) {
+        this.seb.flagNewRead(this);
+        synchronized (writeBuffers) {
+          writeBuffers.notifyAll();
+        }
       }
     } else {
       throw new IllegalArgumentException("Default size must be more then 0");

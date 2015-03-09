@@ -2,10 +2,21 @@ package org.threadly.litesockets.tcp;
 
 import static org.junit.Assert.assertEquals;
 
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
 
 import org.junit.After;
 import org.junit.Before;
@@ -14,6 +25,7 @@ import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.SocketExecuterBase;
 import org.threadly.litesockets.ThreadedSocketExecuter;
+import org.threadly.litesockets.tcp.SSLClient.GenericTrustManager;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.test.concurrent.TestCondition;
 import org.threadly.util.Clock;
@@ -37,13 +49,27 @@ public class StressTest {
   SocketExecuterBase SE;
   TCPServer server;
   LocalFakeClient serverFC;
+  TrustManager[] myTMs = new TrustManager [] {new GenericTrustManager() };
+  KeyStore KS;
+  KeyManagerFactory kmf;
+  SSLContext sslCtx;
   
   @Before
-  public void start() throws IOException {
+  public void start() throws IOException, NoSuchAlgorithmException, CertificateException, KeyStoreException, KeyManagementException, UnrecoverableKeyException {
     PS = new PriorityScheduler(5, 5, 100000);
     SE = new ThreadedSocketExecuter(PS);
     SE.start();
+    KS = KeyStore.getInstance(KeyStore.getDefaultType());
+    String filename = ClassLoader.getSystemClassLoader().getResource("keystore.jks").getFile();
+    FileInputStream ksf = new FileInputStream(filename);
+    KS.load(ksf, "password".toCharArray());
+    kmf = KeyManagerFactory.getInstance("SunX509");
+    kmf.init(KS, "password".toCharArray());
+    sslCtx = SSLContext.getInstance("TLS");
+    sslCtx.init(kmf.getKeyManagers(), myTMs, null);
+
     serverFC = new LocalFakeClient(SE);
+    //server = new SSLServer("localhost", port, sslCtx);
     server = new TCPServer("localhost", port);
     server.setClientAcceptor(serverFC);
     server.setCloser(serverFC);
@@ -56,9 +82,10 @@ public class StressTest {
     PS.shutdown();
   }
   
-  @Test
+  //@Test
   public void bigWrite() throws IOException, InterruptedException {
     final AtomicInteger times = new AtomicInteger(0); 
+    //final TCPClient client = new SSLClient("localhost", port);
     final TCPClient client = new TCPClient("localhost", port);
     final LocalFakeClient clientFC = new LocalFakeClient(SE);
     clientFC.addTCPClient(client);
@@ -69,7 +96,7 @@ public class StressTest {
         long now = Clock.lastKnownForwardProgressingMillis();
         while(Clock.lastKnownForwardProgressingMillis() - now < 10000) {
           try {
-            client.writeBlocking(SMALL_TEXT_BUFFER.duplicate());
+            client.writeBlocking(LARGE_TEXT_BUFFER.duplicate());
             times.incrementAndGet();
           } catch (InterruptedException e) {
             e.printStackTrace();
@@ -101,7 +128,7 @@ public class StressTest {
         System.out.println("WRITE:"+client.getWriteBufferSize());
         System.out.println("READ:"+cf.getWriteBufferSize());
 */
-        return serverFC.map.get(cf) == ((long)SMALL_TEXT_BUFFER.remaining()*(long)times.get());
+        return serverFC.map.get(cf) == ((long)LARGE_TEXT_BUFFER.remaining()*(long)times.get());
       }
     }.blockTillTrue(20000, 100);
     //assertEquals(serverFC.map.get(c2), LARGE_TEXT_BUFFER.remaining()*times);
