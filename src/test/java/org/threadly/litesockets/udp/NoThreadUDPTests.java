@@ -6,8 +6,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.NoThreadSocketExecuter;
-import org.threadly.litesockets.ThreadedSocketExecuter;
-import org.threadly.litesockets.tcp.Utils;
 
 public class NoThreadUDPTests extends UDPTest {
   NoThreadSocketExecuter ntSE;

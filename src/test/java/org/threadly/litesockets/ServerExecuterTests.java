@@ -1,7 +1,10 @@
 package org.threadly.litesockets;
 
+import static org.junit.Assert.*;
+
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.After;
 import org.junit.Before;
@@ -30,6 +33,15 @@ public class ServerExecuterTests {
   public void stop() {
     SE.stopIfRunning();
     PS.shutdownNow();
+  }
+  
+  @Test
+  public void checkReadThread() {
+    final boolean badCheck = SE.verifyReadThread();
+    assertFalse(badCheck);
+    SE.readThreadID = Thread.currentThread().getId();
+    final boolean goodCheck = SE.verifyReadThread();
+    assertTrue(goodCheck);
   }
   
   @Test

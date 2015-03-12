@@ -10,7 +10,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
-import org.threadly.litesockets.SocketExecuterBase;
+import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.tcp.Utils;
 import org.threadly.test.concurrent.TestCondition;
@@ -19,7 +19,7 @@ public class UDPTest {
   PriorityScheduler PS;
   int port = Utils.findUDPPort();
   final String GET = "hello";
-  SocketExecuterBase SE;
+  SocketExecuterInterface SE;
   UDPServer server;
   FakeUDPServerClient serverFC;
 

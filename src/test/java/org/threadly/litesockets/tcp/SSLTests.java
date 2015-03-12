@@ -1,18 +1,10 @@
 package org.threadly.litesockets.tcp;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
-import java.security.KeyManagementException;
 import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.UnrecoverableKeyException;
-import java.security.cert.CertificateException;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -25,18 +17,19 @@ import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server;
-import org.threadly.litesockets.SocketExecuterBase;
+import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.ThreadedSocketExecuter;
-import org.threadly.litesockets.tcp.SSLClient.GenericTrustManager;
+import org.threadly.litesockets.tcp.ssl.SSLClient;
+import org.threadly.litesockets.tcp.ssl.SSLServer;
+import org.threadly.litesockets.tcp.ssl.SSLUtils;
 import org.threadly.test.concurrent.TestCondition;
 
 public class SSLTests {
-  String text = "GET / HTTP/1.1\r\nUser-Agent: curl/7.35.0\r\nHost: www.google.com\r\nAccept: */*\r\n\r\n";
   PriorityScheduler PS;
   int port = Utils.findTCPPort();
   final String GET = "hello";
-  SocketExecuterBase SE;
-  TrustManager[] myTMs = new TrustManager [] {new GenericTrustManager() };
+  SocketExecuterInterface SE;
+  TrustManager[] myTMs = new TrustManager [] {new SSLUtils.FullTrustManager() };
   KeyStore KS;
   KeyManagerFactory kmf;
   SSLContext sslCtx;
@@ -205,7 +198,6 @@ public class SSLTests {
   
   @Test(expected=IllegalStateException.class)
   public void useTCPClientPendingReads() throws IOException {
-    long start = System.currentTimeMillis();
     TCPServer server = new TCPServer("localhost", port);
     serverFC.addTCPServer(server);
     
@@ -237,5 +229,6 @@ public class SSLTests {
     }.blockTillTrue(5000);
     
     final SSLClient client = new SSLClient(tcp_client, this.sslCtx.createSSLEngine("localhost", port), true);
+    client.close();
   }
 }

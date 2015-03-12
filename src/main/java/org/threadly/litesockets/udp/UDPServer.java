@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.threadly.concurrent.KeyDistributedScheduler;
 import org.threadly.concurrent.SchedulerServiceInterface;
 import org.threadly.litesockets.Server;
-import org.threadly.litesockets.SocketExecuterBase.WireProtocol;
+import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 
 public class UDPServer extends Server {
   

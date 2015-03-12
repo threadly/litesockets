@@ -7,7 +7,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 
 import org.threadly.litesockets.Server;
-import org.threadly.litesockets.SocketExecuterBase.WireProtocol;
+import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 
 public class TCPServer extends Server {
   private final ServerSocketChannel socket;

@@ -2,11 +2,9 @@ package org.threadly.litesockets.tcp;
 
 import java.io.IOException;
 
-import org.junit.After;
 import org.junit.Before;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.NoThreadSocketExecuter;
-import org.threadly.litesockets.ThreadedSocketExecuter;
 
 public class NoThreadTCPTests extends TCPTests {
   NoThreadSocketExecuter ntSE;

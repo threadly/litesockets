@@ -13,12 +13,13 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.threadly.concurrent.AbstractService;
 import org.threadly.concurrent.ConfigurableThreadFactory;
 import org.threadly.concurrent.KeyDistributedScheduler;
 import org.threadly.concurrent.SchedulerServiceInterface;
 import org.threadly.concurrent.SingleThreadScheduler;
 
-public class ThreadedSocketExecuter extends SocketExecuterBase {
+public class ThreadedSocketExecuter extends AbstractService implements SocketExecuterInterface {
   private final SingleThreadScheduler acceptScheduler = new SingleThreadScheduler(new ConfigurableThreadFactory("SocketAcceptor", false, true, Thread.currentThread().getPriority(), null, null));
   private final SingleThreadScheduler readScheduler = new SingleThreadScheduler(new ConfigurableThreadFactory("SocketReader", false, true, Thread.currentThread().getPriority(), null, null));
   private final SingleThreadScheduler writeScheduler = new SingleThreadScheduler(new ConfigurableThreadFactory("SocketWriter", false, true, Thread.currentThread().getPriority(), null, null));
@@ -27,7 +28,7 @@ public class ThreadedSocketExecuter extends SocketExecuterBase {
   private final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
 
-  private volatile long readThreadID = 0;
+  protected volatile long readThreadID = 0;
 
   protected Selector readSelector;
   protected Selector writeSelector;
@@ -202,7 +203,7 @@ public class ThreadedSocketExecuter extends SocketExecuterBase {
 
 
   @Override
-  protected boolean verifyReadThread() {
+  public boolean verifyReadThread() {
     long tid = Thread.currentThread().getId();
     if(tid != readThreadID) {
       return false;

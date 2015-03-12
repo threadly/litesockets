@@ -10,8 +10,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.concurrent.SubmitterExecutorInterface;
 import org.threadly.litesockets.Client;
-import org.threadly.litesockets.SocketExecuterBase;
-import org.threadly.litesockets.SocketExecuterBase.WireProtocol;
+import org.threadly.litesockets.SocketExecuterInterface;
+import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.Clock;
@@ -44,7 +44,7 @@ public class TCPClient implements Client {
   protected volatile Closer closer;
   protected volatile Reader reader;
   protected volatile SubmitterExecutorInterface sei;
-  protected volatile SocketExecuterBase seb;
+  protected volatile SocketExecuterInterface seb;
   protected AtomicBoolean closed = new AtomicBoolean(false);
 
   protected final String host;
@@ -165,9 +165,9 @@ public class TCPClient implements Client {
 
   /**
    * This is used by SSLClient to close the TCPClient object w/o closing its socket.
-   * We need to do this to make the TCPClient unuseable.
+   * We need to do this to make the TCPClient unusable.
    */
-  protected void fakeClose() {
+  public void markClosed() {
     this.closed.set(true);
     if(seb != null) {
       this.seb.removeClient(this);
@@ -236,12 +236,12 @@ public class TCPClient implements Client {
   }
 
   @Override
-  public SocketExecuterBase getClientsSocketExecuter() {
+  public SocketExecuterInterface getClientsSocketExecuter() {
     return seb;
   }
   
   @Override
-  public void setClientsSocketExecuter(SocketExecuterBase seb) {
+  public void setClientsSocketExecuter(SocketExecuterInterface seb) {
     if(seb != null) {
       this.seb = seb;
     }

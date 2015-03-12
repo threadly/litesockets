@@ -15,7 +15,7 @@ import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.Reader;
-import org.threadly.litesockets.SocketExecuterBase;
+import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.test.concurrent.TestCondition;
 
@@ -36,7 +36,7 @@ public class TCPTests {
   PriorityScheduler PS;
   int port = Utils.findTCPPort();
   final String GET = "hello";
-  SocketExecuterBase SE;
+  SocketExecuterInterface SE;
   TCPServer server;
   FakeTCPServerClient serverFC;
   
@@ -124,6 +124,7 @@ public class TCPTests {
         return serverFC.map.size() == 1;
       }
     }.blockTillTrue(5000, 100);
+    client.close();
     server.close();
   }
   
@@ -202,11 +203,11 @@ public class TCPTests {
   
   @Test(expected=ClosedChannelException.class)
   public void clientBadSocket1() throws IOException, InterruptedException {
-    ByteBuffer bb = ByteBuffer.wrap("TEST111".getBytes());
     SocketChannel cs = SocketChannel.open(new InetSocketAddress("localhost", port));
     cs.close();
     TCPClient client = new TCPClient(cs);
     server.close();
+    client.close();
   }  
   
   @Test
@@ -215,6 +216,7 @@ public class TCPTests {
     cs.configureBlocking(true);
     TCPClient client = new TCPClient(cs);
     server.close();
+    client.close();
   }
   
   @Test

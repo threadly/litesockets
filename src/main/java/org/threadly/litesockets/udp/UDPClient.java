@@ -9,8 +9,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.concurrent.SubmitterExecutorInterface;
 import org.threadly.litesockets.Client;
-import org.threadly.litesockets.SocketExecuterBase;
-import org.threadly.litesockets.SocketExecuterBase.WireProtocol;
+import org.threadly.litesockets.SocketExecuterInterface;
+import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.Clock;
@@ -34,7 +34,7 @@ public class UDPClient implements Client {
   protected volatile Closer closer;
   protected volatile Reader reader;
   protected volatile SubmitterExecutorInterface sei;
-  protected volatile SocketExecuterBase seb;
+  protected volatile SocketExecuterInterface seb;
   protected AtomicBoolean closed = new AtomicBoolean(false);
 
   //protected final String host;
@@ -243,12 +243,12 @@ public class UDPClient implements Client {
   }
 
   @Override
-  public SocketExecuterBase getClientsSocketExecuter() {
+  public SocketExecuterInterface getClientsSocketExecuter() {
     return seb;
   }
 
   @Override
-  public void setClientsSocketExecuter(SocketExecuterBase cse) {
+  public void setClientsSocketExecuter(SocketExecuterInterface cse) {
     if(cse == null) {
       seb = cse;
     }

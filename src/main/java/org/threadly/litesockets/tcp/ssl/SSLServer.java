@@ -1,4 +1,4 @@
-package org.threadly.litesockets.tcp;
+package org.threadly.litesockets.tcp.ssl;
 
 import java.io.IOException;
 import java.nio.channels.SelectableChannel;
@@ -7,6 +7,8 @@ import java.nio.channels.SocketChannel;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
+
+import org.threadly.litesockets.tcp.TCPServer;
 
 public class SSLServer extends TCPServer {
   private final SSLContext sctx;
@@ -27,9 +29,7 @@ public class SSLServer extends TCPServer {
     int port = ((SocketChannel)c).socket().getPort();
     final SSLEngine ssle = sctx.createSSLEngine(remote, port);
     try {
-      System.out.println("Waiting Here!!");
       final SSLClient client = new SSLClient((SocketChannel)c, ssle, false);
-      System.out.println("Done Waiting!!");
       if(this.getClientAcceptor() != null) {
         getClientAcceptor().accept(client);
       }

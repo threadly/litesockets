@@ -5,7 +5,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 
 import org.threadly.concurrent.SubmitterExecutorInterface;
-import org.threadly.litesockets.SocketExecuterBase.WireProtocol;
+import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 import org.threadly.litesockets.utils.SimpleByteStats;
 
 /**
@@ -90,8 +90,8 @@ public interface Client {
    * 
    * @return the SocketExecuter set for this client. if none, null is returned.
    */
-  public SocketExecuterBase getClientsSocketExecuter();
-  public void setClientsSocketExecuter(SocketExecuterBase cse);
+  public SocketExecuterInterface getClientsSocketExecuter();
+  public void setClientsSocketExecuter(SocketExecuterInterface cse);
   
   /**
    * This is used to get the current Closer for this client.

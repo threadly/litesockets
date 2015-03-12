@@ -1,7 +1,6 @@
 package org.threadly.litesockets.tcp;
 
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.security.KeyStore;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -11,9 +10,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.Client;
-import org.threadly.litesockets.Server;
 import org.threadly.litesockets.NoThreadSocketExecuter;
-import org.threadly.litesockets.ThreadedSocketExecuter;
+import org.threadly.litesockets.Server;
 
 public class NoThreadSSLTests extends SSLTests {
   NoThreadSocketExecuter ntSE;

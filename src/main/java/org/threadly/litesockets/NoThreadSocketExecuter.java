@@ -12,6 +12,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.threadly.concurrent.AbstractService;
 import org.threadly.concurrent.NoThreadScheduler;
 import org.threadly.concurrent.SchedulerServiceInterface;
 
@@ -24,7 +25,7 @@ import org.threadly.concurrent.SchedulerServiceInterface;
  * This is generally the implementation used by clients.  It can be used for servers
  * but only when not servicing many connections at once.  How many connections is hardware
  * and OS defendant.  For an average multi-core x86 linux server I a couple 
- * hundered connections would be its limit.
+ * hundred connections would be its limit.
  * 
  * It should also be noted that all client read/close callbacks happen on the calling
  * thread.  This is not normally a problem unless you are running the Server and client
@@ -33,7 +34,7 @@ import org.threadly.concurrent.SchedulerServiceInterface;
  * @author lwahlmeier
  *
  */
-public class NoThreadSocketExecuter extends SocketExecuterBase {
+public class NoThreadSocketExecuter extends AbstractService implements SocketExecuterInterface {
   private final NoThreadScheduler scheduler = new NoThreadScheduler(false);
   private final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
@@ -97,7 +98,6 @@ public class NoThreadSocketExecuter extends SocketExecuterBase {
                 if(server.getServerType() == WireProtocol.TCP) {
                   server.getSelectableChannel().register(selector, SelectionKey.OP_ACCEPT);
                 } else if(server.getServerType() == WireProtocol.UDP) {
-                  System.out.println("new UDP Server");
                   server.getSelectableChannel().register(selector, SelectionKey.OP_READ);
                 }
                 selector.wakeup();
@@ -120,7 +120,7 @@ public class NoThreadSocketExecuter extends SocketExecuterBase {
   }
 
   @Override
-  protected boolean verifyReadThread() {
+  public boolean verifyReadThread() {
     return true;
   }
 
@@ -252,7 +252,6 @@ public class NoThreadSocketExecuter extends SocketExecuterBase {
   }
 
   private void doRead(SelectableChannel sc) {
-    System.out.println("UDP Server Read");
     final Client client = clients.get(sc);
     if(client != null) {
       try {
@@ -280,7 +279,6 @@ public class NoThreadSocketExecuter extends SocketExecuterBase {
         client.close();
       }
     }else {
-      System.out.println("NEW");
       final Server server = servers.get(sc);
       if(server.getServerType() == WireProtocol.UDP) {
         server.callAcceptor((DatagramChannel)server.getSelectableChannel());
@@ -308,8 +306,6 @@ public class NoThreadSocketExecuter extends SocketExecuterBase {
 
   }
 
-
-
   private class AddToSelector implements Runnable {
     Client local_client;
     Selector local_selector;
@@ -335,5 +331,4 @@ public class NoThreadSocketExecuter extends SocketExecuterBase {
       }
     }
   }
-
 }

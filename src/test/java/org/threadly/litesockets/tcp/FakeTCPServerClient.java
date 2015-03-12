@@ -10,17 +10,16 @@ import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server;
 import org.threadly.litesockets.Server.ClientAcceptor;
 import org.threadly.litesockets.Server.ServerCloser;
-import org.threadly.litesockets.SocketExecuterBase;
-import org.threadly.litesockets.ThreadedSocketExecuter;
+import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 
 public class FakeTCPServerClient implements Reader, Closer, ClientAcceptor, ServerCloser{
-  public SocketExecuterBase se;
+  public SocketExecuterInterface se;
   public ConcurrentHashMap<Client, MergedByteBuffers> map = new ConcurrentHashMap<Client, MergedByteBuffers>();
   public ArrayList<Client> clients = new ArrayList<Client>();
   public ArrayList<Server> servers = new ArrayList<Server>();
 
-  public FakeTCPServerClient(SocketExecuterBase se) {
+  public FakeTCPServerClient(SocketExecuterInterface se) {
     this.se = se;
   }
 

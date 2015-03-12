@@ -4,7 +4,7 @@ import java.nio.channels.SelectableChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.concurrent.SchedulerServiceInterface;
-import org.threadly.litesockets.SocketExecuterBase.WireProtocol;
+import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 
 /**
  * This is the main Server object for litesockets.  
@@ -23,7 +23,7 @@ public abstract class Server {
   
   private volatile ServerCloser closer;
   protected volatile SchedulerServiceInterface sei;
-  protected volatile SocketExecuterBase se;
+  protected volatile SocketExecuterInterface se;
   protected AtomicBoolean closed = new AtomicBoolean(false);
   
   /**
@@ -40,7 +40,7 @@ public abstract class Server {
    * 
    * @param se SocketExecuter to set.
    */
-  protected void setServerExecuter(SocketExecuterBase se) {
+  protected void setServerExecuter(SocketExecuterInterface se) {
     this.se = se;
   }
   
@@ -49,7 +49,7 @@ public abstract class Server {
    * 
    * @return the current SocketExecuter for this Server.
    */
-  protected SocketExecuterBase getServerExecuter() {
+  protected SocketExecuterInterface getServerExecuter() {
     return this.se;
   }
   
