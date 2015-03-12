@@ -44,7 +44,12 @@ public class NoThreadSocketExecuter extends SocketExecuterBase {
    * 
    */
   public NoThreadSocketExecuter() {
-
+  }
+  
+  public void wakeup() {
+    if(isRunning()) {
+      selector.wakeup();
+    }
   }
 
   @Override
@@ -97,7 +102,6 @@ public class NoThreadSocketExecuter extends SocketExecuterBase {
                 if(server.getServerType() == WireProtocol.TCP) {
                   server.getSelectableChannel().register(selector, SelectionKey.OP_ACCEPT);
                 } else if(server.getServerType() == WireProtocol.UDP) {
-                  System.out.println("new UDP Server");
                   server.getSelectableChannel().register(selector, SelectionKey.OP_READ);
                 }
                 selector.wakeup();
@@ -175,7 +179,9 @@ public class NoThreadSocketExecuter extends SocketExecuterBase {
   @Override
   protected void shutdownService() {
     try {
-      selector.close();
+      if(selector != null && selector.isOpen()) {
+        selector.close();
+      }
     } catch (IOException e) {
 
     }
@@ -216,6 +222,7 @@ public class NoThreadSocketExecuter extends SocketExecuterBase {
           selector.select(delay);
         }
         for(SelectionKey key: selector.selectedKeys()) {
+          try {
           if(key.isAcceptable()) {
             ServerSocketChannel server = (ServerSocketChannel) key.channel();
             doAccept(server);
@@ -224,6 +231,9 @@ public class NoThreadSocketExecuter extends SocketExecuterBase {
           } else if(key.isWritable()) {
             SocketChannel sc = (SocketChannel)key.channel();
             doWrite(sc);
+          }
+          } catch(CancelledKeyException e) {
+            //Key could be cancelled at any point...
           }
         }
       } catch (IOException e) {
@@ -252,7 +262,6 @@ public class NoThreadSocketExecuter extends SocketExecuterBase {
   }
 
   private void doRead(SelectableChannel sc) {
-    System.out.println("UDP Server Read");
     final Client client = clients.get(sc);
     if(client != null) {
       try {
@@ -280,7 +289,6 @@ public class NoThreadSocketExecuter extends SocketExecuterBase {
         client.close();
       }
     }else {
-      System.out.println("NEW");
       final Server server = servers.get(sc);
       if(server.getServerType() == WireProtocol.UDP) {
         server.callAcceptor((DatagramChannel)server.getSelectableChannel());

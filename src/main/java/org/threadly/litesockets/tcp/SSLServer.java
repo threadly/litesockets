@@ -27,9 +27,7 @@ public class SSLServer extends TCPServer {
     int port = ((SocketChannel)c).socket().getPort();
     final SSLEngine ssle = sctx.createSSLEngine(remote, port);
     try {
-      System.out.println("Waiting Here!!");
       final SSLClient client = new SSLClient((SocketChannel)c, ssle, false);
-      System.out.println("Done Waiting!!");
       if(this.getClientAcceptor() != null) {
         getClientAcceptor().accept(client);
       }

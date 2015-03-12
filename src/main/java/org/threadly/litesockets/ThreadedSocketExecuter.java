@@ -146,6 +146,7 @@ public class ThreadedSocketExecuter extends SocketExecuterBase {
       readScheduler.execute(reader);
       writeScheduler.execute(writer);
     } catch (IOException e) {
+      startIfNotStarted();
       throw new RuntimeException(e);
     }
 
@@ -199,7 +200,6 @@ public class ThreadedSocketExecuter extends SocketExecuterBase {
   public int getServerCount() {
     return servers.size();
   }
-
 
   @Override
   protected boolean verifyReadThread() {
