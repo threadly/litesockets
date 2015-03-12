@@ -46,6 +46,12 @@ public class NoThreadSocketExecuter extends SocketExecuterBase {
   public NoThreadSocketExecuter() {
   }
   
+  /**
+   * This is used to wakeup the selector assuming it was called with a timeout on it.
+   * Most all methods in this class that need to do a wakeup do it automatically, but
+   * there are situations where you might want to wake up the thread we are blocked on 
+   * manually.
+   */
   public void wakeup() {
     if(isRunning()) {
       selector.wakeup();
