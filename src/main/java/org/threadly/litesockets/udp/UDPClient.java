@@ -264,18 +264,18 @@ public class UDPClient implements Client {
   }
 
   @Override
-  public ByteBuffer getRead() {
-    ByteBuffer bb = null;
+  public MergedByteBuffers getRead() {
+    MergedByteBuffers mbb = null;
     synchronized(readBuffers) {
       if(readBuffers.remaining() == 0) {
         return null;
       }
-      bb = readBuffers.pull(readBuffers.remaining());
+      mbb = readBuffers.duplicateAndClean();
     }
-    if(getReadBufferSize() + bb.remaining() >= maxBufferSize &&  getReadBufferSize() < maxBufferSize) {
+    if(getReadBufferSize() + mbb.remaining() >= maxBufferSize) {
       seb.flagNewRead(this);
     }
-    return bb;
+    return mbb;
   }
 
   @Override

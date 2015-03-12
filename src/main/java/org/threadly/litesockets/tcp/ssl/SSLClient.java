@@ -184,9 +184,9 @@ public class SSLClient extends TCPClient implements Reader{
   }
   
   @Override
-  public ByteBuffer getRead() {
+  public MergedByteBuffers getRead() {
     synchronized(decryptedReadList) {
-      return decryptedReadList.pop();
+      return decryptedReadList.duplicateAndClean();
     }
   }
   
@@ -198,32 +198,36 @@ public class SSLClient extends TCPClient implements Reader{
   @Override
   public void onRead(Client client) {
     try {
-      ByteBuffer client_buffer = super.getRead();
-      while(client_buffer.hasRemaining()) {
-        if(client_buffer.remaining() > encryptedReadBuffer.remaining()) {
-          byte[] ba = new byte[encryptedReadBuffer.remaining()];
-          client_buffer.get(ba);
-          encryptedReadBuffer.put(ba);
-        } else {
-          encryptedReadBuffer.put(client_buffer);
-        }
-        while(encryptedReadBuffer.position() > 0) {
-          encryptedReadBuffer.flip();
-          ByteBuffer dbb = getDecryptedByteBuffer();
-          ByteBuffer newBB = dbb.duplicate();
-          @SuppressWarnings("unused")
-          SSLEngineResult res = ssle.unwrap(encryptedReadBuffer, dbb);
-          newBB.limit(dbb.position());
-          encryptedReadBuffer.compact();
-          if(newBB.hasRemaining()) {
-            if(sslReader != null) {
-              synchronized(decryptedReadList) {
-                decryptedReadList.add(newBB);
-              }
-              sslReader.onRead(this);
-            }
+      MergedByteBuffers client_mbb = super.getRead();
+      ByteBuffer client_buffer;
+      while(client_mbb.remaining() > 0){
+        client_buffer = client_mbb.pop();
+        while(client_buffer.hasRemaining()) {
+          if(client_buffer.remaining() > encryptedReadBuffer.remaining()) {
+            byte[] ba = new byte[encryptedReadBuffer.remaining()];
+            client_buffer.get(ba);
+            encryptedReadBuffer.put(ba);
           } else {
-            break;
+            encryptedReadBuffer.put(client_buffer);
+          }
+          while(encryptedReadBuffer.position() > 0) {
+            encryptedReadBuffer.flip();
+            ByteBuffer dbb = getDecryptedByteBuffer();
+            ByteBuffer newBB = dbb.duplicate();
+            @SuppressWarnings("unused")
+            SSLEngineResult res = ssle.unwrap(encryptedReadBuffer, dbb);
+            newBB.limit(dbb.position());
+            encryptedReadBuffer.compact();
+            if(newBB.hasRemaining()) {
+              if(sslReader != null) {
+                synchronized(decryptedReadList) {
+                  decryptedReadList.add(newBB);
+                }
+                sslReader.onRead(this);
+              }
+            } else {
+              break;
+            }
           }
         }
       }
