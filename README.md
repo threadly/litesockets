@@ -88,34 +88,35 @@ writes are ByteBuffers only which means they are byte arrays or chunks of data. 
 
 ```java
     final String hello = "hello";
-    
+
     //We use a concurrentMap since the Servers Accept callback can happen on any thread in the threadpool
     final ConcurrentHashMap<Client, MergedByteBuffers> clients = new ConcurrentHashMap<Client, MergedByteBuffers>();
-    
+
     //This is the SocketExecuter this runs the selector and adds reads/writes to the clients
     //as well as runs the call backs.  By default this is a singleThreadPool, a threadpool
     //Can be passed in if more threads are needed.
     final ThreadedSocketExecuter TSE = new ThreadedSocketExecuter();
     TSE.start();
-    
+
     //We create a listen socket here.  The socket is opened but nothing can be accepted
     //Untill we add it to the SocketExecuter.
     TCPServer server = new TCPServer("localhost", 5555);
-    
+
     //Here we set the ClientAcceptor callback.  This is what is called when a new client connects to the server.
     server.setClientAcceptor(new ClientAcceptor() {
       @Override
       public void accept(final Client newClient) {
         //Here we set the new clients Reader which adds new Reads to a MergedByteBuffer
         //This callback for the client will happen in a single threaded manor.
-        newClient.setReader(new Reader() {
+        final TCPClient tc = (TCPClient)newClient;
+        tc.setReader(new Reader() {
           @Override
           public void onRead(Client client) {
             clients.get(client).add(client.getRead());
           }});
         //Here we set the closer for the client.  This will be called only once when the socket is closed.
         //This also happens in a single threaded manor and should be after all the reads are processed for the client.
-        newClient.setCloser(new Closer() {
+        tc.setCloser(new Closer() {
           @Override
           public void onClose(Client client) {
             MergedByteBuffers mbb = clients.remove(client);
@@ -124,19 +125,19 @@ writes are ByteBuffers only which means they are byte arrays or chunks of data. 
               System.out.println("Client Wrote:"+mbb.getAsString(mbb.remaining()));
             }
           }});
-        
+
         //Add the client to the map.  Must do this before we add to the TSE or
         //We would get NPE when looking it up in the map.
         clients.put(newClient, new MergedByteBuffers());
-        
+
         //Add the client to the SocketExecuter (we can get reads at this point.
         TSE.addClient(newClient);
-        
+
         //Write hello to the socket.  The forceWrite will finish the write to the client
         //object w/o caring about buffer size.  The Socket executer will deal with getting it
         //onto the socket.  This could be used with caution as you could over fill memory if you do this to fast.
         newClient.writeForce(ByteBuffer.wrap(hello.getBytes()));
-        
+
         //Once the client is fully setup we schedule a close on the client for 2 seconds out.
         TSE.getThreadScheduler().schedule(new Runnable() {
           @Override
@@ -144,12 +145,13 @@ writes are ByteBuffers only which means they are byte arrays or chunks of data. 
             newClient.close();
           }}, 2000);
      }});
-    
+
     //Here we add the server. At this point we can accept client connections.
     TSE.addServer(server);
-    
+
     //A real server would not sleep here.
     Thread.sleep(10000);
+
 ```
 
 
