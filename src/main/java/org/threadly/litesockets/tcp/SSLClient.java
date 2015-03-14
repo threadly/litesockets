@@ -184,15 +184,15 @@ public class SSLClient extends TCPClient implements Reader{
         select.select(100);
       }
       channel.register(select, 0);
-
-      while(hs == NEED_UNWRAP ) {
+      
+      if(hs == NEED_UNWRAP ) {
         hs = doHandShakeRead(netDataBuffer, ePeerAppData, ssle, channel);
         if(hs == NEED_TASK) {
           runTasks();
           hs = ssle.getHandshakeStatus();
         }
       }
-      while(hs ==  NEED_WRAP) {
+      if(hs ==  NEED_WRAP) {
         hs = doHandShakeWrite(appDataBuffer, eNetworkData, ssle, channel);
         if(hs == NEED_TASK) {
           runTasks();
