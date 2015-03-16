@@ -16,11 +16,13 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLEngineResult;
+import javax.net.ssl.SSLEngineResult.HandshakeStatus;
 import javax.net.ssl.SSLEngineResult.Status;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLHandshakeException;
@@ -54,20 +56,21 @@ public class SSLClient extends TCPClient implements Reader{
   public final MergedByteBuffers tmpWriteBuffers = new MergedByteBuffers();
   public final SSLEngine ssle;
   private final SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>();
-  private final AtomicBoolean doneHandshake = new AtomicBoolean(false);
-  private volatile long handShakeStart = -1;
-  
+  private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
+  private final AtomicBoolean finishedHandshake = new AtomicBoolean(false);
+
+
   private ByteBuffer writeBuffer;
-  
+
   private final ByteBuffer encryptedReadBuffer;
   private ByteBuffer decryptedReadBuffer;
-  
+
   private volatile Reader sslReader; 
 
   public static void disableSNI() {
     System.setProperty ("jsse.enableSNIExtension", "false");
   }
-  
+
   static {
     try {
       //We dont allow SSL by default connections anymore
@@ -83,7 +86,7 @@ public class SSLClient extends TCPClient implements Reader{
   public SSLClient(String host, int port) throws IOException {
     this(host, port, OPEN_SSL_CTX.createSSLEngine(host, port));
   }
-  
+
   public SSLClient(String host, int port, SSLEngine ssle) throws IOException {
     this(host, port, ssle, TCPClient.DEFAULT_SOCKET_TIMEOUT);
   }
@@ -91,7 +94,7 @@ public class SSLClient extends TCPClient implements Reader{
   public SSLClient(String host, int port, SSLEngine ssle, int timeout) throws IOException {
     this(host, port, ssle, TCPClient.DEFAULT_SOCKET_TIMEOUT, true);
   }
-  
+
   public SSLClient(String host, int port, SSLEngine ssle, int timeout, boolean doHandshake) throws IOException {
     super(host, port, timeout);
     this.ssle = ssle;
@@ -106,7 +109,7 @@ public class SSLClient extends TCPClient implements Reader{
   public SSLClient(SocketChannel client, SSLEngine ssle, boolean clientSSL) throws IOException {
     this(client, ssle, clientSSL, true);
   }
-  
+
   public SSLClient(SocketChannel client, SSLEngine ssle, boolean clientSSL, boolean doHandshake) throws IOException {
     super(client);
     this.ssle = ssle;
@@ -137,24 +140,23 @@ public class SSLClient extends TCPClient implements Reader{
     super.setReader(this);
     encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+50);
   }
-  
+
   private ByteBuffer getDecryptedByteBuffer() {
     if(decryptedReadBuffer == null || decryptedReadBuffer.remaining() < ssle.getSession().getApplicationBufferSize()*1.5) {
       decryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getApplicationBufferSize()*3);
     }
     return decryptedReadBuffer;
   }
-  
+
   public boolean isEncrypted() {
-    if(doneHandshake.get() && ssle.getSession().getProtocol().equals("NONE")) {
+    if(startedHandshake.get() && ssle.getSession().getProtocol().equals("NONE")) {
       return false;
     }
     return true;
   }
-  
+
   public ListenableFuture<SSLSession> doHandShake() throws IOException {
-    if(doneHandshake.compareAndSet(false, true)) {
-      handShakeStart = Clock.lastKnownForwardProgressingMillis(); 
+    if(startedHandshake.compareAndSet(false, true)) {
       ssle.beginHandshake();
       if(ssle.getHandshakeStatus() == NEED_WRAP) {
         writeForce(ByteBuffer.allocate(0));
@@ -172,16 +174,16 @@ public class SSLClient extends TCPClient implements Reader{
     }
     return handshakeFuture;
   }
-  
+
   @Override
   protected void setThreadExecuter(SubmitterExecutorInterface sei) {
     super.setThreadExecuter(sei);
   }
-  
+
   @Override
   protected void setSocketExecuter(SocketExecuterBase ce) {
     super.setSocketExecuter(ce);
-    if(doneHandshake.get() && !handshakeFuture.isDone()) {
+    if(startedHandshake.get() && !handshakeFuture.isDone()) {
       ce.getThreadScheduler().schedule(new Runnable() {
         @Override
         public void run() {
@@ -192,7 +194,7 @@ public class SSLClient extends TCPClient implements Reader{
         }}, setTimeout);
     }
   }
-  
+
   private void runTasks() {
     SSLEngineResult.HandshakeStatus hs = ssle.getHandshakeStatus();
     while(hs == NEED_TASK) {
@@ -201,66 +203,72 @@ public class SSLClient extends TCPClient implements Reader{
       hs = ssle.getHandshakeStatus();
     }
   }
-  
+
   private ByteBuffer getAppWriteBuffer() {
     if(this.writeBuffer == null || this.writeBuffer.remaining() < ssle.getSession().getPacketBufferSize()*1.5) {
       this.writeBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()*3);
     }
     return writeBuffer;
   }
-  
+
   @Override
   public void writeForce(ByteBuffer buffer) {
-    if (!this.isClosed()) {
-      if(this.doneHandshake.get()) {
-        synchronized(ssle) {
-          if(ssle.getHandshakeStatus() != NOT_HANDSHAKING && buffer.remaining() > 0) {
+    if (!this.isClosed() && startedHandshake.get()) {
+      if(!finishedHandshake.get()&& buffer.remaining() != 0) {
+        synchronized(tmpWriteBuffers) {
+          if(!finishedHandshake.get()) {
             this.tmpWriteBuffers.add(buffer);
             return;
           }
-          ByteBuffer oldBB = buffer.duplicate();
-          ByteBuffer newBB; 
-          ByteBuffer tmpBB;
-          while (ssle.getHandshakeStatus() == NEED_WRAP || oldBB.remaining() > 0) {
-            newBB = getAppWriteBuffer();
-            try {
-              tmpBB = newBB.duplicate();
-              SSLEngineResult res = ssle.wrap(oldBB, newBB);
+        }
+      } else if(finishedHandshake.get() && buffer.remaining() == 0) {
+        synchronized(tmpWriteBuffers) {
+          if(tmpWriteBuffers.remaining() > 0) {
+            buffer = tmpWriteBuffers.pull(tmpWriteBuffers.remaining());
+          }
+        }
+      }
+      synchronized(ssle) {
+        boolean gotFinished = false;
+        ByteBuffer oldBB = buffer.duplicate();
+        ByteBuffer newBB; 
+        ByteBuffer tmpBB;
+        while (ssle.getHandshakeStatus() == NEED_WRAP || oldBB.remaining() > 0) {
+          newBB = getAppWriteBuffer();
+          try {
+            tmpBB = newBB.duplicate();
+            SSLEngineResult res = ssle.wrap(oldBB, newBB);
+
+            if(res.getHandshakeStatus() == FINISHED) {
+              gotFinished = true;
+            } else {
+              while (ssle.getHandshakeStatus() == NEED_TASK) {
+                runTasks();
+              }
+            }
+            if(tmpBB.hasRemaining()) {
               tmpBB.limit(newBB.position());
-              //System.out.println(this+"WROTE:"+tmpBB);
               super.writeForce(tmpBB);
-              if(res.getHandshakeStatus() == FINISHED) {
-                ByteBuffer localBB = null;
-                synchronized(tmpWriteBuffers) {
-                  if(tmpWriteBuffers.remaining() > 0) {
-                    localBB = (tmpWriteBuffers.pull(tmpWriteBuffers.remaining()));
-                  }
-                }
-                if(localBB != null && localBB.remaining() > 0) {
-                  oldBB = localBB;
-                }
-                if(!handshakeFuture.isDone()) {
-                  handshakeFuture.setResult(ssle.getSession());
-                }
-              }else {
-                while (ssle.getHandshakeStatus() == NEED_TASK) {
-                  runTasks();
-                }
-              }
-            } catch(Exception e) {
-              if(!handshakeFuture.isDone()) {
-                handshakeFuture.setFailure(e);
-                this.close();
-              }
-              break;
+            }
+          } catch(Exception e) {
+            if(!handshakeFuture.isDone()) {
+              handshakeFuture.setFailure(e);
+              this.close();
+            }
+            break;
+          }
+        }
+        if(gotFinished) {
+          if(finishedHandshake.compareAndSet(false, true)) {
+            writeForce(ByteBuffer.allocate(0));
+            if(!handshakeFuture.isDone()) {
+              handshakeFuture.setResult(ssle.getSession());
             }
           }
-
         }
-      } else {
-        System.out.println(this+"ONWRITE:NOSSL");
-        super.writeForce(buffer);
       }
+    } else if(!isClosed() && !startedHandshake.get()){
+      super.writeForce(buffer);
     }
   }
   
@@ -270,7 +278,7 @@ public class SSLClient extends TCPClient implements Reader{
       return decryptedReadList.pop();
     }
   }
-  
+
   @Override
   public void setReader(Reader reader) {
     this.sslReader = reader;
@@ -279,7 +287,7 @@ public class SSLClient extends TCPClient implements Reader{
   @Override
   public void onRead(Client client) {
     ByteBuffer client_buffer = super.getRead();
-    if(this.doneHandshake.get()) {
+    if(this.startedHandshake.get()) {
       try {
         while(client_buffer.hasRemaining()) {
           if(client_buffer.remaining() > encryptedReadBuffer.remaining()) {
@@ -295,37 +303,22 @@ public class SSLClient extends TCPClient implements Reader{
             ByteBuffer newBB = dbb.duplicate();
 
             SSLEngineResult res = ssle.unwrap(encryptedReadBuffer, dbb);
-            if(res.getHandshakeStatus() == FINISHED) {
-              ByteBuffer localBB = null;
-              synchronized(tmpWriteBuffers) {
-                if(tmpWriteBuffers.remaining() > 0) {
-                  localBB = (tmpWriteBuffers.pull(tmpWriteBuffers.remaining()));
-                }
-              }
-              if(localBB != null && localBB.remaining() > 0) {
-                writeForce(localBB);
-              }
-              if(!handshakeFuture.isDone()) {
-                handshakeFuture.setResult(ssle.getSession());
-              }
-            } else if (ssle.getHandshakeStatus() != NOT_HANDSHAKING){
-              while (ssle.getHandshakeStatus() == NEED_TASK) {
-                runTasks();
-              }
-              if(ssle.getHandshakeStatus() == NEED_WRAP) {
-                writeForce(ByteBuffer.allocate(0));
-              }
+            //We have to check both each time till complete
+            if(! handshakeFuture.isDone()) {
+              processHandshake(res.getHandshakeStatus());
+              processHandshake(ssle.getHandshakeStatus());
             }
+
             newBB.limit(dbb.position());
             encryptedReadBuffer.compact();
             if(newBB.hasRemaining()) {
-              if(sslReader != null) {
-                synchronized(decryptedReadList) {
-                  decryptedReadList.add(newBB);
-                }
-                sslReader.onRead(this);
+              Reader lreader = sslReader;
+              if(lreader != null) {
+                //Sync not needed here, this is only accessed by ReadThread.
+                decryptedReadList.add(newBB);
+                lreader.onRead(this);
               }
-            } else if (res.getStatus() == Status.BUFFER_UNDERFLOW || encryptedReadBuffer.remaining() == 0 || (ssle.getHandshakeStatus() != NOT_HANDSHAKING & ssle.getHandshakeStatus() != NEED_UNWRAP)){
+            } else if (res.getStatus() == Status.BUFFER_UNDERFLOW || encryptedReadBuffer.remaining() == 0){
               break;
             }
           }
@@ -338,12 +331,37 @@ public class SSLClient extends TCPClient implements Reader{
         this.close();
       }
     } else {
-      System.out.println(this+"ONREAD:NOSSL");
       decryptedReadList.add(client_buffer);
       sslReader.onRead(this);
     }
   }
-  
+
+  private void processHandshake(HandshakeStatus status) {
+    switch(status) {
+    case FINISHED: {
+      if(this.finishedHandshake.compareAndSet(false, true)){
+        writeForce(ByteBuffer.allocate(0));
+        if(!handshakeFuture.isDone()) {
+          handshakeFuture.setResult(ssle.getSession());
+        }
+      }
+    } break;
+    case NEED_TASK: {
+      while (ssle.getHandshakeStatus() == NEED_TASK) {
+        runTasks();
+      }
+    } break;
+    case NEED_WRAP: {
+      writeForce(ByteBuffer.allocate(0));
+    } break;
+    case NOT_HANDSHAKING:
+    default: {
+
+    } break;
+
+    }
+  }
+
 
   public static class GenericTrustManager implements X509TrustManager, TrustManager {
 
@@ -364,8 +382,8 @@ public class SSLClient extends TCPClient implements Reader{
       return new X509Certificate[0];
     }
   }
-  
-  
+
+
   /**
    * Java 7 introduced SNI by default when you establish SSl connections.
    * The problem is there is no way to turn it off or on at a per connection level.
@@ -378,7 +396,7 @@ public class SSLClient extends TCPClient implements Reader{
   public static void enableSNI() {
     System.setProperty ("jsse.enableSNIExtension", "true");
   }
-  
+
   /**
    * Java 7 introduced SNI by default when you establish SSl connections.
    * The problem is there is no way to turn it off or on at a per connection level.

@@ -106,8 +106,9 @@ public class SSLTests {
       }
     }.blockTillTrue(5000);
     Thread.sleep(100);
+    System.out.println("Write");
     sclient.writeForce(TCPTests.SMALL_TEXT_BUFFER.duplicate());
-    
+    System.out.println("Write Done");
     new TestCondition(){
       @Override
       public boolean get() {
@@ -172,8 +173,8 @@ public class SSLTests {
     new TestCondition(){
       @Override
       public boolean get() {
-        System.out.println(serverFC.map.get(client).remaining()+":"+(TCPTests.LARGE_TEXT_BUFFER.remaining()*3)+":"+sclient.tmpWriteBuffers.remaining());
-        System.out.println();
+        //System.out.println(serverFC.map.get(client).remaining()+":"+(TCPTests.LARGE_TEXT_BUFFER.remaining()*3));
+        //System.out.println();
         return serverFC.map.get(client).remaining() == TCPTests.LARGE_TEXT_BUFFER.remaining()*3;
       }
     }.blockTillTrue(5000, 500);
@@ -225,7 +226,6 @@ public class SSLTests {
         return serverFC.clients.size() == 1;
       }
     }.blockTillTrue(5000);
-    //Thread.sleep(1000);
     //System.out.println("Writting");
     sclient.writeForce(TCPTests.SMALL_TEXT_BUFFER.duplicate());
     serverFC.addTCPClient(client);
