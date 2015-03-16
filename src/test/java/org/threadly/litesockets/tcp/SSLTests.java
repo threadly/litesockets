@@ -111,7 +111,22 @@ public class SSLTests {
     assertEquals(TCPTests.SMALL_TEXT, st);
     
   }
-  
+
+  @Test
+  public void sslClientTimeout() throws IOException {
+    TCPServer server = new TCPServer("localhost", port);
+    serverFC.addTCPServer(server);
+    long start = System.currentTimeMillis();
+    try {
+      final SSLClient client = new SSLClient("localhost", port, this.sslCtx.createSSLEngine("localhost", port), 200);
+      fail();
+    } catch(IOException e) {
+      assertTrue(System.currentTimeMillis()-start > 200);
+      System.out.println(System.currentTimeMillis()-start );
+    }
+    server.close();
+  }
+
   @Test
   public void largeWriteTest() throws IOException {
     
