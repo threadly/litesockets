@@ -1,5 +1,6 @@
 package org.threadly.litesockets.tcp;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,6 +48,14 @@ public class FakeTCPServerClient implements Reader, Closer, ClientAcceptor, Serv
   public void accept(Client sc) {
     TCPClient client;
     client = (TCPClient)sc;
+    if(sc instanceof SSLClient) {
+      SSLClient sslc = (SSLClient)sc;
+      try {
+        sslc.doHandShake();
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    }
     addTCPClient(client);
   }
   
@@ -58,9 +67,9 @@ public class FakeTCPServerClient implements Reader, Closer, ClientAcceptor, Serv
   }
   
   public void addTCPClient(TCPClient client) {
-    map.putIfAbsent(client, new MergedByteBuffers());
+    MergedByteBuffers mbb = map.putIfAbsent(client, new MergedByteBuffers());
     clients.add(client);
-    System.out.println("Accepted new Client!:"+map.size()+":"+client);
+    System.out.println("Accepted new Client!:"+map.size()+":"+client+":"+mbb);
     client.setReader(this);
     client.setCloser(this);
     se.addClient(client);

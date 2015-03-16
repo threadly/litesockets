@@ -27,12 +27,12 @@ public class SSLServer extends TCPServer {
     int port = ((SocketChannel)c).socket().getPort();
     final SSLEngine ssle = sctx.createSSLEngine(remote, port);
     try {
-      final SSLClient client = new SSLClient((SocketChannel)c, ssle, false);
+      final SSLClient client = new SSLClient((SocketChannel)c, ssle, false, false);
       if(this.getClientAcceptor() != null) {
         getClientAcceptor().accept(client);
       }
     } catch (IOException e1) {
-      
+      e1.printStackTrace();
     }
   }
 
