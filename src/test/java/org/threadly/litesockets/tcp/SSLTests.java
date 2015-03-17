@@ -1,18 +1,15 @@
 package org.threadly.litesockets.tcp;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
-import java.security.KeyManagementException;
+import java.nio.channels.ServerSocketChannel;
 import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.UnrecoverableKeyException;
-import java.security.cert.CertificateException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -197,13 +194,13 @@ public class SSLTests {
     }
   }
   
-  
   @Test
   public void useTCPClient() throws IOException, InterruptedException {
-    System.out.println("-----------------------------------------------------");
-    long start = System.currentTimeMillis();
     port = Utils.findTCPPort();
-    SSLServer server = new SSLServer("localhost", port, sslCtx);
+    ServerSocketChannel socket = ServerSocketChannel.open();
+    socket.socket().bind(new InetSocketAddress("localhost", port), 100);
+    socket.configureBlocking(false);
+    SSLServer server = new SSLServer(socket, sslCtx);
     serverFC.addTCPServer(server);
     //System.out.println(serverFC);
     
@@ -253,7 +250,6 @@ public class SSLTests {
   
   @Test(expected=IllegalStateException.class)
   public void useTCPClientPendingReads() throws IOException {
-    long start = System.currentTimeMillis();
     TCPServer server = new TCPServer("localhost", port);
     serverFC.addTCPServer(server);
     
@@ -285,6 +281,7 @@ public class SSLTests {
     }.blockTillTrue(5000);
     
     final SSLClient client = new SSLClient(tcp_client, this.sslCtx.createSSLEngine("localhost", port), true, true);
+    client.close();
   }
   
   @Test
@@ -310,11 +307,7 @@ public class SSLTests {
               if(tmp.equals("DO_SSL")) {
                 didSSL = true;
                 sslc.writeForce(ByteBuffer.wrap("DO_SSL".getBytes()));
-                try {
-                  sslc.doHandShake();
-                } catch (IOException e) {
-                  e.printStackTrace();
-                }
+                sslc.doHandShake();
               }
             } else {
               if(mbb.remaining() >= 19) {
@@ -339,12 +332,8 @@ public class SSLTests {
           String tmp = mbb.getAsString(6);
           if(tmp.equals("DO_SSL")) {
             didSSL = true;
-            try {
-              sslclient.doHandShake();
-              sslclient.writeForce(ByteBuffer.wrap("THIS WAS ENCRYPTED!".getBytes()));     
-            } catch (IOException e) {
-              e.printStackTrace();
-            }
+            sslclient.doHandShake();
+            sslclient.writeForce(ByteBuffer.wrap("THIS WAS ENCRYPTED!".getBytes()));     
           }
         } else {
           if(mbb.remaining() >= 19) {

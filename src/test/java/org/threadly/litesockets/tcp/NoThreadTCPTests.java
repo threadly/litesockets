@@ -12,6 +12,7 @@ import org.threadly.litesockets.ThreadedSocketExecuter;
 public class NoThreadTCPTests extends TCPTests {
   NoThreadSocketExecuter ntSE;
   SingleThreadScheduler STS;
+  volatile boolean keepRunning = true;
   
   @Before
   public void start() throws IOException {
@@ -23,7 +24,7 @@ public class NoThreadTCPTests extends TCPTests {
     STS.execute(new Runnable() {
       @Override
       public void run() {
-        while(ntSE.isRunning()) {
+        while(ntSE.isRunning() && keepRunning) {
           ntSE.select(1000);
         }
       }});
@@ -36,7 +37,14 @@ public class NoThreadTCPTests extends TCPTests {
   
   @Override
   @After
-  public void stop() {
+  public void stop(){
+    keepRunning = false;
+    ntSE.wakeup();
+    ntSE.wakeup();
+    ntSE.wakeup();
+    ntSE.wakeup();
+    
+    
     super.stop();
     STS.shutdownNow();
   }

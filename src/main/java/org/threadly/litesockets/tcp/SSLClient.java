@@ -2,21 +2,16 @@ package org.threadly.litesockets.tcp;
 
 import static javax.net.ssl.SSLEngineResult.HandshakeStatus.FINISHED;
 import static javax.net.ssl.SSLEngineResult.HandshakeStatus.NEED_TASK;
-import static javax.net.ssl.SSLEngineResult.HandshakeStatus.NEED_UNWRAP;
 import static javax.net.ssl.SSLEngineResult.HandshakeStatus.NEED_WRAP;
-import static javax.net.ssl.SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.net.ssl.SSLContext;
@@ -25,7 +20,6 @@ import javax.net.ssl.SSLEngineResult;
 import javax.net.ssl.SSLEngineResult.HandshakeStatus;
 import javax.net.ssl.SSLEngineResult.Status;
 import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
@@ -34,10 +28,9 @@ import org.threadly.concurrent.SubmitterExecutorInterface;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
-import org.threadly.litesockets.SocketExecuterBase;
 import org.threadly.litesockets.Client.Reader;
+import org.threadly.litesockets.SocketExecuterBase;
 import org.threadly.litesockets.utils.MergedByteBuffers;
-import org.threadly.util.Clock;
 import org.threadly.util.ExceptionUtils;
 
 /**
@@ -48,28 +41,8 @@ import org.threadly.util.ExceptionUtils;
  *
  */
 public class SSLClient extends TCPClient implements Reader{
-  private static final String SSL_HANDSHAKE_ERROR = "Problem doing SSL Handshake";
   private static final TrustManager[] OPEN_TRUST_MANAGER = new TrustManager [] {new GenericTrustManager() };
   private static final SSLContext OPEN_SSL_CTX; 
-
-  private final MergedByteBuffers decryptedReadList = new MergedByteBuffers();
-  public final MergedByteBuffers tmpWriteBuffers = new MergedByteBuffers();
-  public final SSLEngine ssle;
-  private final SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>();
-  private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
-  private final AtomicBoolean finishedHandshake = new AtomicBoolean(false);
-
-
-  private ByteBuffer writeBuffer;
-
-  private final ByteBuffer encryptedReadBuffer;
-  private ByteBuffer decryptedReadBuffer;
-
-  private volatile Reader sslReader; 
-
-  public static void disableSNI() {
-    System.setProperty ("jsse.enableSNIExtension", "false");
-  }
 
   static {
     try {
@@ -81,20 +54,79 @@ public class SSLClient extends TCPClient implements Reader{
     } catch (KeyManagementException e) {
       throw new RuntimeException(e);
     }
-  }
+  }  
+  
+  private final MergedByteBuffers decryptedReadList = new MergedByteBuffers();
+  private final MergedByteBuffers tmpWriteBuffers = new MergedByteBuffers();
+  private final SSLEngine ssle;
+  private final SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>();
+  private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
+  private final AtomicBoolean finishedHandshake = new AtomicBoolean(false);
+  private final ByteBuffer encryptedReadBuffer;
+  
+  private volatile Reader sslReader;
+  private ByteBuffer writeBuffer;
+  private ByteBuffer decryptedReadBuffer; 
 
+  /**
+   * <p>This is a simple SSLConstructor.  It uses the default socket timeout, and very insecure cert
+   * checking.  This setup to generally connect to any server, and does not validate anything.</p>
+   * 
+   * <p>Because we are making the connection this is always a "ClientSide" connection.</p>
+   *  
+   * @param host The host or IP to connect to.
+   * @param port The port on the host to connect to.
+   * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
+   */
   public SSLClient(String host, int port) throws IOException {
     this(host, port, OPEN_SSL_CTX.createSSLEngine(host, port));
   }
 
+  /**
+   * <p>This simple SSLConstructor.  It allows you to specify the SSLEngine to use to allow you to
+   * validate the servers certs with the parameters you decide.</p>
+   * 
+   * <p>Because we are making the connection this is always a "ClientSide" connection.</p>
+   *  
+   * @param host The host or IP to connect to.
+   * @param port The port on the host to connect to.
+   * @param ssle The SSLEngine to use for the connection.
+   * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
+   */
   public SSLClient(String host, int port, SSLEngine ssle) throws IOException {
     this(host, port, ssle, TCPClient.DEFAULT_SOCKET_TIMEOUT);
   }
 
+  /**
+   * <p>This constructor allows you to specify the SSLEngine to use to
+   * validate the server certs with the parameters you decide.  
+   * It also allows you to set the timeout values.</p>
+   * 
+   * <p>Because we are making the connection this is always a "ClientSide" connection.</p>
+   *  
+   * @param host The host or IP to connect to.
+   * @param port The port on the host to connect to.
+   * @param ssle The SSLEngine to use for the connection.
+   * @param timeout This is the connection timeout.  It is used for the actual connection timeout and separately for the SSLHandshake.
+   * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
+   */
   public SSLClient(String host, int port, SSLEngine ssle, int timeout) throws IOException {
     this(host, port, ssle, TCPClient.DEFAULT_SOCKET_TIMEOUT, true);
   }
 
+  /**
+   * <p>This constructor allows you to specify the SSLEngine to use to allow you to
+   * validate the servers certs with the parameters you decide.</p>
+   * 
+   * <p>Because we are making the connection this is always a "ClientSide" connection.</p>
+   *  
+   * @param host The host or IP to connect to.
+   * @param port The port on the host to connect to.
+   * @param ssle The SSLEngine to use for the connection.
+   * @param timeout This is the connection timeout.  It is used for the actual connection timeout and separately for the SSLHandshake.
+   * @param doHandshake This allows you to delay the handshake till a later negotiated time.
+   * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
+   */
   public SSLClient(String host, int port, SSLEngine ssle, int timeout, boolean doHandshake) throws IOException {
     super(host, port, timeout);
     this.ssle = ssle;
@@ -106,10 +138,33 @@ public class SSLClient extends TCPClient implements Reader{
     encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+50);
   }
 
+  /**
+   * <p>This constructor is for already existing connections. It also allows you to specify the SSLEngine 
+   * to use to allow you to validate the servers certs with the parameters you decide.</p>
+   * 
+   * <p>Because we are making the connection this is always a "ClientSide" connection.</p>
+   *  
+   * @param client The SocketChannel to use for the SSLClient.
+   * @param ssle The SSLEngine to use for the connection.
+   * @param clientSSL Set this to true if this is a client side connection, false if its server side.
+   * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
+   */
   public SSLClient(SocketChannel client, SSLEngine ssle, boolean clientSSL) throws IOException {
     this(client, ssle, clientSSL, true);
   }
 
+  /**
+   * <p>This constructor is for already existing connections. It also allows you to specify the SSLEngine 
+   * to use to allow you to validate the servers certs with the parameters you decide.</p>
+   * 
+   * <p>Because we are making the connection this is always a "ClientSide" connection.</p>
+   *  
+   * @param client The SocketChannel to use for the SSLClient.
+   * @param ssle The SSLEngine to use for the connection.
+   * @param clientSSL Set this to true if this is a client side connection, false if its server side.
+   * @param doHandshake This allows you to delay the handshake till a later negotiated time.
+   * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
+   */
   public SSLClient(SocketChannel client, SSLEngine ssle, boolean clientSSL, boolean doHandshake) throws IOException {
     super(client);
     this.ssle = ssle;
@@ -121,6 +176,18 @@ public class SSLClient extends TCPClient implements Reader{
     encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+50);
   }
 
+  /**
+   * <p>This constructor is for already existing connections. It also allows you to specify the SSLEngine 
+   * to use to allow you to validate the servers certs with the parameters you decide.</p>
+   * 
+   * <p>Because we are making the connection this is always a "ClientSide" connection.</p>
+   *  
+   * @param client The TCPClient to use for the SSLClient.
+   * @param ssle The SSLEngine to use for the connection.
+   * @param clientSSL Set this to true if this is a client side connection, false if its server side.
+   * @param doHandshake This allows you to delay the handshake till a later negotiated time.
+   * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
+   */
   public SSLClient(TCPClient client, SSLEngine ssle, boolean clientSSL, boolean doHandshake) throws IOException {
     super(client.getChannel());
     if(client.getReadBufferSize() > 0 || client.getWriteBufferSize() > 0) {
@@ -148,6 +215,10 @@ public class SSLClient extends TCPClient implements Reader{
     return decryptedReadBuffer;
   }
 
+  /**
+   * This lets you know if the connection is currently encrypted or not.
+   * @return true if the connection is encrypted false if not.
+   */
   public boolean isEncrypted() {
     if(startedHandshake.get() && ssle.getSession().getProtocol().equals("NONE")) {
       return false;
@@ -155,9 +226,23 @@ public class SSLClient extends TCPClient implements Reader{
     return true;
   }
 
-  public ListenableFuture<SSLSession> doHandShake() throws IOException {
+  /**
+   * <p>If doHandshake was set to false in the constructor you can start the handshake by calling this method.
+   * The client will not start the handshake till its added to a SocketExecuter.  The future allows you to know
+   * when the handshake has finished if if there was an error.  While the handshake is processing all writes to the 
+   * socket will queue.</p>
+   * 
+   * 
+   * @return A listenable Future.  If a result was given it succeeded, if there is an error it failed.  The connection is closed on failures.
+   * @throws IOException
+   */
+  public ListenableFuture<SSLSession> doHandShake() {
     if(startedHandshake.compareAndSet(false, true)) {
-      ssle.beginHandshake();
+      try {
+        ssle.beginHandshake();
+      } catch (SSLException e) {
+        this.handshakeFuture.setFailure(e);
+      }
       if(ssle.getHandshakeStatus() == NEED_WRAP) {
         writeForce(ByteBuffer.allocate(0));
       }
@@ -406,5 +491,7 @@ public class SSLClient extends TCPClient implements Reader{
    * The default is whatever the VM is started with you can disable it by running this method.
    * 
    */
-
+  public static void disableSNI() {
+    System.setProperty ("jsse.enableSNIExtension", "false");
+  }
 }
