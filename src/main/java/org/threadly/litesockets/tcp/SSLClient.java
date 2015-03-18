@@ -28,7 +28,6 @@ import org.threadly.concurrent.SubmitterExecutorInterface;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
-import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.SocketExecuterBase;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.util.ExceptionUtils;
@@ -40,7 +39,7 @@ import org.threadly.util.ExceptionUtils;
  * @author lwahlmeier
  *
  */
-public class SSLClient extends TCPClient implements Reader{
+public class SSLClient extends TCPClient {
   public static final TrustManager[] OPEN_TRUST_MANAGER = new TrustManager [] {new GenericTrustManager() };
   public static final SSLContext OPEN_SSL_CTX; 
 
@@ -62,6 +61,7 @@ public class SSLClient extends TCPClient implements Reader{
   private final SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>();
   private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
   private final AtomicBoolean finishedHandshake = new AtomicBoolean(false);
+  private final Reader classReader = new SSLReader();
   private final ByteBuffer encryptedReadBuffer;
   
   private volatile Reader sslReader;
@@ -134,7 +134,7 @@ public class SSLClient extends TCPClient implements Reader{
     if(doHandshake) {
       doHandShake();
     }
-    super.setReader(this);
+    super.setReader(classReader);
     encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+50);
   }
 
@@ -172,7 +172,7 @@ public class SSLClient extends TCPClient implements Reader{
     if(doHandshake) {
       doHandShake();
     }
-    super.setReader(this);
+    super.setReader(classReader);
     encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+50);
   }
 
@@ -204,7 +204,7 @@ public class SSLClient extends TCPClient implements Reader{
     if(doHandshake) {
       doHandShake();
     }
-    super.setReader(this);
+    super.setReader(classReader);
     encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+50);
   }
 
@@ -369,8 +369,7 @@ public class SSLClient extends TCPClient implements Reader{
     this.sslReader = reader;
   }
 
-  @Override
-  public void onRead(Client client) {
+  private void doRead() {
     ByteBuffer client_buffer = super.getRead();
     if(this.startedHandshake.get()) {
       try {
@@ -444,6 +443,13 @@ public class SSLClient extends TCPClient implements Reader{
 
     } break;
 
+    }
+  }
+  
+  private class SSLReader implements Reader {
+    @Override
+    public void onRead(Client client) {
+      doRead();
     }
   }
 
