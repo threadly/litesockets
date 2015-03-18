@@ -41,8 +41,8 @@ import org.threadly.util.ExceptionUtils;
  *
  */
 public class SSLClient extends TCPClient implements Reader{
-  private static final TrustManager[] OPEN_TRUST_MANAGER = new TrustManager [] {new GenericTrustManager() };
-  private static final SSLContext OPEN_SSL_CTX; 
+  public static final TrustManager[] OPEN_TRUST_MANAGER = new TrustManager [] {new GenericTrustManager() };
+  public static final SSLContext OPEN_SSL_CTX; 
 
   static {
     try {
