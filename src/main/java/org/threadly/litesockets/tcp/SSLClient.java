@@ -424,10 +424,12 @@ public class SSLClient extends TCPClient implements Reader{
   private void processHandshake(HandshakeStatus status) {
     switch(status) {
     case FINISHED: {
-      if(this.finishedHandshake.compareAndSet(false, true)){
-        writeForce(ByteBuffer.allocate(0));
-        if(!handshakeFuture.isDone()) {
-          handshakeFuture.setResult(ssle.getSession());
+      synchronized(tmpWriteBuffers) {
+        if(this.finishedHandshake.compareAndSet(false, true)){
+          writeForce(ByteBuffer.allocate(0));
+          if(!handshakeFuture.isDone()) {
+            handshakeFuture.setResult(ssle.getSession());
+          }
         }
       }
     } break;
