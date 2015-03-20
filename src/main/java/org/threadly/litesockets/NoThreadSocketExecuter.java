@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedChannelException;
+import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
@@ -114,6 +115,8 @@ public class NoThreadSocketExecuter extends SocketExecuterBase {
               } catch (ClosedChannelException e) {
                 removeServer(server);
                 server.close();
+              } catch(ClosedSelectorException e) {
+                
               }
             }
           }});
@@ -184,6 +187,8 @@ public class NoThreadSocketExecuter extends SocketExecuterBase {
 
   @Override
   protected void shutdownService() {
+    selector.wakeup();
+    selector.wakeup();
     try {
       if(selector != null && selector.isOpen()) {
         selector.close();
@@ -244,6 +249,8 @@ public class NoThreadSocketExecuter extends SocketExecuterBase {
         }
       } catch (IOException e) {
 
+      } catch(ClosedSelectorException e) {
+        
       }
       try {
         scheduler.tick(null);
