@@ -11,6 +11,7 @@ import org.threadly.litesockets.Server;
 import org.threadly.litesockets.Server.ClientAcceptor;
 import org.threadly.litesockets.Server.ServerCloser;
 import org.threadly.litesockets.SocketExecuterInterface;
+import org.threadly.litesockets.tcp.ssl.SSLClient;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 
 public class FakeTCPServerClient implements Reader, Closer, ClientAcceptor, ServerCloser{
@@ -46,6 +47,10 @@ public class FakeTCPServerClient implements Reader, Closer, ClientAcceptor, Serv
   public void accept(Client sc) {
     TCPClient client;
     client = (TCPClient)sc;
+    if(sc instanceof SSLClient) {
+      SSLClient sslc = (SSLClient)sc;
+      sslc.doHandShake();
+    }
     addTCPClient(client);
   }
   
@@ -57,9 +62,9 @@ public class FakeTCPServerClient implements Reader, Closer, ClientAcceptor, Serv
   }
   
   public void addTCPClient(TCPClient client) {
-    map.putIfAbsent(client, new MergedByteBuffers());
+    MergedByteBuffers mbb = map.putIfAbsent(client, new MergedByteBuffers());
     clients.add(client);
-    System.out.println("Accepted new Client!:"+map.size()+":"+client);
+    System.out.println("Accepted new Client!:"+map.size()+":"+client+":"+mbb);
     client.setReader(this);
     client.setCloser(this);
     se.addClient(client);

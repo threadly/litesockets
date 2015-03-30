@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedChannelException;
+import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
@@ -45,7 +46,18 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
    * 
    */
   public NoThreadSocketExecuter() {
-
+  }
+  
+  /**
+   * This is used to wakeup the selector assuming it was called with a timeout on it.
+   * Most all methods in this class that need to do a wakeup do it automatically, but
+   * there are situations where you might want to wake up the thread we are blocked on 
+   * manually.
+   */
+  public void wakeup() {
+    if(isRunning()) {
+      selector.wakeup();
+    }
   }
 
   @Override
@@ -84,7 +96,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
 
   @Override
   public void addServer(final Server server) {
-    if(isRunning()) {
+    if(isRunning() && server.getSelectableChannel().isOpen()) {
       Server sn = servers.putIfAbsent(server.getSelectableChannel(), server);
       if(sn == null) {
         server.setServerExecuter(this);
@@ -96,6 +108,10 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
             if(key == null) {
               try {
                 if(server.getServerType() == WireProtocol.TCP) {
+                  System.out.println(server);
+                  System.out.println(server.getSelectableChannel());
+                  System.out.println(server.getSelectableChannel().isOpen());
+                  System.out.println(selector.isOpen());
                   server.getSelectableChannel().register(selector, SelectionKey.OP_ACCEPT);
                 } else if(server.getServerType() == WireProtocol.UDP) {
                   server.getSelectableChannel().register(selector, SelectionKey.OP_READ);
@@ -104,6 +120,8 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
               } catch (ClosedChannelException e) {
                 removeServer(server);
                 server.close();
+              } catch(ClosedSelectorException e) {
+                
               }
             }
           }});
@@ -174,12 +192,16 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
 
   @Override
   protected void shutdownService() {
+    scheduler.clearTasks();
+    selector.wakeup();
+    selector.wakeup();
     try {
-      selector.close();
+      if(selector != null && selector.isOpen()) {
+        selector.close();
+      }
     } catch (IOException e) {
 
     }
-    scheduler.clearTasks();
     clients.clear();
     servers.clear();
   }
@@ -216,6 +238,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
           selector.select(delay);
         }
         for(SelectionKey key: selector.selectedKeys()) {
+          try {
           if(key.isAcceptable()) {
             ServerSocketChannel server = (ServerSocketChannel) key.channel();
             doAccept(server);
@@ -225,9 +248,14 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
             SocketChannel sc = (SocketChannel)key.channel();
             doWrite(sc);
           }
+          } catch(CancelledKeyException e) {
+            //Key could be cancelled at any point...
+          }
         }
       } catch (IOException e) {
 
+      } catch(ClosedSelectorException e) {
+        
       }
       try {
         scheduler.tick(null);

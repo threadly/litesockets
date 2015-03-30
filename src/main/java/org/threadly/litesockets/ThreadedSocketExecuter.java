@@ -147,6 +147,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
       readScheduler.execute(reader);
       writeScheduler.execute(writer);
     } catch (IOException e) {
+      startIfNotStarted();
       throw new RuntimeException(e);
     }
 
@@ -200,7 +201,6 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
   public int getServerCount() {
     return servers.size();
   }
-
 
   @Override
   public boolean verifyReadThread() {
