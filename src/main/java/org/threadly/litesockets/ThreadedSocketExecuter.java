@@ -54,7 +54,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
     if(! client.isClosed() && client.getProtocol() == WireProtocol.TCP && isRunning()) {
       client.setClientsThreadExecutor(clientDistributer.getSubmitterForKey(client));
       client.setClientsSocketExecuter(this);
-      if(client.getChannel() != null) {
+      if(client.getChannel() != null && client.getChannel().isConnected()) {
         Client nc = clients.putIfAbsent(client.getChannel(), client);
         if(nc == null) {
           if(client.canRead()) {
@@ -65,6 +65,32 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
             writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
             writeSelector.wakeup();  
           }
+
+        }
+      } else {
+        try {
+          if(client.getChannel() == null) {
+            client.connect();
+          }
+          Client nc = clients.putIfAbsent(client.getChannel(), client);
+          if(nc == null) {
+            readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_CONNECT));
+            schedulerPool.schedule(new Runnable() {
+              @Override
+              public void run() {
+                if(!client.hasConnectionTimedOut()) {
+                  SelectionKey sk = client.getChannel().keyFor(readSelector);
+                  if(sk != null) {
+                    sk.cancel();
+                  }
+                  removeClient(client);
+                  client.close();
+                }
+              }}, client.getTimeout()+10);
+          }
+        } catch (IOException e) {
+          removeClient(client);
+          client.close();
         }
       }
     }
@@ -267,6 +293,21 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
             for(SelectionKey sk: readSelector.selectedKeys()) {
               SocketChannel sc = (SocketChannel)sk.channel();
               final Client client = clients.get(sc);
+              if(sc.isConnectionPending()) {
+                try {
+                  if(sc.finishConnect()) {
+                    client.setConnectionStatus(null);
+                    client.getChannel().register(readSelector, SelectionKey.OP_READ);
+                    if(client.canWrite()) {
+                      flagNewWrite(client);
+                    }
+                  }
+                } catch(IOException e) {
+                  client.setConnectionStatus(e);
+                  removeClient(client);
+                  client.close();
+                }
+              }
               if(client != null) {
                 try {
                   ByteBuffer readByteBuffer = client.provideEmptyReadBuffer();

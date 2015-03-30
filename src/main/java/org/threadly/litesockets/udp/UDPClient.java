@@ -8,6 +8,8 @@ import java.nio.channels.SocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.concurrent.SubmitterExecutorInterface;
+import org.threadly.concurrent.future.FutureUtils;
+import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
@@ -286,6 +288,25 @@ public class UDPClient implements Client {
   @Override
   public void reduceWrite(int size) {
     
+  }
+
+  @Override
+  public boolean hasConnectionTimedOut() {
+    return false;
+  }
+
+  @Override
+  public ListenableFuture<Boolean> connect() throws IOException {
+    return FutureUtils.immediateResultFuture(true);
+  }
+
+  @Override
+  public int getTimeout() {
+    return 0;
+  }
+
+  @Override
+  public void setConnectionStatus(Throwable t) {
   }
 
 }

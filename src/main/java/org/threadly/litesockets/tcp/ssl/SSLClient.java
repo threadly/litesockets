@@ -5,6 +5,7 @@ import static javax.net.ssl.SSLEngineResult.HandshakeStatus.NEED_TASK;
 import static javax.net.ssl.SSLEngineResult.HandshakeStatus.NEED_WRAP;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.TimeoutException;
@@ -23,6 +24,7 @@ import org.threadly.litesockets.Client;
 import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.tcp.TCPClient;
 import org.threadly.litesockets.utils.MergedByteBuffers;
+import org.threadly.util.Clock;
 import org.threadly.util.ExceptionUtils;
 
 /**
@@ -34,9 +36,9 @@ import org.threadly.util.ExceptionUtils;
  */
 public class SSLClient extends TCPClient {
 
-  private final SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>();
   private final AtomicBoolean finishedHandshake = new AtomicBoolean(false);
   private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
+  private final boolean connectHandshake;
   private final MergedByteBuffers tmpWriteBuffers = new MergedByteBuffers();
   private final MergedByteBuffers decryptedReadList = new MergedByteBuffers();
   private final Reader classReader = new SSLReader();
@@ -45,6 +47,7 @@ public class SSLClient extends TCPClient {
 
   private volatile Reader sslReader;
   private ByteBuffer writeBuffer;
+  private SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>();
   
   private ByteBuffer decryptedReadBuffer;
   
@@ -61,7 +64,7 @@ public class SSLClient extends TCPClient {
    * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
    */
 
-  public SSLClient(String host, int port) throws IOException {
+  public SSLClient(String host, int port) {
     this(host, port, SSLUtils.OPEN_SSL_CTX.createSSLEngine(host, port));
   }
 
@@ -76,7 +79,7 @@ public class SSLClient extends TCPClient {
    * @param ssle The SSLEngine to use for the connection.
    * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
    */
-  public SSLClient(String host, int port, SSLEngine ssle) throws IOException {
+  public SSLClient(String host, int port, SSLEngine ssle) {
     this(host, port, ssle, TCPClient.DEFAULT_SOCKET_TIMEOUT);
   }
 
@@ -93,8 +96,8 @@ public class SSLClient extends TCPClient {
    * @param timeout This is the connection timeout.  It is used for the actual connection timeout and separately for the SSLHandshake.
    * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
    */
-  public SSLClient(String host, int port, SSLEngine ssle, int timeout) throws IOException {
-    this(host, port, ssle, TCPClient.DEFAULT_SOCKET_TIMEOUT, true);
+  public SSLClient(String host, int port, SSLEngine ssle, int timeout){
+    this(host, port, ssle, TCPClient.DEFAULT_SOCKET_TIMEOUT, false);
   }
 
   /**
@@ -110,13 +113,11 @@ public class SSLClient extends TCPClient {
    * @param doHandshake This allows you to delay the handshake till a later negotiated time.
    * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
    */
-  public SSLClient(String host, int port, SSLEngine ssle, int timeout, boolean doHandshake) throws IOException {
+  public SSLClient(String host, int port, SSLEngine ssle, int timeout, boolean doHandshake){
     super(host, port, timeout);
     this.ssle = ssle;
     ssle.setUseClientMode(true);
-    if(doHandshake) {
-      doHandShake();
-    }
+    connectHandshake = doHandshake;
     super.setReader(classReader);
     encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+50);
   }
@@ -151,6 +152,7 @@ public class SSLClient extends TCPClient {
   public SSLClient(SocketChannel client, SSLEngine ssle, boolean clientSSL, boolean doHandshake) throws IOException {
     super(client);
     this.ssle = ssle;
+    this.connectHandshake = doHandshake;
     ssle.setUseClientMode(clientSSL);
     if(doHandshake) {
       doHandShake();
@@ -179,16 +181,33 @@ public class SSLClient extends TCPClient {
     if(client.isClosed()) {
       throw new IllegalStateException("Can not add closed TCPClient to sslConstructor");
     }
+    startedConnection.set(true);
     client.markClosed();
     setCloser(client.getCloser());
     setReader(client.getReader());
     this.ssle = ssle;
     ssle.setUseClientMode(clientSSL);
+    this.connectHandshake = doHandshake;
     if(doHandshake) {
       doHandShake();
     }
     super.setReader(classReader);
     encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+50);
+  }
+  
+  @Override
+  public ListenableFuture<Boolean> connect() throws IOException {
+    if(startedConnection.compareAndSet(false, true)) {
+      connectionFuture = new SettableListenableFuture<Boolean>();
+      channel = SocketChannel.open();
+      channel.configureBlocking(false);
+      channel.connect(new InetSocketAddress(host, port));
+      connectExpiresAt = maxConnectionTime + Clock.lastKnownForwardProgressingMillis(); 
+      if(connectHandshake) {
+        doHandShake();
+      }
+    }
+    return connectionFuture;
   }
 
   private ByteBuffer getDecryptedByteBuffer() {
@@ -222,6 +241,7 @@ public class SSLClient extends TCPClient {
    */
   public ListenableFuture<SSLSession> doHandShake() {
     if(startedHandshake.compareAndSet(false, true)) {
+      handshakeFuture = new SettableListenableFuture<SSLSession>();
       try {
         ssle.beginHandshake();
       } catch (SSLException e) {
@@ -238,7 +258,7 @@ public class SSLClient extends TCPClient {
               handshakeFuture.setFailure(new TimeoutException("Timed out doing SSLHandshake!!!"));
               close();
             }
-          }}, setTimeout);
+          }}, maxConnectionTime);
       }
     }
     return handshakeFuture;
@@ -255,7 +275,7 @@ public class SSLClient extends TCPClient {
             handshakeFuture.setFailure(new TimeoutException("Timed out doing SSLHandshake!!!"));
             close();
           }
-        }}, setTimeout);
+        }}, maxConnectionTime);
     }
   }
 

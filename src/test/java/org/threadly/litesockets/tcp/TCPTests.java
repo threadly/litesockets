@@ -119,6 +119,7 @@ public class TCPTests {
     server.setClientAcceptor(serverFC);
     SE.addServer(server);
     TCPClient client = new TCPClient("localhost", port);
+    client.connect();
     new TestCondition(){
       @Override
       public boolean get() {
@@ -134,6 +135,7 @@ public class TCPTests {
     ByteBuffer bb = ByteBuffer.wrap("TEST111".getBytes());
     TCPClient client = new TCPClient("localhost", port);
     client.setMaxBufferSize(2);
+    SE.addClient(client);
     new TestCondition(){
       @Override
       public boolean get() {

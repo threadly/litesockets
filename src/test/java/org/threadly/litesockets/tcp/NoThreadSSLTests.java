@@ -1,6 +1,7 @@
 package org.threadly.litesockets.tcp;
 
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.security.KeyStore;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -25,7 +26,7 @@ public class NoThreadSSLTests extends SSLTests {
     PS.scheduleWithFixedDelay(new Runnable() {
       @Override
       public void run() {
-        ntSE.select();
+        ntSE.select(10);
       }}, 10, 10);
     port = Utils.findTCPPort();
     KS = KeyStore.getInstance(KeyStore.getDefaultType());
@@ -50,6 +51,21 @@ public class NoThreadSSLTests extends SSLTests {
     }
     SE.stop();
     PS.shutdownNow();
+  }
+  
+  @Override
+  public void simpleWriteTest() throws IOException, InterruptedException {
+    super.simpleWriteTest();
+  }
+  
+  @Override
+  public void doLateSSLhandshake() throws IOException, InterruptedException {
+    super.doLateSSLhandshake();
+  }
+  
+  @Override
+  public void useTCPClientPendingReads() throws IOException{
+    super.useTCPClientPendingReads();
   }
 
 }

@@ -47,5 +47,10 @@ public class NoThreadTCPTests extends TCPTests {
     super.stop();
     STS.shutdownNow();
   }
+  
+  @Override
+  public void simpleWriteTest() throws IOException, InterruptedException {
+    super.simpleWriteTest();
+  }
 
 }

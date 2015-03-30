@@ -1,10 +1,13 @@
 package org.threadly.litesockets;
 
+import java.io.IOException;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 
 import org.threadly.concurrent.SubmitterExecutorInterface;
+import org.threadly.concurrent.future.ListenableFuture;
+import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
@@ -48,6 +51,26 @@ public interface Client {
    * @return true if it can write more false if it cant.
    */
   public boolean canWrite();
+
+  /**
+   * <p>This tells us if the client has timed out before it has been connected to the socket.  This is used to remove the client
+   * from the selector if we have reached our timeout.  With nio there is no way to have it automatically wake up the selector 
+   * and time it out.</p>
+   * 
+   * @return true if the client has been connected, false if it has not.  This will be true even if the client has closed.
+   */
+  public boolean hasConnectionTimedOut();
+  
+  
+  public ListenableFuture<Boolean> connect() throws IOException;
+  public void setConnectionStatus(Throwable t);
+  
+  /**
+   * <p></p>
+   * 
+   * @return the time till this connection times out
+   */
+  public int getTimeout();
   
   /**
    * When this clients socket has a read pending this is where the byteBuffer for the read comes from.

@@ -9,6 +9,8 @@ import java.nio.channels.SocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.concurrent.SubmitterExecutorInterface;
+import org.threadly.concurrent.future.ListenableFuture;
+import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
@@ -27,40 +29,57 @@ import org.threadly.util.Clock;
  *
  */
 public class TCPClient implements Client {
-  public static final int DEFAULT_SOCKET_TIMEOUT = 10000;  
+  /**
+   * The default SocketConnection time out (10 seconds)
+   */
+  public static final int DEFAULT_SOCKET_TIMEOUT = 10000;
+  /**
+   * Default max buffer size (64k).  Read and write buffers are independant of eachother.
+   */
   public static final int DEFAULT_MAX_BUFFER_SIZE = 64*1024;
-  public static final int MIN_READ= 4*1024;
-
-  protected ClientByteStats stats = new ClientByteStats();
-
-  protected volatile int maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;
-  protected int minAllowedReadBuffer = MIN_READ;
+  /**
+   * Minimum allowed readBuffer (4k).  If the readBuffer is lower then this we will create a new one.
+   */
+  public static final int MIN_READ_BUFFER_SIZE = 4*1024;
+  /**
+   * When we hit the minimum read buffer size we will create a new one of this size (64k).
+   */
+  public static final int NEW_READ_BUFFER_SIZE = 64*1024;
+  
 
   private final MergedByteBuffers readBuffers = new MergedByteBuffers();
   private final MergedByteBuffers writeBuffers = new MergedByteBuffers();
-  private ByteBuffer currentWriteBuffer;
-  private ByteBuffer readByteBuffer = ByteBuffer.allocate(maxBufferSize*2);
+  protected final String host;
+  protected final int port;
+  protected final long startTime = Clock.lastKnownForwardProgressingMillis();
+  protected final int maxConnectionTime;
+  protected final AtomicBoolean startedConnection = new AtomicBoolean(false);
 
+  protected volatile SocketChannel channel;
+  protected volatile int maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;
+  protected volatile int minAllowedReadBuffer = MIN_READ_BUFFER_SIZE;
+  protected volatile int newReadBuffer = NEW_READ_BUFFER_SIZE;
+  
   protected volatile Closer closer;
   protected volatile Reader reader;
   protected volatile SubmitterExecutorInterface sei;
   protected volatile SocketExecuterInterface seb;
+  protected volatile long connectExpiresAt = -1;
+  protected SettableListenableFuture<Boolean> connectionFuture = new SettableListenableFuture<Boolean>();
+  protected ClientByteStats stats = new ClientByteStats();
   protected AtomicBoolean closed = new AtomicBoolean(false);
 
-  protected final String host;
-  protected final int port;
-  protected final long startTime = Clock.lastKnownForwardProgressingMillis();
-  protected final int setTimeout;
+  private ByteBuffer currentWriteBuffer;
+  private ByteBuffer readByteBuffer = ByteBuffer.allocate(NEW_READ_BUFFER_SIZE);
 
-  protected final SocketChannel channel;
+
   /**
    * This creates a connection to the specified port and IP.
    * 
    * @param host hostname or ip address to connect too.
    * @param port port on that host to try and connect too.
-   * @throws IOException if for any reason a connection can not be made an IOException will throw with more details about why. 
    */
-  public TCPClient(String host, int port) throws IOException {
+  public TCPClient(String host, int port){
     this(host, port, DEFAULT_SOCKET_TIMEOUT);
   }
 
@@ -70,15 +89,11 @@ public class TCPClient implements Client {
    * @param host hostname or ip address to connect too.
    * @param port port on that host to try and connect too.
    * @param timeout this is the max amount of time we will wait for a connection to be made (default is 10000 milliseconds).
-   * @throws IOException if for any reason a connection can not be made an IOException will throw with more details about why. 
    */
-  public TCPClient(String host, int port, int timeout) throws IOException {
-    setTimeout = timeout;
+  public TCPClient(String host, int port, int timeout) {
+    maxConnectionTime = timeout;
     this.host = host;
     this.port = port;
-    channel = SocketChannel.open();
-    channel.socket().connect(new InetSocketAddress(host, port), timeout);
-    channel.configureBlocking(false);
   }
 
   /**
@@ -88,7 +103,7 @@ public class TCPClient implements Client {
    * @throws IOException if there is anything wrong with the SocketChannel this will throw.
    */
   public TCPClient(SocketChannel channel) throws IOException {
-    setTimeout = DEFAULT_SOCKET_TIMEOUT;
+    maxConnectionTime = DEFAULT_SOCKET_TIMEOUT;
     if(! channel.isOpen()) {
       throw new ClosedChannelException();
     }
@@ -98,6 +113,42 @@ public class TCPClient implements Client {
       channel.configureBlocking(false);
     }
     this.channel = channel;
+    startedConnection.set(true);
+  }
+  
+  @Override
+  public ListenableFuture<Boolean> connect() throws IOException {
+    if(startedConnection.compareAndSet(false, true)) {
+      connectionFuture = new SettableListenableFuture<Boolean>();
+      channel = SocketChannel.open();
+      channel.configureBlocking(false);
+      channel.connect(new InetSocketAddress(host, port));
+      connectExpiresAt = maxConnectionTime + Clock.lastKnownForwardProgressingMillis(); 
+    }
+    return connectionFuture;
+  }
+  
+  @Override
+  public void setConnectionStatus(Throwable t) {
+    if(t != null) {
+      connectionFuture.setFailure(t);
+    }
+    connectionFuture.setResult(true);
+  }
+  
+
+  @Override
+  public boolean hasConnectionTimedOut() {
+    if(! startedConnection.get()) {
+      return false;
+    }
+    return connectExpiresAt < Clock.lastKnownForwardProgressingMillis(); 
+  }
+  
+
+  @Override
+  public int getTimeout() {
+    return maxConnectionTime;
   }
 
   @Override
@@ -327,7 +378,7 @@ public class TCPClient implements Client {
     synchronized(writeBuffers) {
       boolean needNotify = ! canWrite();
       writeBuffers.add(bb.slice());
-      if(needNotify && seb != null) {
+      if(needNotify && seb != null && channel.isConnected()) {
         seb.flagNewWrite(this);
       }
     }
