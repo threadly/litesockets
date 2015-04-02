@@ -1,11 +1,6 @@
 package org.threadly.litesockets.tcp;
 
 import static org.junit.Assert.assertEquals;
-
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.security.KeyStore;
-
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -29,14 +24,12 @@ import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server;
+import org.threadly.litesockets.Server.ClientAcceptor;
 import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.tcp.ssl.SSLClient;
 import org.threadly.litesockets.tcp.ssl.SSLServer;
 import org.threadly.litesockets.tcp.ssl.SSLUtils;
-import org.threadly.litesockets.Server.ClientAcceptor;
-import org.threadly.litesockets.ThreadedSocketExecuter;
-import org.threadly.litesockets.tcp.ssl.SSLUtils.FullTrustManager;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.test.concurrent.TestCondition;
 
@@ -53,7 +46,7 @@ public class SSLTests {
   
   @Before
   public void start() throws Exception {
-    PS = new PriorityScheduler(5, 5, 100000);
+    PS = new PriorityScheduler(5);
     SE = new ThreadedSocketExecuter(PS);
     SE.start();
     port = Utils.findTCPPort();

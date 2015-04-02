@@ -7,9 +7,9 @@ import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectableChannel;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 
-import org.threadly.concurrent.KeyDistributedScheduler;
-import org.threadly.concurrent.SchedulerServiceInterface;
+import org.threadly.concurrent.KeyDistributedExecutor;
 import org.threadly.litesockets.Server;
 import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 
@@ -17,7 +17,7 @@ public class UDPServer extends Server {
   
   protected final DatagramChannel channel;
   private volatile ClientAcceptor clientAcceptor;
-  private KeyDistributedScheduler clientDistributer;
+  private KeyDistributedExecutor clientDistributer;
   private final ConcurrentHashMap<SocketAddress, UDPClient> clients = new ConcurrentHashMap<SocketAddress, UDPClient>();
   
   
@@ -28,9 +28,9 @@ public class UDPServer extends Server {
   }
   
   @Override
-  protected void setThreadExecuter(SchedulerServiceInterface sei) {
+  protected void setThreadExecuter(Executor sei) {
     super.setThreadExecuter(sei);
-    clientDistributer = new KeyDistributedScheduler(sei);
+    clientDistributer = new KeyDistributedExecutor(sei);
   }
 
   //This needs to be done before we select again

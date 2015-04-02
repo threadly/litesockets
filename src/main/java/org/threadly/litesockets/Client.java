@@ -1,13 +1,11 @@
 package org.threadly.litesockets;
 
-import java.io.IOException;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.Executor;
 
-import org.threadly.concurrent.SubmitterExecutorInterface;
 import org.threadly.concurrent.future.ListenableFuture;
-import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
@@ -61,12 +59,26 @@ public interface Client {
    */
   public boolean hasConnectionTimedOut();
   
+  /**
+   * 
+   * <p>Called to connect this client to a host.  This is done non-blocking, but the client must be on the SocketExecuter
+   * in order to finish connecting.  If not called SocketExecuter.addClient() will call this.</p>
+   * 
+   * <p>After this is called .close() will also be called if the connection has an error.</p>
+   * 
+   * @return A listenableFuture that will complete when the socket is connected.
+   */
+  public ListenableFuture<Boolean> connect();
   
-  public ListenableFuture<Boolean> connect() throws IOException;
+  /**
+   * <p>This is generally used by SocketExecuter to set there success or error when connecting, completing the Future.</p>
+   * 
+   * @param t if there was an error connecting this is provided other wise a successful connect will pass null.
+   */
   public void setConnectionStatus(Throwable t);
   
   /**
-   * <p></p>
+   * <p>Used to get the connect timeout information.</p>
    * 
    * @return the time till this connection times out
    */
@@ -106,8 +118,23 @@ public interface Client {
    */
   public int getMaxBufferSize();
   
-  public SubmitterExecutorInterface getClientsThreadExecutor();
-  public void setClientsThreadExecutor(SubmitterExecutorInterface cte);
+  /**
+   * <p> This returns this clients Executor.  The client must have been added to the SocketExecuter or this will return null.</p>
+   * 
+   * <p> Its worth noting that operations done on this Executer can/will block Read callbacks on the client, but it does provide
+   * you the ability to execute things on the clients read thread</p>
+   * 
+   * @return The Executor for the client.
+   */
+  public Executor getClientsThreadExecutor();
+  
+  /**
+   * This is set when the client is added to a SocketExecuter.  Care should be given if you manually set this as it could majorly change
+   * the behavior of the client Reader callback.
+   * 
+   * @param cte the Executer to set for this client.
+   */
+  public void setClientsThreadExecutor(Executor cte);
   
   /**
    * This is used to get the clients currently assigned SocketExecuter.
@@ -115,6 +142,12 @@ public interface Client {
    * @return the SocketExecuter set for this client. if none, null is returned.
    */
   public SocketExecuterInterface getClientsSocketExecuter();
+  
+  /**
+   * This is automatically done when called addClient(client) on a socketExecuter.  In general there is no need to manually set this.
+   * 
+   * @param cse the socketExecuterInterface for this client.
+   */
   public void setClientsSocketExecuter(SocketExecuterInterface cse);
   
   /**

@@ -196,15 +196,19 @@ public class SSLClient extends TCPClient {
   }
   
   @Override
-  public ListenableFuture<Boolean> connect() throws IOException {
+  public ListenableFuture<Boolean> connect(){
     if(startedConnection.compareAndSet(false, true)) {
       connectionFuture = new SettableListenableFuture<Boolean>();
+      try {
       channel = SocketChannel.open();
       channel.configureBlocking(false);
       channel.connect(new InetSocketAddress(host, port));
       connectExpiresAt = maxConnectionTime + Clock.lastKnownForwardProgressingMillis(); 
       if(connectHandshake) {
         doHandShake();
+      }
+      } catch(Exception e) {
+        connectionFuture.setFailure(e);
       }
     }
     return connectionFuture;

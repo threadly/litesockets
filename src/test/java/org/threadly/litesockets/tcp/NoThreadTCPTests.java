@@ -16,7 +16,7 @@ public class NoThreadTCPTests extends TCPTests {
   @Before
   public void start() throws IOException {
     STS = new SingleThreadScheduler();
-    PS = new PriorityScheduler(5, 5, 100000);
+    PS = new PriorityScheduler(5);
     ntSE = new NoThreadSocketExecuter();
     SE = ntSE;
     SE.start();

@@ -12,7 +12,7 @@ public class NoThreadUDPTests extends UDPTest {
 
   @Before
   public void start() throws IOException {
-    PS = new PriorityScheduler(5, 5, 100000);
+    PS = new PriorityScheduler(5);
     ntSE = new NoThreadSocketExecuter();
     SE = ntSE;
     SE.start();

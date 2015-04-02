@@ -43,7 +43,7 @@ public class TCPTests {
   
   @Before
   public void start() throws IOException {
-    PS = new PriorityScheduler(5, 5, 100000);
+    PS = new PriorityScheduler(5);
     SE = new ThreadedSocketExecuter(PS);
     SE.start();
     serverFC = new FakeTCPServerClient(SE);

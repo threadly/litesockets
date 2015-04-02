@@ -5,9 +5,9 @@ import java.net.Socket;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.threadly.concurrent.SubmitterExecutorInterface;
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.Client;
@@ -35,7 +35,7 @@ public class UDPClient implements Client {
 
   protected volatile Closer closer;
   protected volatile Reader reader;
-  protected volatile SubmitterExecutorInterface sei;
+  protected volatile Executor sei;
   protected volatile SocketExecuterInterface seb;
   protected AtomicBoolean closed = new AtomicBoolean(false);
 
@@ -68,7 +68,7 @@ public class UDPClient implements Client {
   }
   
   @Override
-  public void setClientsThreadExecutor(SubmitterExecutorInterface  sei) {
+  public void setClientsThreadExecutor(Executor  sei) {
     if(sei != null) {
       this.sei = sei;
     }
@@ -240,7 +240,7 @@ public class UDPClient implements Client {
   }
 
   @Override
-  public SubmitterExecutorInterface getClientsThreadExecutor() {
+  public Executor getClientsThreadExecutor() {
     return sei;
   }
 
@@ -296,7 +296,7 @@ public class UDPClient implements Client {
   }
 
   @Override
-  public ListenableFuture<Boolean> connect() throws IOException {
+  public ListenableFuture<Boolean> connect() {
     return FutureUtils.immediateResultFuture(true);
   }
 

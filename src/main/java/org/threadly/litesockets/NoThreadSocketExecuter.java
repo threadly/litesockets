@@ -78,30 +78,25 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
           selector.wakeup();
         }
       } else {
-        try {
-          if(client.getChannel() == null) {
-            client.connect();
-          }
-          Client nc = clients.putIfAbsent(client.getChannel(), client);
-          if(nc == null) {
-            scheduler.execute(new AddToSelector(client, selector, SelectionKey.OP_CONNECT));
-            scheduler.schedule(new Runnable() {
-              @Override
-              public void run() {
-                if(!client.hasConnectionTimedOut()) {
-                  SelectionKey sk = client.getChannel().keyFor(selector);
-                  if(sk != null) {
-                    sk.cancel();
-                  }
-                  removeClient(client);
-                  client.close();
+        if(client.getChannel() == null) {
+          client.connect();
+        }
+        Client nc = clients.putIfAbsent(client.getChannel(), client);
+        if(nc == null) {
+          scheduler.execute(new AddToSelector(client, selector, SelectionKey.OP_CONNECT));
+          scheduler.schedule(new Runnable() {
+            @Override
+            public void run() {
+              if(!client.hasConnectionTimedOut()) {
+                SelectionKey sk = client.getChannel().keyFor(selector);
+                if(sk != null) {
+                  sk.cancel();
                 }
-              }}, client.getTimeout()+10);
-            selector.wakeup();
-          }
-        } catch (IOException e) {
-          removeClient(client);
-          client.close();
+                removeClient(client);
+                client.close();
+              }
+            }}, client.getTimeout()+10);
+          selector.wakeup();
         }
       }
     }
@@ -261,15 +256,12 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
         }
         for(SelectionKey key: selector.selectedKeys()) {
           try {
-            System.out.println(key+":"+key.isConnectable()+":"+key.isReadable()+":"+key.isWritable());
-            
             if (key.isConnectable() ) {
               SocketChannel sc = (SocketChannel)key.channel();
               final Client client = clients.get(sc);
               if(sc.isConnectionPending()) {
                 try {
                   boolean tmp = sc.finishConnect();
-                  System.out.println(tmp);
                   if(tmp) {
                     client.setConnectionStatus(null);
                     if(client.canWrite()) {
@@ -396,7 +388,6 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
     public void run() {
       if(isRunning()) {
         try {
-          System.out.println(local_client+":"+registerType);
           local_client.getChannel().register(local_selector, registerType);
         } catch (ClosedChannelException e) {
           removeClient(local_client);

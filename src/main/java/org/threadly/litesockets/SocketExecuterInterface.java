@@ -1,6 +1,6 @@
 package org.threadly.litesockets;
 
-import org.threadly.concurrent.SchedulerServiceInterface;
+import org.threadly.concurrent.SimpleSchedulerInterface;
 
 public interface SocketExecuterInterface {
   /**
@@ -111,7 +111,7 @@ public interface SocketExecuterInterface {
    * 
    * @return returns the threadScheduler the SocketExecuter is using.
    */
-  public SchedulerServiceInterface getThreadScheduler();
+  public SimpleSchedulerInterface getThreadScheduler();
   
   /**
    * provided for {@link org.threadly.concurrent.AbstractService}

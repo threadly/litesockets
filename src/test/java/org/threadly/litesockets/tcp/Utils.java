@@ -1,14 +1,8 @@
 package org.threadly.litesockets.tcp;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.SocketChannel;
 import java.util.Random;
 
-import org.junit.Test;
-import org.threadly.concurrent.SingleThreadScheduler;
 import org.threadly.litesockets.udp.UDPServer;
 
 public class Utils {

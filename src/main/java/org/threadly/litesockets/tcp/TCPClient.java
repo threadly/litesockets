@@ -6,9 +6,9 @@ import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.threadly.concurrent.SubmitterExecutorInterface;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
@@ -62,7 +62,7 @@ public class TCPClient implements Client {
   
   protected volatile Closer closer;
   protected volatile Reader reader;
-  protected volatile SubmitterExecutorInterface sei;
+  protected volatile Executor cexec;
   protected volatile SocketExecuterInterface seb;
   protected volatile long connectExpiresAt = -1;
   protected SettableListenableFuture<Boolean> connectionFuture = new SettableListenableFuture<Boolean>();
@@ -117,13 +117,17 @@ public class TCPClient implements Client {
   }
   
   @Override
-  public ListenableFuture<Boolean> connect() throws IOException {
+  public ListenableFuture<Boolean> connect(){
     if(startedConnection.compareAndSet(false, true)) {
       connectionFuture = new SettableListenableFuture<Boolean>();
+      try {
       channel = SocketChannel.open();
       channel.configureBlocking(false);
       channel.connect(new InetSocketAddress(host, port));
-      connectExpiresAt = maxConnectionTime + Clock.lastKnownForwardProgressingMillis(); 
+      connectExpiresAt = maxConnectionTime + Clock.lastKnownForwardProgressingMillis();
+      } catch (Exception e) {
+        connectionFuture.setFailure(e);
+      }
     }
     return connectionFuture;
   }
@@ -178,8 +182,8 @@ public class TCPClient implements Client {
         //we dont care
       } finally {
         final Closer lcloser = closer;
-        if(lcloser != null && this.sei != null) {
-          sei.execute(new Runnable() {
+        if(lcloser != null && this.cexec != null) {
+          cexec.execute(new Runnable() {
             @Override
             public void run() {
               lcloser.onClose(TCPClient.this);
@@ -275,14 +279,14 @@ public class TCPClient implements Client {
   }
 
   @Override
-  public SubmitterExecutorInterface getClientsThreadExecutor() {
-    return this.sei;
+  public Executor getClientsThreadExecutor() {
+    return this.cexec;
   }
   
   @Override
-  public void setClientsThreadExecutor(SubmitterExecutorInterface cte) {
+  public void setClientsThreadExecutor(Executor cte) {
     if(cte != null) {
-      this.sei = cte;
+      this.cexec = cte;
     }
   }
 
@@ -337,7 +341,7 @@ public class TCPClient implements Client {
         int start = readBuffers.remaining();
         readBuffers.add(bb);
         if(start == 0){
-          sei.execute(new Runnable() {
+          cexec.execute(new Runnable() {
             @Override
             public void run() {
               lreader.onRead(TCPClient.this);

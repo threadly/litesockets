@@ -1,9 +1,9 @@
 package org.threadly.litesockets;
 
 import java.nio.channels.SelectableChannel;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.threadly.concurrent.SchedulerServiceInterface;
 import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 
 /**
@@ -22,7 +22,7 @@ import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 public abstract class Server {
   
   private volatile ServerCloser closer;
-  protected volatile SchedulerServiceInterface sei;
+  protected volatile Executor sei;
   protected volatile SocketExecuterInterface se;
   protected AtomicBoolean closed = new AtomicBoolean(false);
   
@@ -31,7 +31,7 @@ public abstract class Server {
    * 
    * @param sei ThreadExecuter to set to.
    */
-  protected void setThreadExecuter(SchedulerServiceInterface sei) {
+  protected void setThreadExecuter(Executor sei) {
     this.sei = sei;
   }
   

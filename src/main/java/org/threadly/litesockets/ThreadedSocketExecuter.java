@@ -12,19 +12,21 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
 
 import org.threadly.concurrent.AbstractService;
 import org.threadly.concurrent.ConfigurableThreadFactory;
-import org.threadly.concurrent.KeyDistributedScheduler;
-import org.threadly.concurrent.SchedulerServiceInterface;
+import org.threadly.concurrent.KeyDistributedExecutor;
+import org.threadly.concurrent.ScheduledExecutorServiceWrapper;
+import org.threadly.concurrent.SimpleSchedulerInterface;
 import org.threadly.concurrent.SingleThreadScheduler;
 
 public class ThreadedSocketExecuter extends AbstractService implements SocketExecuterInterface {
   private final SingleThreadScheduler acceptScheduler = new SingleThreadScheduler(new ConfigurableThreadFactory("SocketAcceptor", false, true, Thread.currentThread().getPriority(), null, null));
   private final SingleThreadScheduler readScheduler = new SingleThreadScheduler(new ConfigurableThreadFactory("SocketReader", false, true, Thread.currentThread().getPriority(), null, null));
   private final SingleThreadScheduler writeScheduler = new SingleThreadScheduler(new ConfigurableThreadFactory("SocketWriter", false, true, Thread.currentThread().getPriority(), null, null));
-  private final KeyDistributedScheduler clientDistributer;
-  private final SchedulerServiceInterface schedulerPool;
+  private final KeyDistributedExecutor clientDistributer;
+  private final SimpleSchedulerInterface schedulerPool;
   private final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
 
@@ -41,12 +43,17 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
 
   public ThreadedSocketExecuter() {
     schedulerPool = new SingleThreadScheduler(new ConfigurableThreadFactory("SocketClientThread", false, true, Thread.currentThread().getPriority(), null, null));
-    clientDistributer = new KeyDistributedScheduler(schedulerPool);
+    clientDistributer = new KeyDistributedExecutor(schedulerPool);
   }
 
-  public ThreadedSocketExecuter(SchedulerServiceInterface ssi) {
-    schedulerPool = ssi;
-    clientDistributer = new KeyDistributedScheduler(schedulerPool);
+  public ThreadedSocketExecuter(ScheduledExecutorService exec) {
+    schedulerPool = new ScheduledExecutorServiceWrapper(exec);
+    clientDistributer = new KeyDistributedExecutor(schedulerPool);
+  }
+  
+  public ThreadedSocketExecuter(SimpleSchedulerInterface exec) {
+    schedulerPool = exec;
+    clientDistributer = new KeyDistributedExecutor(schedulerPool);
   }
 
   @Override
@@ -68,29 +75,24 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
 
         }
       } else {
-        try {
-          if(client.getChannel() == null) {
-            client.connect();
-          }
-          Client nc = clients.putIfAbsent(client.getChannel(), client);
-          if(nc == null) {
-            readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_CONNECT));
-            schedulerPool.schedule(new Runnable() {
-              @Override
-              public void run() {
-                if(!client.hasConnectionTimedOut()) {
-                  SelectionKey sk = client.getChannel().keyFor(readSelector);
-                  if(sk != null) {
-                    sk.cancel();
-                  }
-                  removeClient(client);
-                  client.close();
+        if(client.getChannel() == null) {
+          client.connect();
+        }
+        Client nc = clients.putIfAbsent(client.getChannel(), client);
+        if(nc == null) {
+          readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_CONNECT));
+          schedulerPool.schedule(new Runnable() {
+            @Override
+            public void run() {
+              if(!client.hasConnectionTimedOut()) {
+                SelectionKey sk = client.getChannel().keyFor(readSelector);
+                if(sk != null) {
+                  sk.cancel();
                 }
-              }}, client.getTimeout()+10);
-          }
-        } catch (IOException e) {
-          removeClient(client);
-          client.close();
+                removeClient(client);
+                client.close();
+              }
+            }}, client.getTimeout()+10);
         }
       }
     }
@@ -409,7 +411,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
   }
 
   @Override
-  public SchedulerServiceInterface getThreadScheduler() {
+  public SimpleSchedulerInterface getThreadScheduler() {
     return schedulerPool;
   }
 }
