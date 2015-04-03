@@ -8,17 +8,23 @@ import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectableChannel;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.concurrent.KeyDistributedExecutor;
 import org.threadly.litesockets.Server;
+import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 
-public class UDPServer extends Server {
+public class UDPServer implements Server {
   
   protected final DatagramChannel channel;
   private volatile ClientAcceptor clientAcceptor;
   private KeyDistributedExecutor clientDistributer;
   private final ConcurrentHashMap<SocketAddress, UDPClient> clients = new ConcurrentHashMap<SocketAddress, UDPClient>();
+  private volatile ServerCloser closer;
+  protected volatile Executor sei;
+  protected volatile SocketExecuterInterface se;
+  protected AtomicBoolean closed = new AtomicBoolean(false);
   
   
   public UDPServer(String host, int port) throws IOException {
@@ -28,19 +34,33 @@ public class UDPServer extends Server {
   }
   
   @Override
-  protected void setThreadExecuter(Executor sei) {
-    super.setThreadExecuter(sei);
+  public void setThreadExecutor(Executor sei) {
+    this.sei = sei;
     clientDistributer = new KeyDistributedExecutor(sei);
   }
 
-  //This needs to be done before we select again
   @Override
-  protected void callAcceptor(SelectableChannel c) {
-    accept(c);
+  public void setSocketExecuter(SocketExecuterInterface se) {
+    this.se = se;
   }
-  
+
   @Override
-  public void accept(SelectableChannel c) {
+  public SocketExecuterInterface getSocketExecuter() {
+    return this.se;
+  }
+
+  @Override
+  public ServerCloser getCloser() {
+    return closer;
+  }
+
+  @Override
+  public void setCloser(ServerCloser closer) {
+    this.closer = closer;
+  }
+
+  @Override
+  public void acceptChannel(SelectableChannel c) {
     if(c == channel) {
       final ByteBuffer bb = ByteBuffer.allocate(1500);
       try {
@@ -95,6 +115,16 @@ public class UDPServer extends Server {
       //Dont Care
     } finally {
       this.callCloser();
+    }
+  }
+  
+  protected void callCloser() {
+    if(sei != null && closer != null) {
+      sei.execute(new Runnable() {
+        @Override
+        public void run() {
+          getCloser().onClose(UDPServer.this);
+        }});
     }
   }
   

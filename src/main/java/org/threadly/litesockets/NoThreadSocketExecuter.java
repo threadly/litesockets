@@ -120,8 +120,8 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
     if(isRunning() && server.getSelectableChannel().isOpen()) {
       Server sn = servers.putIfAbsent(server.getSelectableChannel(), server);
       if(sn == null) {
-        server.setServerExecuter(this);
-        server.setThreadExecuter(scheduler);
+        server.setSocketExecuter(this);
+        server.setThreadExecutor(scheduler);
         scheduler.execute(new Runnable() {
           @Override
           public void run() {
@@ -152,11 +152,6 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
       servers.remove(server.getSelectableChannel());
       selector.wakeup();
     }
-  }
-
-  @Override
-  public boolean verifyReadThread() {
-    return true;
   }
 
   @Override
@@ -310,7 +305,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
       SocketChannel client = server.accept();
       if(client != null) {
         client.configureBlocking(false);
-        tServer.callAcceptor(client);
+        tServer.acceptChannel(client);
       }
     } catch (IOException e) {
       removeServer(tServer);
@@ -322,7 +317,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
     final Client client = clients.get(sc);
     if(client != null) {
       try {
-        ByteBuffer readByteBuffer = client.provideEmptyReadBuffer();
+        ByteBuffer readByteBuffer = client.provideReadByteBuffer();
         int origPos = readByteBuffer.position();
         int read = client.getChannel().read(readByteBuffer);
         if(read < 0) {
@@ -348,7 +343,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
     }else {
       final Server server = servers.get(sc);
       if(server.getServerType() == WireProtocol.UDP) {
-        server.callAcceptor((DatagramChannel)server.getSelectableChannel());
+        server.acceptChannel((DatagramChannel)server.getSelectableChannel());
       }
     }
 

@@ -27,7 +27,7 @@ public class SSLServer extends TCPServer {
   }
 
   @Override
-  public void accept(final SelectableChannel c) {
+  public void acceptChannel(final SelectableChannel c) {
     String remote = ((SocketChannel)c).socket().getRemoteSocketAddress().toString();
     int port = ((SocketChannel)c).socket().getPort();
     ClientAcceptor ca = getClientAcceptor();

@@ -217,7 +217,7 @@ public class UDPClient implements Client {
   }
 
   @Override
-  public ByteBuffer provideEmptyReadBuffer() {
+  public ByteBuffer provideReadByteBuffer() {
     if(readByteBuffer.remaining() < minAllowedReadBuffer) {
       readByteBuffer = ByteBuffer.allocate(maxBufferSize*2);
     }

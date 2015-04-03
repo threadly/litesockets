@@ -120,8 +120,8 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
     if(isRunning()) {
       Server sn = servers.putIfAbsent(server.getSelectableChannel(), server);
       if(sn == null) {
-        server.setServerExecuter(this);
-        server.setThreadExecuter(schedulerPool);
+        server.setSocketExecuter(this);
+        server.setThreadExecutor(schedulerPool);
         acceptScheduler.execute(new Runnable() {
           @Override
           public void run() {
@@ -230,7 +230,14 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
     return servers.size();
   }
 
-  @Override
+  
+  /**
+   * <p>This is used to figure out if the current used thread is the SocketExecuters ReadThread.
+   * This is used by clients to Enforce certain threads to do certain public tasks.</p>
+   * 
+   * 
+   * @return a boolean to tell you if the current thread is the readThread for this executer.
+   */
   public boolean verifyReadThread() {
     long tid = Thread.currentThread().getId();
     if(tid != readThreadID) {
@@ -255,7 +262,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
                     SocketChannel client = server.accept();
                     if(client != null) {
                       client.configureBlocking(false);
-                      tServer.callAcceptor(client);
+                      tServer.acceptChannel(client);
                     }
                   } catch (IOException e) {
                     removeServer(tServer);
@@ -264,7 +271,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
                 } else if(sk.isReadable()) {
                   DatagramChannel server = (DatagramChannel) sk.channel();
                   final Server udpServer = servers.get(server);
-                  udpServer.callAcceptor(server);
+                  udpServer.acceptChannel(server);
                 }
             }
           }
@@ -312,7 +319,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
               }
               if(client != null) {
                 try {
-                  ByteBuffer readByteBuffer = client.provideEmptyReadBuffer();
+                  ByteBuffer readByteBuffer = client.provideReadByteBuffer();
                   int origPos = readByteBuffer.position();
                   int read = sc.read(readByteBuffer);
                   if(read < 0) {

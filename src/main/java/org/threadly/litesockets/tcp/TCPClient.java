@@ -256,9 +256,9 @@ public class TCPClient implements Client {
   }
 
   @Override
-  public ByteBuffer provideEmptyReadBuffer() {
+  public ByteBuffer provideReadByteBuffer() {
     if(readByteBuffer.remaining() < minAllowedReadBuffer) {
-      readByteBuffer = ByteBuffer.allocate(maxBufferSize*2);
+      readByteBuffer = ByteBuffer.allocate(DEFAULT_MAX_BUFFER_SIZE);
     }
     return readByteBuffer;
   }
