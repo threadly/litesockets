@@ -145,8 +145,8 @@ public class SSLTests {
     serverFC.addTCPServer(server);
     
     final SSLClient client = new SSLClient("localhost", port);
-    client.connect();
-    client.doHandShake();
+    //client.connect();
+    //client.doHandShake();
     SE.addClient(client);
     client.writeForce(TCPTests.LARGE_TEXT_BUFFER.duplicate());
     client.writeForce(TCPTests.LARGE_TEXT_BUFFER.duplicate());
@@ -171,13 +171,19 @@ public class SSLTests {
     sclient.writeForce(TCPTests.LARGE_TEXT_BUFFER.duplicate());
     sclient.writeForce(TCPTests.LARGE_TEXT_BUFFER.duplicate());
     sclient.writeForce(TCPTests.LARGE_TEXT_BUFFER.duplicate());
-    
+    //System.out.println("w:"+sclient.getWriteBufferSize());
+    //System.out.println(":"+TCPTests.LARGE_TEXT_BUFFER.remaining());
     
     new TestCondition(){
       @Override
       public boolean get() {
-        //System.out.println(serverFC.map.get(client).remaining()+":"+(TCPTests.LARGE_TEXT_BUFFER.remaining()*3));
-        //System.out.println();
+        /*
+        System.out.println(serverFC.map.get(client).remaining()+":"+(TCPTests.LARGE_TEXT_BUFFER.remaining()*3));
+        System.out.println("w:"+sclient.finishedHandshake.get()+":"+sclient.startedHandshake.get());
+        System.out.println("w:"+sclient.ssle.getHandshakeStatus());
+        System.out.println("r:"+client.ssle.getHandshakeStatus());
+        System.out.println("r:"+client.getReadBufferSize());
+        */
         if(serverFC.map.get(client) != null) {
           return serverFC.map.get(client).remaining() == TCPTests.LARGE_TEXT_BUFFER.remaining()*3;
         }

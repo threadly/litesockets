@@ -72,7 +72,6 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
             writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
             writeSelector.wakeup();  
           }
-
         }
       } else {
         if(client.getChannel() == null) {
@@ -81,6 +80,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
         Client nc = clients.putIfAbsent(client.getChannel(), client);
         if(nc == null) {
           readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_CONNECT));
+          readSelector.wakeup();
           schedulerPool.schedule(new Runnable() {
             @Override
             public void run() {

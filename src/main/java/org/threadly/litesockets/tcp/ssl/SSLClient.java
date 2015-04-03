@@ -97,7 +97,7 @@ public class SSLClient extends TCPClient {
    * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
    */
   public SSLClient(String host, int port, SSLEngine ssle, int timeout){
-    this(host, port, ssle, TCPClient.DEFAULT_SOCKET_TIMEOUT, false);
+    this(host, port, ssle, TCPClient.DEFAULT_SOCKET_TIMEOUT, true);
   }
 
   /**
@@ -297,6 +297,11 @@ public class SSLClient extends TCPClient {
       this.writeBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()*3);
     }
     return writeBuffer;
+  }
+  
+  @Override
+  public int getWriteBufferSize() {
+    return super.getWriteBufferSize() + tmpWriteBuffers.remaining();
   }
 
   @Override
