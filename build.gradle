@@ -19,7 +19,7 @@ dependencies {
   emma "emma:emma_ant:2.1.5320"
 
   compile (
-    'org.threadly:threadly:3.6.0'
+    'org.threadly:threadly:3.7.0'
   )
 }
 

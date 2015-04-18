@@ -30,13 +30,6 @@ import org.threadly.litesockets.utils.SimpleByteStats;
 public interface Client {
   
   /**
-   * Returns the SimpleByteStats object for this client.
-   * 
-   * @return the byte stats for this client.
-   */
-  public SimpleByteStats getStats();
-  
-  /**
    * Returns true if this client can have reads added to it or false if its read buffers are full.
    * 
    * This is mainly to inform the SocketExecuter if the client should be allowed to select onReads.
@@ -67,18 +60,20 @@ public interface Client {
   
   /**
    * 
-   * <p>Called to connect this client to a host.  This is done non-blocking, and can be called before adding the client to the socketExecuter, 
-   * but the client must be on the SocketExecuter in order to finish connecting.  If not called SocketExecuter.addClient() will automatically 
-   * call this.</p>
+   * <p>Called to connect this client to a host.  This is done non-blocking, and can be called before adding the client 
+   * to the {@link SocketExecuterInterface}, but the client must be on the {@link SocketExecuterInterface} 
+   * in order to finish connecting.  If not called {@link SocketExecuter#addClient(Client)}
+   * will automatically call this.</p>
    * 
    * <p>If there is an error connecting .close() will also be called on the client.</p>
    * 
-   * @return A listenableFuture that will complete when the socket is connected, or fail if we cant connect.
+   * @return A {@link ListenableFuture} that will complete when the socket is connected, or fail if we cant connect.
    */
   public ListenableFuture<Boolean> connect();
   
   /**
-   * <p>This is generally used by SocketExecuter to set if there was a success or error when connecting, completing the Future.</p>
+   * <p>This is generally used by SocketExecuter to set if there was a success or error when connecting, completing the 
+   * {@link ListenableFuture}.</p>
    * 
    * @param t if there was an error connecting this is provided otherwise a successful connect will pass null.
    */
@@ -92,8 +87,9 @@ public interface Client {
   public int getTimeout();
   
   /**
-   * <p>When this clients socket has a read pending and canRead() is true, this is where the ByteBuffer for the read comes from.
-   * In general this should only be used by the ReadThread in the SocketExecuter and it should be noted that it is not threadsafe.</p>
+   * <p>When this clients socket has a read pending and {@link #canRead()} is true, this is where the ByteBuffer for the read comes from.
+   * In general this should only be used by the ReadThread in the {@link SocketExecuterInterface} and it should be noted 
+   * that it is not threadsafe.</p>
    * 
    * @return A ByteBuffer for the ReadThread to use during its read operations.
    */
@@ -121,66 +117,67 @@ public interface Client {
   public int getMaxBufferSize();
   
   /**
-   * <p> This returns this clients Executor Thread.  The client must have been added to the SocketExecuter or this will return null.</p>
+   * <p> This returns this clients {@link Executer}.  The client must have been added to the {@link SocketExecuterInterface} or 
+   * this will return null.</p>
    * 
-   * <p> Its worth noting that operations done on this Executer can/will block Read callbacks on the client, but it does provide
-   * you the ability to execute things on the clients read thread</p>
+   * <p> Its worth noting that operations done on this {@link Executer} can/will block Read callbacks on the 
+   * client, but it does provide you the ability to execute things on the clients read thread</p>
    * 
-   * @return The Executor for the client.
+   * @return The {@link Executer} for the client.
    */
   public Executor getClientsThreadExecutor();
   
   /**
-   * <p>This is set when the client is added to a SocketExecuter.  Care should be given if you manually set this as 
-   * it will greatly impact the behavior of the client Reader callback.<p>
+   * <p>This is set when the client is added to a {@link SocketExecuterInterface}.  Care should be given if you manually set this as 
+   * it will greatly impact the behavior of the client {@link Reader} callback.<p>
    * 
-   * @param cte the Executer to used for this clients callbacks.
+   * @param cte the {@link Executer} to used for this clients callbacks.
    */
   public void setClientsThreadExecutor(Executor cte);
   
   /**
-   * <p>This is used to get the clients currently assigned SocketExecuter.</p>
+   * <p>This is used to get the clients currently assigned {@link SocketExecuterInterface}.</p>
    * 
-   * @return the SocketExecuter set for this client. if none, null is returned.
+   * @return the {@link SocketExecuterInterface} set for this client. if none, null is returned.
    */
   public SocketExecuterInterface getClientsSocketExecuter();
   
   /**
-   * <p>This is automatically done when called addClient(client) on a SocketExecuter.  
+   * <p>This is automatically done when called the client is added with {@link SocketExecuterInterface#addClient(Client)}.  
    * In general there is no need to manually set this, and care should be given if done.</p>
    * 
-   * @param cse the socketExecuterInterface for this client.
+   * @param cse the {@link SocketExecuterInterface} for this client.
    */
   public void setClientsSocketExecuter(SocketExecuterInterface cse);
   
   /**
-   * <p>This is used to get the currently set Closer for this client.</p>
+   * <p>This is used to get the currently set {@link Closer} for this client.</p>
    * 
-   * @return the current Closer interface for this client.
+   * @return the current {@link Closer} interface for this client.
    */
   public Closer getCloser();
 
   /**
-   * <p>This sets the Closer interface for this client.  Once set the client will call .onClose 
+   * <p>This sets the {@link Closer} interface for this client.  Once set the client will call .onClose 
    * on it once it a socket close is detected.</p> 
    * 
-   * @param closer sets this clients Closer callback.
+   * @param closer sets this clients {@link Closer} callback.
    */
   public void setCloser(Closer closer);
   
   /**
    * <p>Returns the currently set Reader callback. </p>
    * 
-   * @return the current Reader for this client.
+   * @return the current {@link Reader} callback for this client.
    */
   public Reader getReader();
 
   /**
-   * <p>This sets the Reader for the client.This should be set before adding the Client to the SocketExecuter, if its not
-   * there is a chance to miss data coming in on the socket.  Once set data received on the socket will be callback on this Reader to 
-   * be processed.</p>
+   * <p>This sets the Reader for the client.This should be set before adding the Client to the {@link SocketExecuterInterface}, 
+   * if its not there is a chance to miss data coming in on the socket.  Once set data received on the socket will be callback 
+   * on this Reader to be processed.</p>
    * 
-   * @param reader the Reader interface to set for this client.
+   * @param reader the {@link Reader} callback to set for this client.
    */
   public void setReader(Reader reader);
 
@@ -199,26 +196,27 @@ public interface Client {
   public void setMaxBufferSize(int size);
   
   /**
-   * <p>Whenever a the Reader Interface is called for this client .getRead() should be called from the client.</p>
+   * <p>Whenever a the {@link Reader} Interfaces {@link #Reader.onRead(Client)} is called the
+   * {@link #getRead()) should be called from the client.</p>
    * 
-   * @return a MergedByteBuffers of the current reads for this client.
+   * @return a {@link MergedByteBuffers} of the current read data for this client.
    */
   public MergedByteBuffers getRead();
   
   /**
    * 
-   * <p>Adds a ByteBuffer to the Clients readBuffer.  This is normally only used by the SocketExecuter,
+   * <p>Adds a {@link ByteBuffer} to the Clients readBuffer.  This is normally only used by the {@link SocketExecuterInterface},
    * though it could be used to artificially inject data through the client.  Calling this will schedule a
    * calling the currently set Reader on the client.</p>
    * 
    * 
-   * @param bb the ByteBuffer to add to the clients readBuffer.
+   * @param bb the {@link ByteBuffer} to add to the clients readBuffer.
    */
   public void addReadBuffer(ByteBuffer bb);
   
   /**
    * <p> This tries to write the ByteBuffer passed to it to the Client.  If the Clients writeBuffer 
-   * is greater than the maxbufferSize the ByteBuffer will not be added and false will be returned.
+   * is greater than the maxbufferSize the {@link ByteBuffer} will not be added and false will be returned.
    * If the current writeBuffer is less than the maxBufferSize then the ByteBuffer will be added and this
    * will return true.</p>
    * 
@@ -227,7 +225,7 @@ public interface Client {
    * write if you are streaming data raw data and using more then 1 thread to do such.
    * </p>
    * 
-   * @param bb the ByteBuffer to write to the client.
+   * @param bb the {@link ByteBuffer} to write to the client.
    * @return true if the client has taken the ByteBuffer false if it did not.
    */
   public boolean writeTry(ByteBuffer bb);
@@ -247,8 +245,8 @@ public interface Client {
    * write if you are streaming data raw data and using more then 1 thread to do such.
    * </p>
    * 
-   * @param bb the ByteBuffer to write.
-   * @throws InterruptedException This happens only if the thread that is blocked is interrupted while waiting. 
+   * @param bb the {@link ByteBuffer} to write.
+   * @throws {@link InterruptedException} This happens only if the thread that is blocked is interrupted while waiting. 
    */
   public void writeBlocking(ByteBuffer bb) throws InterruptedException;
   
@@ -266,21 +264,21 @@ public interface Client {
   public void writeForce(ByteBuffer bb);
   
   /**
-   * <p>This provides the next available Write buffer.  This is typically only called by the SocketExecuter.
-   * This is not threadsafe as the same ByteBuffer will be provided to any thread that calls this, until 
-   * something consumes all byte available in it at which point another ByteBuffer will be provided.</p>
+   * <p>This provides the next available Write buffer.  This is typically only called by the {@link SocketExecuterInterface}.
+   * This is not threadsafe as the same {@link ByteBuffer} will be provided to any thread that calls this, until 
+   * something consumes all byte available in it at which point another {@link ByteBuffer} will be provided.</p>
    * 
-   * <p>Assuming something actually removes data from this ByteBuffer an additional call to reduceWrite(size) must
-   * be made</p>
+   * <p>Assuming something actually removes data from the returned {@link ByteBuffer} an additional call to 
+   * {@link #reduceWrite(int)} must be made</p>
    * 
    * 
-   * @return a ByteBuffer that can be used to Read new data off the socket for this client.
+   * @return a {@link ByteBuffer} that can be used to Read new data off the socket for this client.
    */
   public ByteBuffer getWriteBuffer();
   
   /**
    * <p>This is called after a write is written to the clients socket.  This tells the client how much of that 
-   * ByteBuffer was written and then reduces the writeBuffersSize accordingly.</p>
+   * {@link ByteBuffer} was written and then reduces the writeBuffersSize accordingly.</p>
    * 
    * @param size the size in bytes of data written on the socket.
    */
@@ -288,15 +286,15 @@ public interface Client {
 
   
   /**
-   * <p>Returns the SocketChannel for this client.  If the client does not have a SocketChannel
-   * it will return null (ie UDPClient).</p>
+   * <p>Returns the {@link SocketChannel} for this client.  If the client does not have a {@link SocketChannel} 
+   * it will return null (ie {@link UDPClient}).</p>
    * 
-   * @return the SocketChannel for this client.
+   * @return the {@link SocketChannel}  for this client.
    */
   public SocketChannel getChannel();
   
   /**
-   * <p>This is used by the SocketExecuter to help understand how to manage this client.
+   * <p>This is used by the {@link SocketExecuterInterface} to help understand how to manage this client.
    * Currently only UDP and TCP exist.</p>
    * 
    * @return The IP protocol type of this client.
@@ -305,7 +303,7 @@ public interface Client {
   
   /**
    * <p>Gets the raw Socket object for this Client. If the client does not have a Socket
-   * it will return null (ie UDPClient). This is basically getChannel().socket()</p>
+   * it will return null (ie {@link UDPClient}). This is basically getChannel().socket()</p>
    * 
    * @return the Socket for this client.
    */
@@ -321,9 +319,18 @@ public interface Client {
   public boolean isClosed();
   
   /**
-   * <p>Closes this client.  Any pending writes when this is called will just be dropped.</p>
+   * <p>Closes this client.  Reads can still occur after this it called.  {@link Closer.onClose} will still be
+   * called (if set) once all reads are done.</p>
    */
   public void close();
+  
+  
+  /**
+   * Returns the {@link SimpleByteStats} for this client.
+   * 
+   * @return the byte stats for this client.
+   */
+  public SimpleByteStats getStats();
   
   /**
    * This is the Reader Interface for clients.
