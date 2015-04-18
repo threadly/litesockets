@@ -13,7 +13,7 @@
     <dependency>
       <groupId>org.threadly</groupId>
       <artifactId>threadly</artifactId>
-      <version>3.6.0</version>
+      <version>3.7.0</version>
       <type>jar</type>
       <optional>false</optional>
     </dependency>
