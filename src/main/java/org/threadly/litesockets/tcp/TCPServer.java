@@ -12,6 +12,11 @@ import org.threadly.litesockets.Server;
 import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 
+/**
+ * This is a {@link Server} implementation of a TCP Server.  {@link org.threadly.litesockets.Server.ClientAcceptor} calls by this server will
+ * Create {@link TCPClient}.
+ * 
+ */
 public class TCPServer implements Server {
   private final ServerSocketChannel socket;
   private volatile ClientAcceptor clientAcceptor;
@@ -20,12 +25,26 @@ public class TCPServer implements Server {
   protected volatile SocketExecuterInterface se;
   protected AtomicBoolean closed = new AtomicBoolean(false);
 
+  /**
+   * Creates a new TCP Listen socket on the passed host/port.  This is Listen port is created
+   * immediately and will throw an exception if for any reason it can't be opened.
+   * 
+   * @param host The host address/interface to create this listen port on.
+   * @param port The port to use for the listen port.
+   * @throws IOException This is throw if for any reason we can't create the listen port.
+   */
   public TCPServer(String host, int port) throws IOException {
     socket = ServerSocketChannel.open();
     socket.socket().bind(new InetSocketAddress(host, port), 100);
     socket.configureBlocking(false);
   }
 
+  /**
+   * This allows you to provide an already existing {@link ServerSocketChannel}.  It must already be open. 
+   * 
+   * @param server The {@link ServerSocketChannel} to be used by this TCPServer. 
+   * @throws IOException  If anything is wrong with the provided {@link ServerSocketChannel} this will be thrown.
+   */
   public TCPServer(ServerSocketChannel server) throws IOException{
     server.configureBlocking(false);
     socket = server;

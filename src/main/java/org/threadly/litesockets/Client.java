@@ -10,6 +10,7 @@ import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
 
+
 /**
  * <p>This is the main Client interface used in litesockets.  Anything that reads or writes data
  * will use this object.  The clients work by having buffered reads and writes for the socket. They tell the
@@ -62,7 +63,7 @@ public interface Client {
    * 
    * <p>Called to connect this client to a host.  This is done non-blocking, and can be called before adding the client 
    * to the {@link SocketExecuterInterface}, but the client must be on the {@link SocketExecuterInterface} 
-   * in order to finish connecting.  If not called {@link SocketExecuter#addClient(Client)}
+   * in order to finish connecting.  If not called {@link SocketExecuterInterface#addClient(Client)}
    * will automatically call this.</p>
    * 
    * <p>If there is an error connecting .close() will also be called on the client.</p>
@@ -117,13 +118,13 @@ public interface Client {
   public int getMaxBufferSize();
   
   /**
-   * <p> This returns this clients {@link Executer}.  The client must have been added to the {@link SocketExecuterInterface} or 
+   * <p> This returns this clients {@link Executor}.  The client must have been added to the {@link SocketExecuterInterface} or 
    * this will return null.</p>
    * 
-   * <p> Its worth noting that operations done on this {@link Executer} can/will block Read callbacks on the 
+   * <p> Its worth noting that operations done on this {@link Executor} can/will block Read callbacks on the 
    * client, but it does provide you the ability to execute things on the clients read thread</p>
    * 
-   * @return The {@link Executer} for the client.
+   * @return The {@link Executor} for the client.
    */
   public Executor getClientsThreadExecutor();
   
@@ -131,7 +132,7 @@ public interface Client {
    * <p>This is set when the client is added to a {@link SocketExecuterInterface}.  Care should be given if you manually set this as 
    * it will greatly impact the behavior of the client {@link Reader} callback.<p>
    * 
-   * @param cte the {@link Executer} to used for this clients callbacks.
+   * @param cte the {@link Executor} to used for this clients callbacks.
    */
   public void setClientsThreadExecutor(Executor cte);
   
@@ -196,8 +197,8 @@ public interface Client {
   public void setMaxBufferSize(int size);
   
   /**
-   * <p>Whenever a the {@link Reader} Interfaces {@link #Reader.onRead(Client)} is called the
-   * {@link #getRead()) should be called from the client.</p>
+   * <p>Whenever a the {@link Reader} Interfaces {@link Reader#onRead(Client)} is called the
+   * {@link #getRead()} should be called from the client.</p>
    * 
    * @return a {@link MergedByteBuffers} of the current read data for this client.
    */
@@ -287,7 +288,7 @@ public interface Client {
   
   /**
    * <p>Returns the {@link SocketChannel} for this client.  If the client does not have a {@link SocketChannel} 
-   * it will return null (ie {@link UDPClient}).</p>
+   * it will return null (ie {@link org.threadly.litesockets.udp.UDPClient}).</p>
    * 
    * @return the {@link SocketChannel}  for this client.
    */
@@ -303,7 +304,7 @@ public interface Client {
   
   /**
    * <p>Gets the raw Socket object for this Client. If the client does not have a Socket
-   * it will return null (ie {@link UDPClient}). This is basically getChannel().socket()</p>
+   * it will return null (ie {@link org.threadly.litesockets.udp.UDPClient}). This is basically getChannel().socket()</p>
    * 
    * @return the Socket for this client.
    */
@@ -319,7 +320,7 @@ public interface Client {
   public boolean isClosed();
   
   /**
-   * <p>Closes this client.  Reads can still occur after this it called.  {@link Closer.onClose} will still be
+   * <p>Closes this client.  Reads can still occur after this it called.  {@link Closer#onClose(Client)} will still be
    * called (if set) once all reads are done.</p>
    */
   public void close();
@@ -340,8 +341,7 @@ public interface Client {
    * thread and should not be blocked for long.  If it is the client will back up and stop reading until
    * it is unblocked.</p>
    * 
-   * <p>The implementor of Reader should always call "client.getRead()" once and only once.  If not you risk either
-   * reading data to early or causing the reader to be behind a packet.</p>
+   * <p>The implementor of Reader should call {@link Client#getRead()}.</p>
    * 
    * <p>If the same Reader is used by multiple clients each client will call the Reader on its own thread so be careful 
    * what objects your modifying if you do that.</p>

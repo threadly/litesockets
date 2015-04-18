@@ -18,19 +18,20 @@ import org.threadly.concurrent.NoThreadScheduler;
 import org.threadly.concurrent.SchedulerServiceInterface;
 
 /**
- * The NoThreadSocketExecuter is a simpler implementation of a SocketExecuter.
- * There are no threads and all network operations happen on whatever thread
- * calls .select(), and only 1 thread at a time should ever call it.  Other then
- * that it should be completely thread safe.  
+ * <p>The NoThreadSocketExecuter is a simpler implementation of a {@link SocketExecuterInterface} 
+ * that does not create any threads. Since there are no threads operations happen on whatever thread
+ * calls .select(), and only 1 thread at a time should ever call it at a time.  Other then
+ * that it should be completely thread safe.</p>
  * 
- * This is generally the implementation used by clients.  It can be used for servers
+ * <p>This is generally the implementation used by clients.  It can be used for servers
  * but only when not servicing many connections at once.  How many connections is hardware
- * and OS defendant.  For an average multi-core x86 linux server I a couple 
- * hundred connections would be its limit.
+ * and OS defendant.  For an average multi-core x86 linux server I a connections not to much more
+ * then 1000 connections would be its limit, though alot depends on how active those connections are.</p>
  * 
- * It should also be noted that all client read/close callbacks happen on the calling
- * thread.  This is not normally a problem unless you are running the Server and client
- * on the same NoThreadSocketExecuter.  It will work in general but there is a chance of deadlocking.
+ * <p>It should also be noted that all client read/close callbacks happen on the thread that calls select().</p>
+ * 
+ * <p>The functions like {@link #addClient(Client)}, {@link #removeClient(Client)}, {@link #addServer(Server)}, and 
+ * {@link #removeServer(Server)} can be called from other threads safely.</p>
  * 
  * @author lwahlmeier
  *
@@ -42,14 +43,14 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
   private Selector selector;
 
   /**
-   * Constructs a NoThreadSocketExecuter.
+   * Constructs a NoThreadSocketExecuter.  {@link #start()} must still be called before using it.
    * 
    */
   public NoThreadSocketExecuter() {
   }
   
   /**
-   * This is used to wakeup the selector assuming it was called with a timeout on it.
+   * This is used to wakeup the {@link Selector} assuming it was called with a timeout on it.
    * Most all methods in this class that need to do a wakeup do it automatically, but
    * there are situations where you might want to wake up the thread we are blocked on 
    * manually.
@@ -220,7 +221,9 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
 
   /**
    * This will run all ExecuterTasks, check for pending network operations,
-   * then run those operations.  
+   * then run those operations.  There can be a lot of I/O operations so this
+   * could take some time to run.  In general it should not be called from things like
+   * GUI threads.
    * 
    */
   public void select() {
@@ -228,13 +231,13 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
   }
   
   /**
-   * this is the same as the select() but it allows you to set a delay.
+   * This is the same as the {@link #select()} but it allows you to set a delay.
    * This delay is the time to wait for socket operations to happen.  It will
-   * block the calling thread for upto this amount of time, but it could be less
+   * block the calling thread for up to this amount of time, but it could be less
    * if any network operation happens (including another thread adding a client/server). 
    * 
    * 
-   * @param delay
+   * @param delay Max time in milliseconds to block for.
    */
   public void select(int delay) {
     if(isRunning()) {

@@ -21,6 +21,17 @@ import org.threadly.concurrent.ScheduledExecutorServiceWrapper;
 import org.threadly.concurrent.SimpleSchedulerInterface;
 import org.threadly.concurrent.SingleThreadScheduler;
 
+
+/**
+ * <p>This is a mutliThreaded implementation of a {@link SocketExecuterInterface}.  It uses separate threads to perform Accepts, Reads and Writes.  
+ * Constructing this will create 3 additional threads.  Generally only one of these will ever be needed in a process.</p>
+ * 
+ * <p>This is generally the {@link SocketExecuterInterface} implementation you want to use for servers, especially if they have to deal with more
+ * then just a few connections.  See {@link NoThreadSocketExecuter} for a more efficient implementation when not dealing with many connections.</p>
+ * 
+ * @author lwahlmeier
+ *
+ */
 public class ThreadedSocketExecuter extends AbstractService implements SocketExecuterInterface {
   private final SingleThreadScheduler acceptScheduler = new SingleThreadScheduler(new ConfigurableThreadFactory("SocketAcceptor", false, true, Thread.currentThread().getPriority(), null, null));
   private final SingleThreadScheduler readScheduler = new SingleThreadScheduler(new ConfigurableThreadFactory("SocketReader", false, true, Thread.currentThread().getPriority(), null, null));
@@ -31,7 +42,6 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
 
   protected volatile long readThreadID = 0;
-
   protected Selector readSelector;
   protected Selector writeSelector;
   protected Selector acceptSelector;
@@ -41,16 +51,32 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
   private WriteRunner writer;
 
 
+  /**
+   * <p>This constructor creates its own {@link SingleThreadScheduler} Threadpool to use for client operations.  This is generally 
+   * not recommended unless you are not doing many socket connections/operations.  You should really use your own multiThreaded 
+   * thread pool.</p>
+   */
   public ThreadedSocketExecuter() {
     schedulerPool = new SingleThreadScheduler(new ConfigurableThreadFactory("SocketClientThread", false, true, Thread.currentThread().getPriority(), null, null));
     clientDistributer = new KeyDistributedExecutor(schedulerPool);
   }
 
+  /**
+   * <p>This is provided to allow people to use java's generic threadpool scheduler {@link ScheduledExecutorService} </p>
+   * 
+   * @param exec The {@link ScheduledExecutorService} to be used for client/server callbacks.
+   */
   public ThreadedSocketExecuter(ScheduledExecutorService exec) {
     schedulerPool = new ScheduledExecutorServiceWrapper(exec);
     clientDistributer = new KeyDistributedExecutor(schedulerPool);
   }
   
+  /**
+   * <p>Here you can provide a {@link ScheduledExecutorService} for this {@link SocketExecuterInterface}.  This will be used
+   * on accept, read, and close callback events.</p>
+   * 
+   * @param exec the {@link ScheduledExecutorService} to be used for client/server callbacks.
+   */
   public ThreadedSocketExecuter(SimpleSchedulerInterface exec) {
     schedulerPool = exec;
     clientDistributer = new KeyDistributedExecutor(schedulerPool);

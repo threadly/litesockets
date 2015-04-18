@@ -20,13 +20,8 @@ import org.threadly.util.Clock;
 
 /**
  * This is a generic Client for TCP connections.  This client can be either from the "client" side or
- * from a client from a TCP "Server", and both function the same way.
- * 
- * 
+ * from a client from a {@link TCPServer}, and both function the same way.
  *   
- *   
- * @author lwahlmeier
- *
  */
 public class TCPClient implements Client {
   /**
@@ -34,7 +29,7 @@ public class TCPClient implements Client {
    */
   public static final int DEFAULT_SOCKET_TIMEOUT = 10000;
   /**
-   * Default max buffer size (64k).  Read and write buffers are independant of eachother.
+   * Default max buffer size (64k).  Read and write buffers are independent of eachother.
    */
   public static final int DEFAULT_MAX_BUFFER_SIZE = 64*1024;
   /**
@@ -84,11 +79,13 @@ public class TCPClient implements Client {
   }
 
   /**
-   * This creates a connection to the specified port and IP.
+   * This creates TCPClient with a connection to the specified port and IP.  This connection is not is not
+   * yet made {@link #connect()} must be called, or the client can be added to a {@link SocketExecuterInterface} with 
+   * {@link SocketExecuterInterface#addClient(Client)} which will do the connect.
    * 
    * @param host hostname or ip address to connect too.
    * @param port port on that host to try and connect too.
-   * @param timeout this is the max amount of time we will wait for a connection to be made (default is 10000 milliseconds).
+   * @param timeout this is the max amount of time we will wait for a connection to be made.  The default is 10000 milliseconds (10 seconds).
    */
   public TCPClient(String host, int port, int timeout) {
     maxConnectionTime = timeout;
@@ -97,10 +94,11 @@ public class TCPClient implements Client {
   }
 
   /**
-   * This creates a TCPClient based off an already existing SocketChannel.
+   * <p>This creates a TCPClient based off an already existing {@link SocketChannel}.  This {@link SocketChannel} must already be 
+   * connected.</p>
    * 
-   * @param channel the SocketChannel to use for this client.
-   * @throws IOException if there is anything wrong with the SocketChannel this will throw.
+   * @param channel the {@link SocketChannel} to use for this client.
+   * @throws IOException if there is anything wrong with the {@link SocketChannel} this will be thrown.
    */
   public TCPClient(SocketChannel channel) throws IOException {
     maxConnectionTime = DEFAULT_SOCKET_TIMEOUT;
@@ -114,6 +112,17 @@ public class TCPClient implements Client {
     }
     this.channel = channel;
     startedConnection.set(true);
+  }
+  
+  /**
+   * This is used by {@link org.threadly.litesockets.tcp.ssl.SSLClient} to close the TCPClient object w/o closing its backing {@link SocketChannel}.
+   * This will make this {@link TCPClient} unusable.
+   */
+  public void markClosed() {
+    this.closed.set(true);
+    if(seb != null) {
+      this.seb.removeClient(this);
+    }
   }
   
   @Override
@@ -216,17 +225,6 @@ public class TCPClient implements Client {
   @Override
   public Closer getCloser() {
     return closer;
-  }
-
-  /**
-   * This is used by SSLClient to close the TCPClient object w/o closing its socket.
-   * We need to do this to make the TCPClient unusable.
-   */
-  public void markClosed() {
-    this.closed.set(true);
-    if(seb != null) {
-      this.seb.removeClient(this);
-    }
   }
 
   @Override
