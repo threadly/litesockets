@@ -143,10 +143,13 @@ public class TCPClient implements Client {
   
   @Override
   public void setConnectionStatus(Throwable t) {
-    if(t != null) {
-      connectionFuture.setFailure(t);
+    if(!connectionFuture.isDone()) {
+      if(t != null) {
+        connectionFuture.setFailure(t);
+      } else {
+        connectionFuture.setResult(true);
+      }
     }
-    connectionFuture.setResult(true);
   }
   
 
@@ -155,7 +158,11 @@ public class TCPClient implements Client {
     if(! startedConnection.get()) {
       return false;
     }
-    return connectExpiresAt < Clock.lastKnownForwardProgressingMillis(); 
+    System.out.println(Clock.lastKnownForwardProgressingMillis()+":"+connectExpiresAt);
+    if(channel.isConnected()) {
+      return false;
+    }
+    return Clock.lastKnownForwardProgressingMillis() > connectExpiresAt; 
   }
   
 

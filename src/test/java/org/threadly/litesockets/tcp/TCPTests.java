@@ -8,6 +8,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.After;
 import org.junit.Before;
@@ -387,6 +389,26 @@ public class TCPTests {
     System.out.println(cf.getStats().getReadRate());
     System.out.println(cf.getStats().getTotalWrite());
     System.out.println(cf.getStats().getWriteRate());
+  }
+  
+  @Test(expected=ExecutionException.class)
+  public void tcpBadAddress() throws IOException, InterruptedException, ExecutionException {
+    TCPClient client = new TCPClient("2.0.0.256", port, 1000);
+    final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
+    SE.addClient(client);
+    client.connectionFuture.get();
+  }
+  
+  @Test(expected=TimeoutException.class)
+  public void tcpTimeout() throws Throwable {
+    TCPClient client = new TCPClient("2.0.0.2", port, 10);
+    final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
+    SE.addClient(client);
+    try {
+      client.connectionFuture.get();
+    } catch(ExecutionException e) {
+      throw e.getCause();
+    }
   }
   
 }
