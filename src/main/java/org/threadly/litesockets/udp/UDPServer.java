@@ -15,7 +15,7 @@ import org.threadly.litesockets.Server;
 import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 
-public class UDPServer implements Server {
+public class UDPServer extends Server {
   
   protected final DatagramChannel channel;
   private volatile ClientAcceptor clientAcceptor;

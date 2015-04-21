@@ -1,4 +1,4 @@
-package org.threadly.litesockets.tcp.ssl;
+package org.threadly.litesockets.tcp;
 
 import java.io.IOException;
 import java.nio.channels.SelectableChannel;
@@ -7,8 +7,6 @@ import java.nio.channels.SocketChannel;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
-
-import org.threadly.litesockets.tcp.TCPServer;
 
 public class SSLServer extends TCPServer {
   private final SSLContext sctx;

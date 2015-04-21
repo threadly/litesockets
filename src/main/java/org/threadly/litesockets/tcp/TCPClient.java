@@ -16,6 +16,7 @@ import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
+import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.Clock;
 
 /**
@@ -23,7 +24,7 @@ import org.threadly.util.Clock;
  * from a client from a {@link TCPServer}, and both function the same way.
  *   
  */
-public class TCPClient implements Client {
+public class TCPClient extends Client {
   /**
    * The default SocketConnection time out (10 seconds)
    */
@@ -115,10 +116,10 @@ public class TCPClient implements Client {
   }
   
   /**
-   * This is used by {@link org.threadly.litesockets.tcp.ssl.SSLClient} to close the TCPClient object w/o closing its backing {@link SocketChannel}.
+   * This is used by {@link org.threadly.litesockets.tcp.SSLClient} to close the TCPClient object w/o closing its backing {@link SocketChannel}.
    * This will make this {@link TCPClient} unusable.
    */
-  public void markClosed() {
+  protected void markClosed() {
     this.closed.set(true);
     if(seb != null) {
       this.seb.removeClient(this);
@@ -142,7 +143,7 @@ public class TCPClient implements Client {
   }
   
   @Override
-  public void setConnectionStatus(Throwable t) {
+  protected void setConnectionStatus(Throwable t) {
     if(!connectionFuture.isDone()) {
       if(t != null) {
         connectionFuture.setFailure(t);
@@ -172,12 +173,12 @@ public class TCPClient implements Client {
   }
 
   @Override
-  public SocketChannel getChannel() {
+  protected SocketChannel getChannel() {
     return channel;
   }
 
   @Override
-  public Socket getSocket() {
+  protected Socket getSocket() {
     return channel.socket();
   }
 
@@ -245,7 +246,7 @@ public class TCPClient implements Client {
   }
 
   @Override
-  public boolean canRead() {
+  protected boolean canRead() {
     if(readBuffers.remaining() > maxBufferSize) {
       return false;
     } 
@@ -253,7 +254,7 @@ public class TCPClient implements Client {
   }
 
   @Override
-  public boolean canWrite() {
+  protected boolean canWrite() {
     if(writeBuffers.remaining() > 0) {
       return true;
     }
@@ -261,7 +262,7 @@ public class TCPClient implements Client {
   }
 
   @Override
-  public ByteBuffer provideReadByteBuffer() {
+  protected ByteBuffer provideReadByteBuffer() {
     if(readByteBuffer.remaining() < minAllowedReadBuffer) {
       readByteBuffer = ByteBuffer.allocate(DEFAULT_MAX_BUFFER_SIZE);
     }
@@ -289,7 +290,7 @@ public class TCPClient implements Client {
   }
   
   @Override
-  public void setClientsThreadExecutor(Executor cte) {
+  protected void setClientsThreadExecutor(Executor cte) {
     if(cte != null) {
       this.cexec = cte;
     }
@@ -301,7 +302,7 @@ public class TCPClient implements Client {
   }
   
   @Override
-  public void setClientsSocketExecuter(SocketExecuterInterface seb) {
+  protected void setClientsSocketExecuter(SocketExecuterInterface seb) {
     if(seb != null) {
       this.seb = seb;
     }
@@ -309,16 +310,13 @@ public class TCPClient implements Client {
 
   @Override
   public void setMaxBufferSize(int size) {
-    if(size > 0) {
-      maxBufferSize = size;
-      if(this.seb != null) {
-        this.seb.flagNewRead(this);
-        synchronized (writeBuffers) {
-          writeBuffers.notifyAll();
-        }
+    ArgumentVerifier.assertNotNegative(size, "size");
+    maxBufferSize = size;
+    if(this.seb != null) {
+      this.seb.flagNewRead(this);
+      synchronized (writeBuffers) {
+        writeBuffers.notifyAll();
       }
-    } else {
-      throw new IllegalArgumentException("Default size must be more then 0");
     }
   }
 
@@ -338,7 +336,7 @@ public class TCPClient implements Client {
   }
 
   @Override
-  public void addReadBuffer(ByteBuffer bb) {
+  protected void addReadBuffer(ByteBuffer bb) {
     stats.addRead(bb.remaining());
     final Reader lreader = reader;
     if(lreader != null) {
@@ -394,7 +392,7 @@ public class TCPClient implements Client {
   }
 
   @Override
-  public ByteBuffer getWriteBuffer() {
+  protected ByteBuffer getWriteBuffer() {
     if(currentWriteBuffer != null && currentWriteBuffer.remaining() == 0) {
       return currentWriteBuffer;
     }
@@ -416,7 +414,7 @@ public class TCPClient implements Client {
 
 
   @Override
-  public void reduceWrite(int size) {
+  protected void reduceWrite(int size) {
     synchronized(writeBuffers) {
       stats.addWrite(size);
       if(! currentWriteBuffer.hasRemaining()) {
@@ -433,17 +431,13 @@ public class TCPClient implements Client {
 
     @Override
     protected void addWrite(int size) {
-      if(size < 0) {
-        throw new IllegalArgumentException("Size must be positive number");
-      }
+      ArgumentVerifier.assertNotNegative(size, "size");
       super.addWrite(size);
     }
     
     @Override
     protected void addRead(int size) {
-      if(size < 0) {
-        throw new IllegalArgumentException("Size must be positive number");
-      }
+      ArgumentVerifier.assertNotNegative(size, "size");
       super.addRead(size);
     }
   }

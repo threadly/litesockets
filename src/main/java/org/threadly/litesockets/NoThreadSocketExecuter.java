@@ -17,6 +17,7 @@ import java.util.concurrent.TimeoutException;
 import org.threadly.concurrent.AbstractService;
 import org.threadly.concurrent.NoThreadScheduler;
 import org.threadly.concurrent.SchedulerServiceInterface;
+import org.threadly.util.ArgumentVerifier;
 
 /**
  * <p>The NoThreadSocketExecuter is a simpler implementation of a {@link SocketExecuterInterface} 
@@ -64,6 +65,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
 
   @Override
   public void addClient(final Client client) {
+    ArgumentVerifier.assertNotNull(client, "Client");
     if(! client.isClosed() && client.getProtocol() == WireProtocol.TCP && isRunning()) {
       client.setClientsThreadExecutor(scheduler);
       client.setClientsSocketExecuter(this);
@@ -107,6 +109,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
 
   @Override
   public void removeClient(Client client) {
+    ArgumentVerifier.assertNotNull(client, "Client");
     if(isRunning()) {
       Client c = clients.remove(client.getChannel());
       if(c != null) {
@@ -120,6 +123,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
 
   @Override
   public void addServer(final Server server) {
+    ArgumentVerifier.assertNotNull(server, "Server");
     if(isRunning() && server.getSelectableChannel().isOpen()) {
       Server sn = servers.putIfAbsent(server.getSelectableChannel(), server);
       if(sn == null) {
@@ -151,6 +155,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
 
   @Override
   public void removeServer(Server server) {
+    ArgumentVerifier.assertNotNull(server, "Server");
     if(isRunning()) {
       servers.remove(server.getSelectableChannel());
       selector.wakeup();
@@ -159,6 +164,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
 
   @Override
   public void flagNewWrite(Client client) {
+    ArgumentVerifier.assertNotNull(client, "Client");
     if(isRunning() && clients.containsKey(client.getChannel())) {
       if(client.canRead()) {
         scheduler.execute(new AddToSelector(client, selector, SelectionKey.OP_WRITE|SelectionKey.OP_READ));
@@ -171,6 +177,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
 
   @Override
   public void flagNewRead(Client client) {
+    ArgumentVerifier.assertNotNull(client, "Client");
     if(isRunning() && clients.containsKey(client.getChannel())) {
       if(client.canWrite()) {
         scheduler.execute(new AddToSelector(client, selector, SelectionKey.OP_WRITE|SelectionKey.OP_READ));
@@ -242,6 +249,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
    * @param delay Max time in milliseconds to block for.
    */
   public void select(int delay) {
+    ArgumentVerifier.assertNotNegative(delay, "delay");
     if(isRunning()) {
       try {
         scheduler.tick(null);

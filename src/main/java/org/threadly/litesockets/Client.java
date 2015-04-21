@@ -28,7 +28,7 @@ import org.threadly.litesockets.utils.SimpleByteStats;
  * @author lwahlmeier
  *
  */
-public interface Client {
+public abstract class Client {
   
   /**
    * Returns true if this client can have reads added to it or false if its read buffers are full.
@@ -37,7 +37,7 @@ public interface Client {
    * 
    * @return true if more reads can be added, false if not.
    */
-  public boolean canRead();
+  protected abstract boolean canRead();
 
   /**
    * Returns true if this client has data pending in its write buffers.  False if there is no data pending write.
@@ -47,7 +47,7 @@ public interface Client {
    * 
    * @return true if data is pending write, false if there is no data to write.
    */
-  public boolean canWrite();
+  protected abstract boolean canWrite();
 
   /**
    * <p>This tells us if the client has timed out before it has been connected to the socket.  This is used to remove the client
@@ -57,7 +57,7 @@ public interface Client {
    * 
    * @return false if the client has been connected, true if it has not connected and the timeout limit has been reached.
    */
-  public boolean hasConnectionTimedOut();
+  public abstract boolean hasConnectionTimedOut();
   
   /**
    * 
@@ -66,26 +66,26 @@ public interface Client {
    * in order to finish connecting.  If not called {@link SocketExecuterInterface#addClient(Client)}
    * will automatically call this.</p>
    * 
-   * <p>If there is an error connecting .close() will also be called on the client.</p>
+   * <p>If there is an error connecting {@link #close()} will also be called on the client.</p>
    * 
    * @return A {@link ListenableFuture} that will complete when the socket is connected, or fail if we cant connect.
    */
-  public ListenableFuture<Boolean> connect();
+  public abstract ListenableFuture<Boolean> connect();
   
   /**
    * <p>This is generally used by SocketExecuter to set if there was a success or error when connecting, completing the 
    * {@link ListenableFuture}.</p>
    * 
-   * @param t if there was an error connecting this is provided otherwise a successful connect will pass null.
+   * @param t if there was an error connecting this is provided otherwise a successful connect will pass {@code null}.
    */
-  public void setConnectionStatus(Throwable t);
+  protected abstract void setConnectionStatus(Throwable t);
   
   /**
    * <p>Used to get this clients connection timeout information.</p>
    * 
    * @return the max amount of time to wait for a connection to connect on this socket.
    */
-  public int getTimeout();
+  public abstract int getTimeout();
   
   /**
    * <p>When this clients socket has a read pending and {@link #canRead()} is true, this is where the ByteBuffer for the read comes from.
@@ -94,28 +94,28 @@ public interface Client {
    * 
    * @return A ByteBuffer for the ReadThread to use during its read operations.
    */
-  public ByteBuffer provideReadByteBuffer();
+  protected abstract ByteBuffer provideReadByteBuffer();
   
   /**
    * <p>This is used to get the current size of the readBuffers pending reads.</p>
    * 
    * @return the current size of the ReadBuffer.
    */
-  public int getReadBufferSize();
+  public abstract int getReadBufferSize();
   
   /**
    * <p>This is used to get the current size of the unWriten writeBuffer.</p>
    * 
    * @return the current size of the writeBuffer.
    */
-  public int getWriteBufferSize();
+  public abstract int getWriteBufferSize();
   
   /**
    * This is used to get the currently set max buffer size.
    * 
    * @return the current MaxBuffer size allowed.  The read and write buffer use this independently.
    */
-  public int getMaxBufferSize();
+  public abstract int getMaxBufferSize();
   
   /**
    * <p> This returns this clients {@link Executor}.  The client must have been added to the {@link SocketExecuterInterface} or 
@@ -126,7 +126,7 @@ public interface Client {
    * 
    * @return The {@link Executor} for the client.
    */
-  public Executor getClientsThreadExecutor();
+  public abstract Executor getClientsThreadExecutor();
   
   /**
    * <p>This is set when the client is added to a {@link SocketExecuterInterface}.  Care should be given if you manually set this as 
@@ -134,14 +134,14 @@ public interface Client {
    * 
    * @param cte the {@link Executor} to used for this clients callbacks.
    */
-  public void setClientsThreadExecutor(Executor cte);
+  protected abstract void setClientsThreadExecutor(Executor cte);
   
   /**
    * <p>This is used to get the clients currently assigned {@link SocketExecuterInterface}.</p>
    * 
    * @return the {@link SocketExecuterInterface} set for this client. if none, null is returned.
    */
-  public SocketExecuterInterface getClientsSocketExecuter();
+  public abstract SocketExecuterInterface getClientsSocketExecuter();
   
   /**
    * <p>This is automatically done when called the client is added with {@link SocketExecuterInterface#addClient(Client)}.  
@@ -149,14 +149,14 @@ public interface Client {
    * 
    * @param cse the {@link SocketExecuterInterface} for this client.
    */
-  public void setClientsSocketExecuter(SocketExecuterInterface cse);
+  protected abstract void setClientsSocketExecuter(SocketExecuterInterface cse);
   
   /**
    * <p>This is used to get the currently set {@link Closer} for this client.</p>
    * 
    * @return the current {@link Closer} interface for this client.
    */
-  public Closer getCloser();
+  public abstract Closer getCloser();
 
   /**
    * <p>This sets the {@link Closer} interface for this client.  Once set the client will call .onClose 
@@ -164,14 +164,14 @@ public interface Client {
    * 
    * @param closer sets this clients {@link Closer} callback.
    */
-  public void setCloser(Closer closer);
+  public abstract void setCloser(Closer closer);
   
   /**
    * <p>Returns the currently set Reader callback. </p>
    * 
    * @return the current {@link Reader} callback for this client.
    */
-  public Reader getReader();
+  public abstract Reader getReader();
 
   /**
    * <p>This sets the Reader for the client.This should be set before adding the Client to the {@link SocketExecuterInterface}, 
@@ -180,7 +180,7 @@ public interface Client {
    * 
    * @param reader the {@link Reader} callback to set for this client.
    */
-  public void setReader(Reader reader);
+  public abstract void setReader(Reader reader);
 
   /**
    * <p>This allows you to set/change the max buffer size for this client object.
@@ -194,7 +194,7 @@ public interface Client {
    * 
    * @param size max buffer size in bytes.
    */
-  public void setMaxBufferSize(int size);
+  public abstract void setMaxBufferSize(int size);
   
   /**
    * <p>Whenever a the {@link Reader} Interfaces {@link Reader#onRead(Client)} is called the
@@ -202,7 +202,7 @@ public interface Client {
    * 
    * @return a {@link MergedByteBuffers} of the current read data for this client.
    */
-  public MergedByteBuffers getRead();
+  public abstract MergedByteBuffers getRead();
   
   /**
    * 
@@ -213,7 +213,7 @@ public interface Client {
    * 
    * @param bb the {@link ByteBuffer} to add to the clients readBuffer.
    */
-  public void addReadBuffer(ByteBuffer bb);
+  protected abstract void addReadBuffer(ByteBuffer bb);
   
   /**
    * <p> This tries to write the ByteBuffer passed to it to the Client.  If the Clients writeBuffer 
@@ -229,7 +229,7 @@ public interface Client {
    * @param bb the {@link ByteBuffer} to write to the client.
    * @return true if the client has taken the ByteBuffer false if it did not.
    */
-  public boolean writeTry(ByteBuffer bb);
+  public abstract boolean writeTry(ByteBuffer bb);
   
   /**
    * <p>This write will block until the write can be done.  This block will only happen if the clients
@@ -249,7 +249,7 @@ public interface Client {
    * @param bb the {@link ByteBuffer} to write.
    * @throws {@link InterruptedException} This happens only if the thread that is blocked is interrupted while waiting. 
    */
-  public void writeBlocking(ByteBuffer bb) throws InterruptedException;
+  public abstract void writeBlocking(ByteBuffer bb) throws InterruptedException;
   
   /**
    * <p>This write forces the client to go over its maxBufferSize.  This can be dangerous if used incorrectly.
@@ -262,7 +262,7 @@ public interface Client {
    * 
    * @param bb the ByteBuffer to write to the client.
    */
-  public void writeForce(ByteBuffer bb);
+  public abstract void writeForce(ByteBuffer bb);
   
   /**
    * <p>This provides the next available Write buffer.  This is typically only called by the {@link SocketExecuterInterface}.
@@ -275,7 +275,7 @@ public interface Client {
    * 
    * @return a {@link ByteBuffer} that can be used to Read new data off the socket for this client.
    */
-  public ByteBuffer getWriteBuffer();
+  protected abstract ByteBuffer getWriteBuffer();
   
   /**
    * <p>This is called after a write is written to the clients socket.  This tells the client how much of that 
@@ -283,7 +283,7 @@ public interface Client {
    * 
    * @param size the size in bytes of data written on the socket.
    */
-  public void reduceWrite(int size);
+  protected abstract void reduceWrite(int size);
 
   
   /**
@@ -292,7 +292,7 @@ public interface Client {
    * 
    * @return the {@link SocketChannel}  for this client.
    */
-  public SocketChannel getChannel();
+  protected abstract SocketChannel getChannel();
   
   /**
    * <p>This is used by the {@link SocketExecuterInterface} to help understand how to manage this client.
@@ -300,7 +300,7 @@ public interface Client {
    * 
    * @return The IP protocol type of this client.
    */
-  public WireProtocol getProtocol();
+  public abstract WireProtocol getProtocol();
   
   /**
    * <p>Gets the raw Socket object for this Client. If the client does not have a Socket
@@ -308,7 +308,7 @@ public interface Client {
    * 
    * @return the Socket for this client.
    */
-  public Socket getSocket();
+  protected abstract Socket getSocket();
   
   /**
    * <p>Returns if this client is closed or not.  Once a client is marked closed there is no way to reOpen it.
@@ -317,13 +317,13 @@ public interface Client {
    * 
    * @return true if the client is closed, false if the client has not yet been closed.
    */
-  public boolean isClosed();
+  public abstract boolean isClosed();
   
   /**
    * <p>Closes this client.  Reads can still occur after this it called.  {@link Closer#onClose(Client)} will still be
    * called (if set) once all reads are done.</p>
    */
-  public void close();
+  public abstract void close();
   
   
   /**
@@ -331,7 +331,7 @@ public interface Client {
    * 
    * @return the byte stats for this client.
    */
-  public SimpleByteStats getStats();
+  public abstract SimpleByteStats getStats();
   
   /**
    * This is the Reader Interface for clients.

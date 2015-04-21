@@ -1,4 +1,4 @@
-package org.threadly.litesockets.tcp.ssl;
+package org.threadly.litesockets.tcp;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

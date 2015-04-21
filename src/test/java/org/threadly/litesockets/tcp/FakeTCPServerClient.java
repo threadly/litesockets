@@ -10,7 +10,6 @@ import org.threadly.litesockets.Server;
 import org.threadly.litesockets.Server.ClientAcceptor;
 import org.threadly.litesockets.Server.ServerCloser;
 import org.threadly.litesockets.SocketExecuterInterface;
-import org.threadly.litesockets.tcp.ssl.SSLClient;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 
 public class FakeTCPServerClient implements Reader, Closer, ClientAcceptor, ServerCloser{

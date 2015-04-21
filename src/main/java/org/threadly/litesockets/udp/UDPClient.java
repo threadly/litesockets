@@ -15,9 +15,10 @@ import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
+import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.Clock;
 
-public class UDPClient implements Client {
+public class UDPClient extends Client {
   public static final int DEFAULT_MAX_BUFFER_SIZE = 64*1024;
   public static final int MIN_READ= 4*1024;
 
@@ -178,28 +179,6 @@ public class UDPClient implements Client {
   public WireProtocol getProtocol() {
     return WireProtocol.UDP;
   }
-  
-  private static class ClientByteStats extends SimpleByteStats {
-    public ClientByteStats() {
-      super();
-    }
-
-    @Override
-    protected void addWrite(int size) {
-      if(size < 0) {
-        throw new IllegalArgumentException("Size must be positive number");
-      }
-      super.addWrite(size);
-    }
-    
-    @Override
-    protected void addRead(int size) {
-      if(size < 0) {
-        throw new IllegalArgumentException("Size must be positive number");
-      }
-      super.addRead(size);
-    }
-  }
 
   @Override
   public SimpleByteStats getStats() {
@@ -258,11 +237,8 @@ public class UDPClient implements Client {
 
   @Override
   public void setMaxBufferSize(int size) {
-    if(size > 0) {
-      maxBufferSize = size;
-    } else {
-      throw new IllegalArgumentException("Default size must be more then 0");
-    }
+    ArgumentVerifier.assertNotNegative(size, "size");
+    maxBufferSize = size;
   }
 
   @Override
@@ -309,4 +285,22 @@ public class UDPClient implements Client {
   public void setConnectionStatus(Throwable t) {
   }
 
+  
+  private static class ClientByteStats extends SimpleByteStats {
+    public ClientByteStats() {
+      super();
+    }
+
+    @Override
+    protected void addWrite(int size) {
+      ArgumentVerifier.assertNotNegative(size, "size");
+      super.addWrite(size);
+    }
+    
+    @Override
+    protected void addRead(int size) {
+      ArgumentVerifier.assertNotNegative(size, "size");
+      super.addRead(size);
+    }
+  }
 }

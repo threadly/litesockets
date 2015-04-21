@@ -5,24 +5,26 @@ import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 
+import org.threadly.util.ArgumentVerifier;
+
 /**
  * This class is used to combine multiple ByteBuffers into 1 simplish to use interface.
  * It provides most of the features of a single ByteBuffer, but with the ability to perform those 
  * operations spanning many ByteBuffers.
  * 
- * The Idea here is to keep from having to copy around and merge ByteBuffers as much as possible. 
+ * The idea here is to keep from having to copy around and merge ByteBuffers as much as possible. 
  * 
- * @author lwahlmeier
- *
+ * NOTE: This is not threadSafe.  It should only be accessed by 1 thread at a time.
+ * 
  */
 public class MergedByteBuffers {
   protected final ArrayDeque<ByteBuffer> availableBuffers = new ArrayDeque<ByteBuffer>();
   protected volatile int currentSize = 0;
 
-
   /**
    * This method allows you to add ByteBuffers to the MergedByteBuffers.  
-   * All must be done in order of how you want to pull the data back out  
+   * All must be done in order of how you want to pull the data back out.
+   * 
    * @param buffer - The byte buffer to add to the MergedByteBuffers
    */
   public void add(ByteBuffer buffer) {
@@ -37,7 +39,8 @@ public class MergedByteBuffers {
   
   /**
    * This method allows you to add a MergedByteBuffers to another MergedByteBuffers.  
-   * All must be done in order of how you want to pull the data back out  
+   * All must be done in order of how you want to pull the data back out.
+   * 
    * @param mbb - The MergedByteBuffers to put into this MergedByteBuffers
    */
   public void add(MergedByteBuffers mbb) {
@@ -55,12 +58,13 @@ public class MergedByteBuffers {
   }
 
   /**
-   * Like the indexOf in String object this find a pattern of bytes and reports the position they start at
+   * Like the indexOf in String object this find a pattern of bytes and reports the position they start at.
    * 
    * @param pattern String pattern to search for
    * @return an int with the offset of the first occurrence of the given . 
    */
   public int indexOf(String pattern) {
+    ArgumentVerifier.assertNotNull(pattern, "String");
     return indexOf(pattern.getBytes());
   }
   
@@ -71,6 +75,7 @@ public class MergedByteBuffers {
    * @return - an int with the offset of the first occurrence of the given . 
    */
   public int indexOf(byte[] pattern) {
+    ArgumentVerifier.assertNotNull(pattern, "byte[]");
     if(currentSize == 0){
       return -1;
     }
@@ -148,13 +153,12 @@ public class MergedByteBuffers {
    * NOTE: do not give a byteArray bigger then the remaining size left in the consolidator.
    */
   public void get(byte[] destBytes) {
-    if(destBytes != null) {
-      if (currentSize < destBytes.length) {
-        throw new BufferUnderflowException();
-      }
-      currentSize -= destBytes.length;
-      doGet(destBytes);
+    ArgumentVerifier.assertNotNull(destBytes, "byte[]");
+    if (currentSize < destBytes.length) {
+      throw new BufferUnderflowException();
     }
+    currentSize -= destBytes.length;
+    doGet(destBytes);
   }
 
 
@@ -289,6 +293,7 @@ public class MergedByteBuffers {
    * @return a ByteBuffer of the next %SIZE% bytes.
    */
   public ByteBuffer pull(int size) {
+    ArgumentVerifier.assertNotNegative(size, "size");
     if (size == 0) {
       return ByteBuffer.allocate(0);
     }
@@ -320,6 +325,7 @@ public class MergedByteBuffers {
    * @param size - the number of bytes to discard
    */
   public void discard(int size) {
+    ArgumentVerifier.assertNotNegative(size, "size");
     if (currentSize < size) {
       throw new BufferUnderflowException();
     }
@@ -342,6 +348,7 @@ public class MergedByteBuffers {
   }
 
   public String getAsString(int size) {
+    ArgumentVerifier.assertNotNegative(size, "size");
     byte[] ba = new byte[size];
     doGet(ba);
     currentSize-=size;

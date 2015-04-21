@@ -27,9 +27,6 @@ import org.threadly.litesockets.Server;
 import org.threadly.litesockets.Server.ClientAcceptor;
 import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.ThreadedSocketExecuter;
-import org.threadly.litesockets.tcp.ssl.SSLClient;
-import org.threadly.litesockets.tcp.ssl.SSLServer;
-import org.threadly.litesockets.tcp.ssl.SSLUtils;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.test.concurrent.TestCondition;
 

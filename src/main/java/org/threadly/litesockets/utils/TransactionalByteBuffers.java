@@ -213,7 +213,4 @@ public class TransactionalByteBuffers extends MergedByteBuffers {
     }
     return bb;
   }
-  
-  
-
 }

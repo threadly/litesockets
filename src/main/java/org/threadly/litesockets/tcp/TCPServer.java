@@ -17,7 +17,7 @@ import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
  * Create {@link TCPClient}.
  * 
  */
-public class TCPServer implements Server {
+public class TCPServer extends Server {
   private final ServerSocketChannel socket;
   private volatile ClientAcceptor clientAcceptor;
   private volatile ServerCloser closer;

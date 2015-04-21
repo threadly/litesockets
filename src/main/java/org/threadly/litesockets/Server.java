@@ -16,7 +16,7 @@ import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
  * 
  *
  */
-public interface Server {
+public abstract class Server {
   
   /**
    * <p>Sets the Thread {@link Executor} that this Server uses.  This is set by the {@link SocketExecuterInterface} but can be overridden with 
@@ -24,7 +24,7 @@ public interface Server {
    * 
    * @param executor A thread {@link Executor} that will be used by this Server object.
    */
-  public void setThreadExecutor(Executor executor);
+  protected abstract void setThreadExecutor(Executor executor);
   
   /**
    * <p>Sets the current {@link SocketExecuterInterface} for this Server to use.  This is set by {@link SocketExecuterInterface#addServer(Server)}
@@ -32,28 +32,28 @@ public interface Server {
    * 
    * @param se {@link SocketExecuterInterface} to set.
    */
-  public void setSocketExecuter(SocketExecuterInterface se);
+  protected abstract void setSocketExecuter(SocketExecuterInterface se);
   
   /**
    * <p>Gets the Current {@link SocketExecuterInterface} this Server is assigned to.</p>
    * 
    * @return the current {@link SocketExecuterInterface} for this Server.
    */
-  public SocketExecuterInterface getSocketExecuter();
+  public abstract SocketExecuterInterface getSocketExecuter();
   
   /**
    * <p>Get the current ServerCloser callback assigned to this Server.</p>
    * 
    * @return the currently set Closer.
    */
-  public ServerCloser getCloser();
+  public abstract ServerCloser getCloser();
   
   /**
    * <p>Set the {@link ServerCloser} for this Server.</p>
    * 
    * @param closer The {@link ServerCloser} to set for this Server. 
    */
-  public void setCloser(ServerCloser closer);
+  public abstract void setCloser(ServerCloser closer);
   
   /**
    * <p>This is how the extending server receives the {@link SelectableChannel}.
@@ -62,7 +62,7 @@ public interface Server {
    * 
    * @param c The {@link SelectableChannel} that was just accepted by this Server.
    */
-  public void acceptChannel(SelectableChannel c);
+  protected abstract void acceptChannel(SelectableChannel c);
   
   /**
    * <p>This is used by the {@link SocketExecuterInterface} to know how to handle this Server 
@@ -70,21 +70,21 @@ public interface Server {
    * 
    * @return returns the type of protocol this socket uses.
    */
-  public WireProtocol getServerType();
+  public abstract WireProtocol getServerType();
   
   /**
    * <p>Get the {@link SelectableChannel} used by this Server.</p>
    * 
    * @return the {@link SelectableChannel} for this server.
    */
-  public SelectableChannel getSelectableChannel();
+  protected abstract SelectableChannel getSelectableChannel();
   
   /**
    * <p>Gets the current {@link ClientAcceptor} Callback for this Server.</p> 
    * 
    * @return the currently set {@link ClientAcceptor}.
    */
-  public ClientAcceptor getClientAcceptor();
+  public abstract ClientAcceptor getClientAcceptor();
   
   /**
    * <p>Set the {@link ClientAcceptor} for this Server.  This should be set before the Server is added to the {@link SocketExecuterInterface}.
@@ -92,12 +92,12 @@ public interface Server {
    *   
    * @param clientAcceptor Sets the {@link ClientAcceptor} callback for this server.
    */
-  public void setClientAcceptor(ClientAcceptor clientAcceptor);
+  public abstract void setClientAcceptor(ClientAcceptor clientAcceptor);
   
   /**
    * <p>Close this servers Socket.  Once closed you must construct a new Server to open it again.</p>
    */
-  public void close();
+  public abstract void close();
   
   /**
    * <p>This is the ClientAcceptor callback for the {@link Server}.  This is called when a new {@link Client} is 

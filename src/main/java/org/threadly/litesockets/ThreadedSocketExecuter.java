@@ -21,6 +21,7 @@ import org.threadly.concurrent.KeyDistributedExecutor;
 import org.threadly.concurrent.ScheduledExecutorServiceWrapper;
 import org.threadly.concurrent.SimpleSchedulerInterface;
 import org.threadly.concurrent.SingleThreadScheduler;
+import org.threadly.util.ArgumentVerifier;
 
 
 /**
@@ -68,6 +69,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
    * @param exec The {@link ScheduledExecutorService} to be used for client/server callbacks.
    */
   public ThreadedSocketExecuter(ScheduledExecutorService exec) {
+    ArgumentVerifier.assertNotNull(exec, "ScheduledExecutorService");
     schedulerPool = new ScheduledExecutorServiceWrapper(exec);
     clientDistributer = new KeyDistributedExecutor(schedulerPool);
   }
@@ -79,12 +81,14 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
    * @param exec the {@link ScheduledExecutorService} to be used for client/server callbacks.
    */
   public ThreadedSocketExecuter(SimpleSchedulerInterface exec) {
+    ArgumentVerifier.assertNotNull(exec, "SimpleSchedulerInterface");
     schedulerPool = exec;
     clientDistributer = new KeyDistributedExecutor(schedulerPool);
   }
 
   @Override
   public void addClient(final Client client) {
+    ArgumentVerifier.assertNotNull(client, "Client");
     if(! client.isClosed() && client.getProtocol() == WireProtocol.TCP && isRunning()) {
       client.setClientsThreadExecutor(clientDistributer.getSubmitterForKey(client));
       client.setClientsSocketExecuter(this);
@@ -128,6 +132,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
 
   @Override
   public void removeClient(Client client) {
+    ArgumentVerifier.assertNotNull(client, "Client");
     if(isRunning()) {
       Client c = clients.remove(client.getChannel());
       if(c != null) {
@@ -145,6 +150,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
 
   @Override
   public void addServer(final Server server) {
+    ArgumentVerifier.assertNotNull(server, "Server");
     if(isRunning()) {
       Server sn = servers.putIfAbsent(server.getSelectableChannel(), server);
       if(sn == null) {
@@ -174,6 +180,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
 
   @Override
   public void removeServer(Server server) {
+    ArgumentVerifier.assertNotNull(server, "Server");
     if(isRunning()) {
       servers.remove(server.getSelectableChannel());
       SelectionKey key = null;
@@ -233,6 +240,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
 
   @Override
   public void flagNewWrite(Client client) {
+    ArgumentVerifier.assertNotNull(client, "Client");
     if(isRunning() && clients.containsKey(client.getChannel())) {
       writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
       writeSelector.wakeup();
@@ -241,6 +249,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
 
   @Override
   public void flagNewRead(Client client) {
+    ArgumentVerifier.assertNotNull(client, "Client");
     if(isRunning() && clients.containsKey(client.getChannel())) {
       readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
       readSelector.wakeup();

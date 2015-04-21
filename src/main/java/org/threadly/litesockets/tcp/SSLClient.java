@@ -1,4 +1,4 @@
-package org.threadly.litesockets.tcp.ssl;
+package org.threadly.litesockets.tcp;
 
 import static javax.net.ssl.SSLEngineResult.HandshakeStatus.FINISHED;
 import static javax.net.ssl.SSLEngineResult.HandshakeStatus.NEED_TASK;
@@ -22,7 +22,6 @@ import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.SocketExecuterInterface;
-import org.threadly.litesockets.tcp.TCPClient;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.util.Clock;
 import org.threadly.util.ExceptionUtils;
@@ -269,7 +268,7 @@ public class SSLClient extends TCPClient {
   }
 
   @Override
-  public void setClientsSocketExecuter(SocketExecuterInterface sei) {
+  protected void setClientsSocketExecuter(SocketExecuterInterface sei) {
     super.setClientsSocketExecuter(sei);
     if(startedHandshake.get() && !handshakeFuture.isDone()) {
       sei.getThreadScheduler().schedule(new Runnable() {
