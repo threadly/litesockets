@@ -11,23 +11,22 @@ import org.junit.After;
 import org.junit.Before;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.Client;
-import org.threadly.litesockets.Server;
 import org.threadly.litesockets.NoThreadSocketExecuter;
-import org.threadly.litesockets.ThreadedSocketExecuter;
+import org.threadly.litesockets.Server;
 
 public class NoThreadSSLTests extends SSLTests {
   NoThreadSocketExecuter ntSE;
   
   @Before
   public void start() throws Exception {
-    PS = new PriorityScheduler(5, 5, 100000);
+    PS = new PriorityScheduler(5);
     ntSE = new NoThreadSocketExecuter(); 
     SE = ntSE;
     SE.start();
     PS.scheduleWithFixedDelay(new Runnable() {
       @Override
       public void run() {
-        ntSE.select();
+        ntSE.select(10);
       }}, 10, 10);
     port = Utils.findTCPPort();
     KS = KeyStore.getInstance(KeyStore.getDefaultType());
@@ -52,6 +51,21 @@ public class NoThreadSSLTests extends SSLTests {
     }
     SE.stop();
     PS.shutdownNow();
+  }
+  
+  @Override
+  public void simpleWriteTest() throws IOException, InterruptedException {
+    super.simpleWriteTest();
+  }
+  
+  @Override
+  public void doLateSSLhandshake() throws IOException, InterruptedException {
+    super.doLateSSLhandshake();
+  }
+  
+  @Override
+  public void useTCPClientPendingReads() throws IOException{
+    super.useTCPClientPendingReads();
   }
 
 }

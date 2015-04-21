@@ -1,166 +1,132 @@
 package org.threadly.litesockets;
 
 import java.nio.channels.SelectableChannel;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.Executor;
 
-import org.threadly.concurrent.SchedulerServiceInterface;
-import org.threadly.litesockets.SocketExecuterBase.WireProtocol;
+import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 
 /**
- * This is the main Server object for litesockets.  
- * Any type of connection/open port will use this to create that open port
- * and accept client or send data with it.
+ * This is the main Server Interface for litesockets.  
  * 
- * The Server has an Acceptor callback and a Closer callback.
+ * <p>Any type of connection/open port will use this to "Accept" new client connections on. 
+ * The Server has an Acceptor callback for new clients and a Closer callback for clean up when the socket is closed.</p>
  * 
- * Both the Acceptor and Closer callbacks happen on multiple threads so use thread safety when dealing
- * with those callbacks.
+ * <p>Both the {@link ClientAcceptor} and {@link ServerCloser} callbacks can happen on multiple threads so use thread safety when dealing
+ * with those callbacks.</p>
  * 
- * @author lwahlmeier
  *
  */
 public abstract class Server {
   
-  private volatile ServerCloser closer;
-  protected volatile SchedulerServiceInterface sei;
-  protected volatile SocketExecuterBase se;
-  protected AtomicBoolean closed = new AtomicBoolean(false);
-  
   /**
-   * Sets the ThreadExecuter that this Server uses
+   * <p>Sets the Thread {@link Executor} that this Server uses.  This is set by the {@link SocketExecuterInterface} but can be overridden with 
+   * little concern.</p>
    * 
-   * @param sei ThreadExecuter to set to.
+   * @param executor A thread {@link Executor} that will be used by this Server object.
    */
-  protected void setThreadExecuter(SchedulerServiceInterface sei) {
-    this.sei = sei;
-  }
+  protected abstract void setThreadExecutor(Executor executor);
   
   /**
-   * Sets the current SocketExecuter for this Server to use
+   * <p>Sets the current {@link SocketExecuterInterface} for this Server to use.  This is set by {@link SocketExecuterInterface#addServer(Server)}
+   * and should probably not be changed.</p>
    * 
-   * @param se SocketExecuter to set.
+   * @param se {@link SocketExecuterInterface} to set.
    */
-  protected void setServerExecuter(SocketExecuterBase se) {
-    this.se = se;
-  }
+  protected abstract void setSocketExecuter(SocketExecuterInterface se);
   
   /**
-   * Gets the Current SocketExecuter this Server is assigned to.
+   * <p>Gets the Current {@link SocketExecuterInterface} this Server is assigned to.</p>
    * 
-   * @return the current SocketExecuter for this Server.
+   * @return the current {@link SocketExecuterInterface} for this Server.
    */
-  protected SocketExecuterBase getServerExecuter() {
-    return this.se;
-  }
+  public abstract SocketExecuterInterface getSocketExecuter();
   
   /**
-   * Get the current ServerCloser callback assigned to this Server.
+   * <p>Get the current ServerCloser callback assigned to this Server.</p>
    * 
    * @return the currently set Closer.
    */
-  public ServerCloser getCloser() {
-    return closer;
-  }
-
-  /**
-   * Set the ServerCloser for this server.
-   * 
-   * @param closer The ServerCloser to set for this Server. 
-   */
-  public void setCloser(ServerCloser closer) {
-    this.closer = closer;
-  }
+  public abstract ServerCloser getCloser();
   
   /**
-   * Called when a Server Socket close is detected.
+   * <p>Set the {@link ServerCloser} for this Server.</p>
+   * 
+   * @param closer The {@link ServerCloser} to set for this Server. 
    */
-  protected void callCloser() {
-    if(sei != null && closer != null) {
-      sei.execute(new Runnable() {
-        @Override
-        public void run() {
-          getCloser().onClose(Server.this);
-        }});
-    }
-  }
+  public abstract void setCloser(ServerCloser closer);
   
   /**
-   * This is called when a new SocketChannel is created for this server.
-   * 
-   * @param client SelectableChannel that was created.
-   */
-  protected void callAcceptor(final SelectableChannel client) {
-    if(sei != null ) {
-      sei.execute(new Runnable() {
-        @Override
-        public void run() {
-          accept(client);
-        }});
-    }
-  }
-  /**
-   * This is how the extending server receives the SelectableChannel.
+   * <p>This is how the extending server receives the {@link SelectableChannel}.
    * At this point it needs to do what is needed to turn this Channel into
-   * A client of some kind.
+   * A Client object for this type of server.</p>
    * 
-   * @param c The SelectableChannel that was just accepted by this Server.
+   * @param c The {@link SelectableChannel} that was just accepted by this Server.
    */
-  public abstract void accept(SelectableChannel c);
+  protected abstract void acceptChannel(SelectableChannel c);
   
   /**
-   * This is used by the SocketExecuter to know how to handle this Server 
-   * when its added to it.
+   * <p>This is used by the {@link SocketExecuterInterface} to know how to handle this Server 
+   * when its added to it.  Currently only UDP or TCP.</p>
    * 
    * @return returns the type of protocol this socket uses.
    */
   public abstract WireProtocol getServerType();
   
   /**
-   * Get the SelectableChannel used by this Server.
+   * <p>Get the {@link SelectableChannel} used by this Server.</p>
    * 
-   * @return the SelectableChannel for this server.
+   * @return the {@link SelectableChannel} for this server.
    */
-  public abstract SelectableChannel getSelectableChannel();
+  protected abstract SelectableChannel getSelectableChannel();
   
   /**
-   * Gets the current ClientAcceptor Callback for this Server. 
+   * <p>Gets the current {@link ClientAcceptor} Callback for this Server.</p> 
    * 
-   * @return the currently set clientAcceptor.
+   * @return the currently set {@link ClientAcceptor}.
    */
   public abstract ClientAcceptor getClientAcceptor();
   
   /**
-   * Set the ClientAcceptor for this Server.
+   * <p>Set the {@link ClientAcceptor} for this Server.  This should be set before the Server is added to the {@link SocketExecuterInterface}.
+   * If its not you could miss pending client connections.</p>
    *   
-   * @param clientAcceptor Sets the ClientAcceptor callback for this server.
+   * @param clientAcceptor Sets the {@link ClientAcceptor} callback for this server.
    */
   public abstract void setClientAcceptor(ClientAcceptor clientAcceptor);
   
   /**
-   * Close this servers Socket.  Once closed you must construct a new Server to open it again.
+   * <p>Close this servers Socket.  Once closed you must construct a new Server to open it again.</p>
    */
   public abstract void close();
   
   /**
-   * This is the clientAcceptor interface for the Server.  This is called when a new Client is detected.
-   * This can be called from many threads at once.
+   * <p>This is the ClientAcceptor callback for the {@link Server}.  This is called when a new {@link Client} is 
+   * detected for this server.</p>
    * 
-   * @author lwahlmeier
+   * <p>NOTE: This will/can be called from many threads at once.</p>
    *
    */
   public interface ClientAcceptor {
-    public void accept(Client c);
+    /**
+     * This is called when a new Client is added by this {@link Server}.
+     * 
+     * @param client The new {@link Client} object created.
+     */
+    public void accept(Client client);
   }
   
   /**
-   * This is called once a Close is detected on the Servers Socket. Since it can happen on any thread as well
-   * you might get new clients for this server shortly after it closes.
+   * <p>This is called once a Close is detected on the Servers Socket. Since it can happen on any thread as well
+   * you might get new clients for this server shortly after it closes.</p>
    * 
-   * 
-   * @author lwahlmeier
    *
    */
   public interface ServerCloser {
+    /**
+     * Once a close is detected for this {@link Server} this is called..
+     * 
+     * @param server The {@link Server} that has been closed.
+     */
     public void onClose(Server server);
   }
 

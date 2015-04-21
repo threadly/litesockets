@@ -19,7 +19,7 @@ dependencies {
   emma "emma:emma_ant:2.1.5320"
 
   compile (
-    'org.threadly:threadly:3.4.1'
+    'org.threadly:threadly:3.7.0'
   )
 }
 
@@ -121,7 +121,7 @@ jar {
 
 javadoc {
   source = sourceSets.main.allJava
-  options.memberLevel = org.gradle.external.javadoc.JavadocMemberLevel.PROTECTED
+  options.memberLevel = org.gradle.external.javadoc.JavadocMemberLevel.PUBLIC
 }
 
 task javadocJar(type: Jar, dependsOn: javadoc) {

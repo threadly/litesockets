@@ -25,19 +25,17 @@ import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server;
 import org.threadly.litesockets.Server.ClientAcceptor;
-import org.threadly.litesockets.SocketExecuterBase;
+import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.ThreadedSocketExecuter;
-import org.threadly.litesockets.tcp.SSLClient.GenericTrustManager;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.test.concurrent.TestCondition;
 
 public class SSLTests {
-  String text = "GET / HTTP/1.1\r\nUser-Agent: curl/7.35.0\r\nHost: www.google.com\r\nAccept: */*\r\n\r\n";
   PriorityScheduler PS;
   int port = Utils.findTCPPort();
   final String GET = "hello";
-  SocketExecuterBase SE;
-  TrustManager[] myTMs = new TrustManager [] {new GenericTrustManager() };
+  SocketExecuterInterface SE;
+  TrustManager[] myTMs = new TrustManager [] {new SSLUtils.FullTrustManager() };
   KeyStore KS;
   KeyManagerFactory kmf;
   SSLContext sslCtx;
@@ -45,7 +43,7 @@ public class SSLTests {
   
   @Before
   public void start() throws Exception {
-    PS = new PriorityScheduler(5, 5, 100000);
+    PS = new PriorityScheduler(5);
     SE = new ThreadedSocketExecuter(PS);
     SE.start();
     port = Utils.findTCPPort();
@@ -80,10 +78,12 @@ public class SSLTests {
   public void simpleWriteTest() throws IOException, InterruptedException {
     long start = System.currentTimeMillis();
     port = Utils.findTCPPort();
-    SSLServer server = new SSLServer("localhost", port, sslCtx);
+    SSLServer server = new SSLServer("localhost", port, sslCtx, true);
     serverFC.addTCPServer(server);
     
     final SSLClient client = new SSLClient("localhost", port);
+    SE.addClient(client);
+    client.doHandShake();
     System.out.println(System.currentTimeMillis()-start);
     
     new TestCondition(){
@@ -136,15 +136,18 @@ public class SSLTests {
   }
 
   @Test
-  public void largeWriteTest() throws IOException {
+  public void largeWriteTest() throws IOException, InterruptedException {
     
-    SSLServer server = new SSLServer("localhost", port, sslCtx);
+    SSLServer server = new SSLServer("localhost", port, sslCtx, true);
     serverFC.addTCPServer(server);
     
     final SSLClient client = new SSLClient("localhost", port);
+    //client.connect();
+    //client.doHandShake();
+    SE.addClient(client);
     client.writeForce(TCPTests.LARGE_TEXT_BUFFER.duplicate());
     client.writeForce(TCPTests.LARGE_TEXT_BUFFER.duplicate());
-    
+
     new TestCondition(){
       @Override
       public boolean get() {
@@ -152,7 +155,7 @@ public class SSLTests {
       }
     }.blockTillTrue(5000);
     final SSLClient sclient = (SSLClient) serverFC.clients.get(0);
-    
+
     serverFC.addTCPClient(client);
 
     new TestCondition(){
@@ -165,14 +168,23 @@ public class SSLTests {
     sclient.writeForce(TCPTests.LARGE_TEXT_BUFFER.duplicate());
     sclient.writeForce(TCPTests.LARGE_TEXT_BUFFER.duplicate());
     sclient.writeForce(TCPTests.LARGE_TEXT_BUFFER.duplicate());
-    
+    //System.out.println("w:"+sclient.getWriteBufferSize());
+    //System.out.println(":"+TCPTests.LARGE_TEXT_BUFFER.remaining());
     
     new TestCondition(){
       @Override
       public boolean get() {
-        //System.out.println(serverFC.map.get(client).remaining()+":"+(TCPTests.LARGE_TEXT_BUFFER.remaining()*3));
-        //System.out.println();
-        return serverFC.map.get(client).remaining() == TCPTests.LARGE_TEXT_BUFFER.remaining()*3;
+        /*
+        System.out.println(serverFC.map.get(client).remaining()+":"+(TCPTests.LARGE_TEXT_BUFFER.remaining()*3));
+        System.out.println("w:"+sclient.finishedHandshake.get()+":"+sclient.startedHandshake.get());
+        System.out.println("w:"+sclient.ssle.getHandshakeStatus());
+        System.out.println("r:"+client.ssle.getHandshakeStatus());
+        System.out.println("r:"+client.getReadBufferSize());
+        */
+        if(serverFC.map.get(client) != null) {
+          return serverFC.map.get(client).remaining() == TCPTests.LARGE_TEXT_BUFFER.remaining()*3;
+        }
+        return false;
       }
     }.blockTillTrue(5000, 500);
     
@@ -200,11 +212,13 @@ public class SSLTests {
     ServerSocketChannel socket = ServerSocketChannel.open();
     socket.socket().bind(new InetSocketAddress("localhost", port), 100);
     socket.configureBlocking(false);
-    SSLServer server = new SSLServer(socket, sslCtx);
+    SSLServer server = new SSLServer(socket, sslCtx, true);
     serverFC.addTCPServer(server);
     //System.out.println(serverFC);
     
     final TCPClient tcp_client = new TCPClient("localhost", port);
+    tcp_client.connect();
+    tcp_client.getChannel().finishConnect();
     //System.out.println(System.currentTimeMillis()-start);
     final SSLClient client = new SSLClient(tcp_client, this.sslCtx.createSSLEngine("localhost", port), true, true);
     //System.out.println(serverFC);
@@ -286,7 +300,7 @@ public class SSLTests {
   
   @Test
   public void doLateSSLhandshake() throws IOException, InterruptedException {
-    SSLServer server = new SSLServer("localhost", port, sslCtx);
+    SSLServer server = new SSLServer("localhost", port, sslCtx, false);
     final AtomicReference<SSLClient> servers_client = new AtomicReference<SSLClient>();
     final AtomicReference<String> serversEncryptedString = new AtomicReference<String>();
     final AtomicReference<String> clientsEncryptedString = new AtomicReference<String>();
@@ -342,9 +356,12 @@ public class SSLTests {
           }
         }
       }});
+    System.out.println(sslclient);
     SE.addClient(sslclient);
     //System.out.println("WRITE!!");
     sslclient.writeForce(ByteBuffer.wrap("DO_SSL".getBytes()));
+    
+    
     new TestCondition(){
       @Override
       public boolean get() {
@@ -352,27 +369,5 @@ public class SSLTests {
       }
     }.blockTillTrue(5000);
     assertEquals(clientsEncryptedString.get(), serversEncryptedString.get());
-  }
-  
-  //@Test
-  public void test() throws IOException, InterruptedException {
-    final SSLClient sslclient = new SSLClient("google.com", 443, this.sslCtx.createSSLEngine("localhost", port), SSLClient.DEFAULT_SOCKET_TIMEOUT);
-    sslclient.setReader(new Reader() {
-      MergedByteBuffers mbb = new MergedByteBuffers();
-      @Override
-      public void onRead(Client client) {
-        mbb.add(client.getRead());
-        System.out.println("OUT:"+mbb.getAsString(mbb.remaining()));
-      }});
-    SE.addClient(sslclient);
-    
-    sslclient.doHandShake();
-    /*while(true) {
-      Thread.sleep(1000);
-      System.out.println(sslclient.ssle.getHandshakeStatus());
-    }*/
-    Thread.sleep(1000);
-    sslclient.writeForce(ByteBuffer.wrap(text.getBytes()));
-    Thread.sleep(5000);
   }
 }

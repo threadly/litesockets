@@ -1,6 +1,5 @@
 package org.threadly.litesockets.tcp;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -10,25 +9,25 @@ import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server;
 import org.threadly.litesockets.Server.ClientAcceptor;
 import org.threadly.litesockets.Server.ServerCloser;
-import org.threadly.litesockets.SocketExecuterBase;
+import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 
 public class FakeTCPServerClient implements Reader, Closer, ClientAcceptor, ServerCloser{
-  public SocketExecuterBase se;
+  public SocketExecuterInterface se;
   public ConcurrentHashMap<Client, MergedByteBuffers> map = new ConcurrentHashMap<Client, MergedByteBuffers>();
   public ArrayList<Client> clients = new ArrayList<Client>();
   public ArrayList<Server> servers = new ArrayList<Server>();
 
-  public FakeTCPServerClient(SocketExecuterBase se) {
+  public FakeTCPServerClient(SocketExecuterInterface se) {
     this.se = se;
   }
 
   @Override
   public void onRead(Client client) {
     map.putIfAbsent(client, new MergedByteBuffers());
-    ByteBuffer bb = client.getRead();
-    System.out.println("GotData:"+bb+":"+client);
-    map.get(client).add(bb);
+    MergedByteBuffers mbb = client.getRead();
+    System.out.println("GotData:"+mbb.remaining()+":"+client);
+    map.get(client).add(mbb);
   }
 
   @Override

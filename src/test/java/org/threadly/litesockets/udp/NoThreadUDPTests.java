@@ -6,15 +6,13 @@ import org.junit.After;
 import org.junit.Before;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.NoThreadSocketExecuter;
-import org.threadly.litesockets.ThreadedSocketExecuter;
-import org.threadly.litesockets.tcp.Utils;
 
 public class NoThreadUDPTests extends UDPTest {
   NoThreadSocketExecuter ntSE;
 
   @Before
   public void start() throws IOException {
-    PS = new PriorityScheduler(5, 5, 100000);
+    PS = new PriorityScheduler(5);
     ntSE = new NoThreadSocketExecuter();
     SE = ntSE;
     SE.start();

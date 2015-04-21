@@ -158,7 +158,7 @@ public class MergedByteBufferTests {
     mbb.get(new byte[100]);
   }
   
-  @Test
+  @Test(expected=IllegalArgumentException.class)
   public void badArrayGet2() {
     MergedByteBuffers mbb = new MergedByteBuffers();
     mbb.get(null);

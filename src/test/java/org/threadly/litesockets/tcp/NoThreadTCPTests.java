@@ -7,7 +7,6 @@ import org.junit.Before;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.concurrent.SingleThreadScheduler;
 import org.threadly.litesockets.NoThreadSocketExecuter;
-import org.threadly.litesockets.ThreadedSocketExecuter;
 
 public class NoThreadTCPTests extends TCPTests {
   NoThreadSocketExecuter ntSE;
@@ -17,7 +16,7 @@ public class NoThreadTCPTests extends TCPTests {
   @Before
   public void start() throws IOException {
     STS = new SingleThreadScheduler();
-    PS = new PriorityScheduler(5, 5, 100000);
+    PS = new PriorityScheduler(5);
     ntSE = new NoThreadSocketExecuter();
     SE = ntSE;
     SE.start();
@@ -47,6 +46,11 @@ public class NoThreadTCPTests extends TCPTests {
     
     super.stop();
     STS.shutdownNow();
+  }
+  
+  @Override
+  public void simpleWriteTest() throws IOException, InterruptedException {
+    super.simpleWriteTest();
   }
 
 }

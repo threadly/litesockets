@@ -5,31 +5,25 @@ import static javax.net.ssl.SSLEngineResult.HandshakeStatus.NEED_TASK;
 import static javax.net.ssl.SSLEngineResult.HandshakeStatus.NEED_WRAP;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLEngineResult;
 import javax.net.ssl.SSLEngineResult.HandshakeStatus;
 import javax.net.ssl.SSLEngineResult.Status;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSession;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 
-import org.threadly.concurrent.SubmitterExecutorInterface;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
-import org.threadly.litesockets.SocketExecuterBase;
+import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.utils.MergedByteBuffers;
+import org.threadly.util.Clock;
 import org.threadly.util.ExceptionUtils;
 
 /**
@@ -40,33 +34,23 @@ import org.threadly.util.ExceptionUtils;
  *
  */
 public class SSLClient extends TCPClient {
-  public static final TrustManager[] OPEN_TRUST_MANAGER = new TrustManager [] {new GenericTrustManager() };
-  public static final SSLContext OPEN_SSL_CTX; 
 
-  static {
-    try {
-      //We dont allow SSL by default connections anymore
-      OPEN_SSL_CTX = SSLContext.getInstance("TLS");
-      OPEN_SSL_CTX.init(null, OPEN_TRUST_MANAGER, null);
-    } catch (NoSuchAlgorithmException e) {
-      throw new RuntimeException(e);
-    } catch (KeyManagementException e) {
-      throw new RuntimeException(e);
-    }
-  }  
-  
-  private final MergedByteBuffers decryptedReadList = new MergedByteBuffers();
-  private final MergedByteBuffers tmpWriteBuffers = new MergedByteBuffers();
-  private final SSLEngine ssle;
-  private final SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>();
-  private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
   private final AtomicBoolean finishedHandshake = new AtomicBoolean(false);
+  private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
+  private final boolean connectHandshake;
+  private final MergedByteBuffers tmpWriteBuffers = new MergedByteBuffers();
+  private final MergedByteBuffers decryptedReadList = new MergedByteBuffers();
   private final Reader classReader = new SSLReader();
+  private final SSLEngine ssle;
   private final ByteBuffer encryptedReadBuffer;
-  
+
   private volatile Reader sslReader;
   private ByteBuffer writeBuffer;
-  private ByteBuffer decryptedReadBuffer; 
+  private SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>();
+  
+  private ByteBuffer decryptedReadBuffer;
+  
+   
 
   /**
    * <p>This is a simple SSLConstructor.  It uses the default socket timeout, and very insecure cert
@@ -78,8 +62,9 @@ public class SSLClient extends TCPClient {
    * @param port The port on the host to connect to.
    * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
    */
-  public SSLClient(String host, int port) throws IOException {
-    this(host, port, OPEN_SSL_CTX.createSSLEngine(host, port));
+
+  public SSLClient(String host, int port) {
+    this(host, port, SSLUtils.OPEN_SSL_CTX.createSSLEngine(host, port));
   }
 
   /**
@@ -93,7 +78,7 @@ public class SSLClient extends TCPClient {
    * @param ssle The SSLEngine to use for the connection.
    * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
    */
-  public SSLClient(String host, int port, SSLEngine ssle) throws IOException {
+  public SSLClient(String host, int port, SSLEngine ssle) {
     this(host, port, ssle, TCPClient.DEFAULT_SOCKET_TIMEOUT);
   }
 
@@ -110,7 +95,7 @@ public class SSLClient extends TCPClient {
    * @param timeout This is the connection timeout.  It is used for the actual connection timeout and separately for the SSLHandshake.
    * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
    */
-  public SSLClient(String host, int port, SSLEngine ssle, int timeout) throws IOException {
+  public SSLClient(String host, int port, SSLEngine ssle, int timeout){
     this(host, port, ssle, TCPClient.DEFAULT_SOCKET_TIMEOUT, true);
   }
 
@@ -127,13 +112,11 @@ public class SSLClient extends TCPClient {
    * @param doHandshake This allows you to delay the handshake till a later negotiated time.
    * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
    */
-  public SSLClient(String host, int port, SSLEngine ssle, int timeout, boolean doHandshake) throws IOException {
+  public SSLClient(String host, int port, SSLEngine ssle, int timeout, boolean doHandshake){
     super(host, port, timeout);
     this.ssle = ssle;
     ssle.setUseClientMode(true);
-    if(doHandshake) {
-      doHandShake();
-    }
+    connectHandshake = doHandshake;
     super.setReader(classReader);
     encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+50);
   }
@@ -168,6 +151,7 @@ public class SSLClient extends TCPClient {
   public SSLClient(SocketChannel client, SSLEngine ssle, boolean clientSSL, boolean doHandshake) throws IOException {
     super(client);
     this.ssle = ssle;
+    this.connectHandshake = doHandshake;
     ssle.setUseClientMode(clientSSL);
     if(doHandshake) {
       doHandShake();
@@ -196,16 +180,37 @@ public class SSLClient extends TCPClient {
     if(client.isClosed()) {
       throw new IllegalStateException("Can not add closed TCPClient to sslConstructor");
     }
-    client.fakeClose();
+    startedConnection.set(true);
+    client.markClosed();
     setCloser(client.getCloser());
     setReader(client.getReader());
     this.ssle = ssle;
     ssle.setUseClientMode(clientSSL);
+    this.connectHandshake = doHandshake;
     if(doHandshake) {
       doHandShake();
     }
     super.setReader(classReader);
     encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+50);
+  }
+  
+  @Override
+  public ListenableFuture<Boolean> connect(){
+    if(startedConnection.compareAndSet(false, true)) {
+      connectionFuture = new SettableListenableFuture<Boolean>();
+      try {
+      channel = SocketChannel.open();
+      channel.configureBlocking(false);
+      channel.connect(new InetSocketAddress(host, port));
+      connectExpiresAt = maxConnectionTime + Clock.lastKnownForwardProgressingMillis(); 
+      if(connectHandshake) {
+        doHandShake();
+      }
+      } catch(Exception e) {
+        connectionFuture.setFailure(e);
+      }
+    }
+    return connectionFuture;
   }
 
   private ByteBuffer getDecryptedByteBuffer() {
@@ -226,6 +231,7 @@ public class SSLClient extends TCPClient {
     return true;
   }
 
+
   /**
    * <p>If doHandshake was set to false in the constructor you can start the handshake by calling this method.
    * The client will not start the handshake till its added to a SocketExecuter.  The future allows you to know
@@ -238,6 +244,7 @@ public class SSLClient extends TCPClient {
    */
   public ListenableFuture<SSLSession> doHandShake() {
     if(startedHandshake.compareAndSet(false, true)) {
+      handshakeFuture = new SettableListenableFuture<SSLSession>();
       try {
         ssle.beginHandshake();
       } catch (SSLException e) {
@@ -246,37 +253,32 @@ public class SSLClient extends TCPClient {
       if(ssle.getHandshakeStatus() == NEED_WRAP) {
         writeForce(ByteBuffer.allocate(0));
       }
-      if(this.ce != null) {
-        ce.getThreadScheduler().schedule(new Runnable() {
+      if(this.seb != null) {
+        seb.getThreadScheduler().schedule(new Runnable() {
           @Override
           public void run() {
             if(!handshakeFuture.isDone()) {
               handshakeFuture.setFailure(new TimeoutException("Timed out doing SSLHandshake!!!"));
               close();
             }
-          }}, setTimeout);
+          }}, maxConnectionTime);
       }
     }
     return handshakeFuture;
   }
 
   @Override
-  protected void setThreadExecuter(SubmitterExecutorInterface sei) {
-    super.setThreadExecuter(sei);
-  }
-
-  @Override
-  protected void setSocketExecuter(SocketExecuterBase ce) {
-    super.setSocketExecuter(ce);
+  protected void setClientsSocketExecuter(SocketExecuterInterface sei) {
+    super.setClientsSocketExecuter(sei);
     if(startedHandshake.get() && !handshakeFuture.isDone()) {
-      ce.getThreadScheduler().schedule(new Runnable() {
+      sei.getThreadScheduler().schedule(new Runnable() {
         @Override
         public void run() {
           if(!handshakeFuture.isDone()) {
             handshakeFuture.setFailure(new TimeoutException("Timed out doing SSLHandshake!!!"));
             close();
           }
-        }}, setTimeout);
+        }}, maxConnectionTime);
     }
   }
 
@@ -294,6 +296,11 @@ public class SSLClient extends TCPClient {
       this.writeBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()*3);
     }
     return writeBuffer;
+  }
+  
+  @Override
+  public int getWriteBufferSize() {
+    return super.getWriteBufferSize() + tmpWriteBuffers.remaining();
   }
 
   @Override
@@ -358,9 +365,9 @@ public class SSLClient extends TCPClient {
   }
   
   @Override
-  public ByteBuffer getRead() {
+  public MergedByteBuffers getRead() {
     synchronized(decryptedReadList) {
-      return decryptedReadList.pop();
+      return decryptedReadList.duplicateAndClean();
     }
   }
 
@@ -370,22 +377,21 @@ public class SSLClient extends TCPClient {
   }
 
   private void doRead() {
-    ByteBuffer client_buffer = super.getRead();
+    MergedByteBuffers client_buffer = super.getRead();
     if(this.startedHandshake.get()) {
       try {
-        while(client_buffer.hasRemaining()) {
+        while(client_buffer.remaining() > 0) {
           if(client_buffer.remaining() > encryptedReadBuffer.remaining()) {
             byte[] ba = new byte[encryptedReadBuffer.remaining()];
             client_buffer.get(ba);
             encryptedReadBuffer.put(ba);
           } else {
-            encryptedReadBuffer.put(client_buffer);
+            encryptedReadBuffer.put(client_buffer.pop());
           }
           while(encryptedReadBuffer.position() > 0) {
             encryptedReadBuffer.flip();
             ByteBuffer dbb = getDecryptedByteBuffer();
             ByteBuffer newBB = dbb.duplicate();
-
             SSLEngineResult res = ssle.unwrap(encryptedReadBuffer, dbb);
             //We have to check both each time till complete
             if(! handshakeFuture.isDone()) {
@@ -453,53 +459,5 @@ public class SSLClient extends TCPClient {
     public void onRead(Client client) {
       doRead();
     }
-  }
-
-
-  public static class GenericTrustManager implements X509TrustManager, TrustManager {
-
-    @Override
-    public void checkClientTrusted(X509Certificate[] chain, String authType)
-        throws CertificateException {
-      //No Exception means we are ok
-    }
-
-    @Override
-    public void checkServerTrusted(X509Certificate[] chain, String authType)
-        throws CertificateException {
-      //No Exception means we are ok
-    }
-
-    @Override
-    public X509Certificate[] getAcceptedIssuers() {
-      return new X509Certificate[0];
-    }
-  }
-
-
-  /**
-   * Java 7 introduced SNI by default when you establish SSl connections.
-   * The problem is there is no way to turn it off or on at a per connection level.
-   * So if you are knowingly going to connect to a server that has a non SNI valid cert
-   * you have to disable SNI for the whole VM. 
-   * 
-   * The default is whatever the VM is started with you can enable it by running this method.
-   * 
-   */
-  public static void enableSNI() {
-    System.setProperty ("jsse.enableSNIExtension", "true");
-  }
-
-  /**
-   * Java 7 introduced SNI by default when you establish SSl connections.
-   * The problem is there is no way to turn it off or on at a per connection level.
-   * So if you are knowingly going to connect to a server that has a non SNI valid cert
-   * you have to disable SNI for the whole VM. 
-   * 
-   * The default is whatever the VM is started with you can disable it by running this method.
-   * 
-   */
-  public static void disableSNI() {
-    System.setProperty ("jsse.enableSNIExtension", "false");
   }
 }

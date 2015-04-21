@@ -40,4 +40,26 @@ public class Utils {
     }
     throw new RuntimeException("Could not find a port!!");
   }
+  /*
+  @Test
+  public void test() throws Exception {
+    SingleThreadScheduler STS = new SingleThreadScheduler(); 
+    TCPServer server = new TCPServer("localhost", 9089);
+    final Selector selector = Selector.open();
+    SocketChannel sc = SocketChannel.open();
+    sc.configureBlocking(false);
+    sc.connect(new InetSocketAddress("localhost", 9088));
+    Thread.sleep(2000);
+    final SelectionKey mk = sc.register(selector, SelectionKey.OP_CONNECT);
+    selector.select(10000);
+    for(SelectionKey key: selector.selectedKeys()) {
+      System.out.println(key.isConnectable());
+      SocketChannel sc2 = (SocketChannel)key.channel();
+      System.out.println(sc2.isConnectionPending());
+      System.out.println(sc2.finishConnect());
+    }
+    System.out.println(selector.keys());
+    
+  }*/
+  
 }

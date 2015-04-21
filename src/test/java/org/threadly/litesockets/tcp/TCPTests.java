@@ -8,6 +8,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.After;
 import org.junit.Before;
@@ -15,8 +17,9 @@ import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.Reader;
-import org.threadly.litesockets.SocketExecuterBase;
+import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.ThreadedSocketExecuter;
+import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.test.concurrent.TestCondition;
 
 
@@ -36,13 +39,13 @@ public class TCPTests {
   PriorityScheduler PS;
   int port = Utils.findTCPPort();
   final String GET = "hello";
-  SocketExecuterBase SE;
+  SocketExecuterInterface SE;
   TCPServer server;
   FakeTCPServerClient serverFC;
   
   @Before
   public void start() throws IOException {
-    PS = new PriorityScheduler(5, 5, 100000);
+    PS = new PriorityScheduler(5);
     SE = new ThreadedSocketExecuter(PS);
     SE.start();
     serverFC = new FakeTCPServerClient(SE);
@@ -118,12 +121,14 @@ public class TCPTests {
     server.setClientAcceptor(serverFC);
     SE.addServer(server);
     TCPClient client = new TCPClient("localhost", port);
+    client.connect();
     new TestCondition(){
       @Override
       public boolean get() {
         return serverFC.map.size() == 1;
       }
     }.blockTillTrue(5000, 100);
+    client.close();
     server.close();
   }
   
@@ -132,6 +137,7 @@ public class TCPTests {
     ByteBuffer bb = ByteBuffer.wrap("TEST111".getBytes());
     TCPClient client = new TCPClient("localhost", port);
     client.setMaxBufferSize(2);
+    SE.addClient(client);
     new TestCondition(){
       @Override
       public boolean get() {
@@ -193,7 +199,7 @@ public class TCPTests {
         return ! client.canRead();
       }
     }.blockTillTrue(5000, 100);
-    ByteBuffer readBB = client.getRead();
+    MergedByteBuffers readBB = client.getRead();
     while(readBB != null) {
       readBB = client.getRead();
     }
@@ -202,11 +208,11 @@ public class TCPTests {
   
   @Test(expected=ClosedChannelException.class)
   public void clientBadSocket1() throws IOException, InterruptedException {
-    ByteBuffer bb = ByteBuffer.wrap("TEST111".getBytes());
     SocketChannel cs = SocketChannel.open(new InetSocketAddress("localhost", port));
     cs.close();
     TCPClient client = new TCPClient(cs);
     server.close();
+    client.close();
   }  
   
   @Test
@@ -215,6 +221,7 @@ public class TCPTests {
     cs.configureBlocking(true);
     TCPClient client = new TCPClient(cs);
     server.close();
+    client.close();
   }
   
   @Test
@@ -361,6 +368,8 @@ public class TCPTests {
     new TestCondition(){
       @Override
       public boolean get() {
+        //System.out.println(serverFC.map.get(cf).remaining()+":"+(LARGE_TEXT_BUFFER.remaining()*4));
+        
         return serverFC.map.get(cf).remaining() == LARGE_TEXT_BUFFER.remaining()*4 ;
       }
     }.blockTillTrue(5000, 100);
@@ -380,6 +389,26 @@ public class TCPTests {
     System.out.println(cf.getStats().getReadRate());
     System.out.println(cf.getStats().getTotalWrite());
     System.out.println(cf.getStats().getWriteRate());
+  }
+  
+  @Test(expected=ExecutionException.class)
+  public void tcpBadAddress() throws IOException, InterruptedException, ExecutionException {
+    TCPClient client = new TCPClient("2.0.0.256", port, 1000);
+    final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
+    SE.addClient(client);
+    client.connectionFuture.get();
+  }
+  
+  @Test(expected=TimeoutException.class)
+  public void tcpTimeout() throws Throwable {
+    TCPClient client = new TCPClient("2.0.0.2", port, 10);
+    final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
+    SE.addClient(client);
+    try {
+      client.connectionFuture.get();
+    } catch(ExecutionException e) {
+      throw e.getCause();
+    }
   }
   
 }

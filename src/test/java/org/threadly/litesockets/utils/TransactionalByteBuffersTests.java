@@ -1,6 +1,7 @@
 package org.threadly.litesockets.utils;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -10,7 +11,7 @@ import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.test.concurrent.TestCondition;
 
 public class TransactionalByteBuffersTests {
-  PriorityScheduler PS = new PriorityScheduler(5, 5, 100000);
+  PriorityScheduler PS = new PriorityScheduler(5);
 
   @Test
   public void simpleGetTest() {

@@ -1,6 +1,5 @@
 package org.threadly.litesockets.udp;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -13,16 +12,16 @@ import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server;
 import org.threadly.litesockets.Server.ClientAcceptor;
 import org.threadly.litesockets.Server.ServerCloser;
-import org.threadly.litesockets.SocketExecuterBase;
+import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 
 public class FakeUDPServerClient implements Closer, Reader, ClientAcceptor, ServerCloser {
-  SocketExecuterBase SE;
+  SocketExecuterInterface SE;
   Set<UDPServer> servers = new HashSet<UDPServer>();
   ConcurrentHashMap<UDPClient, MergedByteBuffers> clients = new ConcurrentHashMap<UDPClient, MergedByteBuffers>();
   List<UDPClient> clientList = new ArrayList<UDPClient>();
   
-  public FakeUDPServerClient(SocketExecuterBase se) {
+  public FakeUDPServerClient(SocketExecuterInterface se) {
     SE = se;
   }
   
@@ -44,7 +43,7 @@ public class FakeUDPServerClient implements Closer, Reader, ClientAcceptor, Serv
 
   @Override
   public void onRead(Client client) {
-    ByteBuffer bb = client.getRead();
+    MergedByteBuffers bb = client.getRead();
     System.out.println("Got Read:"+bb);
     MergedByteBuffers mbb = clients.get(client);
     if(mbb != null) {

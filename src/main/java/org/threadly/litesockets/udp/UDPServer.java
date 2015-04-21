@@ -7,18 +7,24 @@ import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectableChannel;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.threadly.concurrent.KeyDistributedScheduler;
-import org.threadly.concurrent.SchedulerServiceInterface;
+import org.threadly.concurrent.KeyDistributedExecutor;
 import org.threadly.litesockets.Server;
-import org.threadly.litesockets.SocketExecuterBase.WireProtocol;
+import org.threadly.litesockets.SocketExecuterInterface;
+import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 
 public class UDPServer extends Server {
   
   protected final DatagramChannel channel;
   private volatile ClientAcceptor clientAcceptor;
-  private KeyDistributedScheduler clientDistributer;
+  private KeyDistributedExecutor clientDistributer;
   private final ConcurrentHashMap<SocketAddress, UDPClient> clients = new ConcurrentHashMap<SocketAddress, UDPClient>();
+  private volatile ServerCloser closer;
+  protected volatile Executor sei;
+  protected volatile SocketExecuterInterface se;
+  protected AtomicBoolean closed = new AtomicBoolean(false);
   
   
   public UDPServer(String host, int port) throws IOException {
@@ -28,19 +34,33 @@ public class UDPServer extends Server {
   }
   
   @Override
-  protected void setThreadExecuter(SchedulerServiceInterface sei) {
-    super.setThreadExecuter(sei);
-    clientDistributer = new KeyDistributedScheduler(sei);
+  public void setThreadExecutor(Executor sei) {
+    this.sei = sei;
+    clientDistributer = new KeyDistributedExecutor(sei);
   }
 
-  //This needs to be done before we select again
   @Override
-  protected void callAcceptor(SelectableChannel c) {
-    accept(c);
+  public void setSocketExecuter(SocketExecuterInterface se) {
+    this.se = se;
   }
-  
+
   @Override
-  public void accept(SelectableChannel c) {
+  public SocketExecuterInterface getSocketExecuter() {
+    return this.se;
+  }
+
+  @Override
+  public ServerCloser getCloser() {
+    return closer;
+  }
+
+  @Override
+  public void setCloser(ServerCloser closer) {
+    this.closer = closer;
+  }
+
+  @Override
+  public void acceptChannel(SelectableChannel c) {
     if(c == channel) {
       final ByteBuffer bb = ByteBuffer.allocate(1500);
       try {
@@ -54,13 +74,15 @@ public class UDPServer extends Server {
               udpc = clients.putIfAbsent(sa, udpc);
               if(udpc == null) {
                 udpc = clients.get(sa);
-                udpc.setThreadExecuter(clientDistributer.getSubmitterForKey(udpc));
+                udpc.setClientsThreadExecutor(clientDistributer.getSubmitterForKey(udpc));
+                udpc.setClientsSocketExecuter(se);
                 clientAcceptor.accept(udpc);
               }
             }
             UDPClient udpc = clients.get(sa);
-            udpc.addReadBuffer(bb);
-            udpc.callReader();
+            if(udpc.canRead()) {
+              udpc.addReadBuffer(bb);
+            }
           }});
       } catch (IOException e) {
 
@@ -99,12 +121,23 @@ public class UDPServer extends Server {
     }
   }
   
+  protected void callCloser() {
+    if(sei != null && closer != null) {
+      sei.execute(new Runnable() {
+        @Override
+        public void run() {
+          getCloser().onClose(UDPServer.this);
+        }});
+    }
+  }
+  
   public UDPClient createUDPClient(String host, int port) {
     InetSocketAddress sa = new InetSocketAddress(host,port);
     if(! clients.containsKey(sa)) {
       UDPClient c = new UDPClient(new InetSocketAddress(host, port), this);
       clients.putIfAbsent(sa, c);
-      c.setThreadExecuter(clientDistributer.getSubmitterForKey(c));
+      c.setClientsThreadExecutor(clientDistributer.getSubmitterForKey(c));
+      c.setClientsSocketExecuter(se);
     }
     return clients.get(sa);
   }

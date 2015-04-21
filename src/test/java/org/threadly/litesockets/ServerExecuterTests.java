@@ -1,5 +1,8 @@
 package org.threadly.litesockets;
 
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 import java.io.IOException;
 import java.util.ArrayList;
 
@@ -7,7 +10,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
-import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.tcp.FakeTCPServerClient;
 import org.threadly.litesockets.tcp.TCPClient;
 import org.threadly.litesockets.tcp.TCPServer;
@@ -21,7 +23,7 @@ public class ServerExecuterTests {
   
   @Before
   public void start() {
-    PS = new PriorityScheduler(5, 5, 100000);
+    PS = new PriorityScheduler(5);
     SE = new ThreadedSocketExecuter();
     SE.start();
   }
@@ -30,6 +32,15 @@ public class ServerExecuterTests {
   public void stop() {
     SE.stopIfRunning();
     PS.shutdownNow();
+  }
+  
+  @Test
+  public void checkReadThread() {
+    final boolean badCheck = SE.verifyReadThread();
+    assertFalse(badCheck);
+    SE.readThreadID = Thread.currentThread().getId();
+    final boolean goodCheck = SE.verifyReadThread();
+    assertTrue(goodCheck);
   }
   
   @Test
