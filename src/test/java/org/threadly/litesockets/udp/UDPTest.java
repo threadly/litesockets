@@ -5,6 +5,7 @@ import static org.junit.Assert.*;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
+import java.util.concurrent.ExecutionException;
 
 import org.junit.After;
 import org.junit.Before;
@@ -49,6 +50,40 @@ public class UDPTest {
     newFC.AddUDPServer(newServer);
     UDPClient c = newServer.createUDPClient("127.0.0.1", port);
     newFC.accept(c);
+    c.writeForce(ByteBuffer.wrap(GET.getBytes()));
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clientList.size() == 1;
+      }
+    }.blockTillTrue(5000);
+    final UDPClient rc = serverFC.clientList.get(0);
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clients.get(rc).remaining() > 0;
+      }
+    }.blockTillTrue(5000);
+    System.out.println(serverFC.clients.get(rc).remaining());
+    assertEquals(GET, serverFC.clients.get(rc).getAsString(serverFC.clients.get(rc).remaining()));
+    SE.removeServer(newServer);
+    c.close();
+    newServer.close();
+  }
+  
+  
+  @Test
+  public void changeBufferSize() throws IOException, InterruptedException, ExecutionException {
+    int newPort = Utils.findUDPPort();
+    FakeUDPServerClient newFC = new FakeUDPServerClient(SE);
+    UDPServer newServer = new UDPServer("localhost", newPort);
+    newFC.AddUDPServer(newServer);
+    UDPClient c = newServer.createUDPClient("127.0.0.1", port);
+    assertEquals(0, c.getTimeout());
+    c.connect().get();
+    newFC.accept(c);
+    c.setMaxBufferSize(2);
+    assertEquals(c.getClientsSocketExecuter(), SE);
     c.writeForce(ByteBuffer.wrap(GET.getBytes()));
     new TestCondition(){
       @Override

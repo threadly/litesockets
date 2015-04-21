@@ -26,7 +26,6 @@ public class UDPClient extends Client {
 
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
   private final MergedByteBuffers readBuffers = new MergedByteBuffers();
-  private final MergedByteBuffers writeBuffers = new MergedByteBuffers();
   protected final SocketAddress sa;
   protected final UDPServer udpServer;
 
@@ -36,14 +35,9 @@ public class UDPClient extends Client {
 
   protected volatile Closer closer;
   protected volatile Reader reader;
-  protected volatile Executor sei;
-  protected volatile SocketExecuterInterface seb;
+  protected volatile Executor executer;
+  protected volatile SocketExecuterInterface sei;
   protected AtomicBoolean closed = new AtomicBoolean(false);
-
-  //protected final String host;
-  //protected final int port;
-  
-
   
   protected UDPClient(SocketAddress sa, UDPServer server) {
     this.sa = sa;
@@ -69,19 +63,19 @@ public class UDPClient extends Client {
   }
   
   @Override
-  public void setClientsThreadExecutor(Executor  sei) {
-    if(sei != null) {
-      this.sei = sei;
+  protected void setClientsThreadExecutor(Executor executer) {
+    if(executer != null) {
+      this.executer = executer;
     }
   }
 
   @Override
-  public SocketChannel getChannel() {
+  protected SocketChannel getChannel() {
     return null;
   }
 
   @Override
-  public Socket getSocket() {
+  protected Socket getSocket() {
     return null;
   }
 
@@ -93,26 +87,19 @@ public class UDPClient extends Client {
   @Override
   public void close() {
     if(closed.compareAndSet(false, true)) {
-      try {
-        if(seb != null) {
-          seb.removeClient(this);
-        }
-      } finally {
-        final Closer lcloser = closer;
-        if(lcloser != null && this.sei != null) {
-          sei.execute(new Runnable() {
-            @Override
-            public void run() {
-              lcloser.onClose(UDPClient.this);
-            }});
-        }
+      final Closer lcloser = closer;
+      if(lcloser != null && this.sei != null) {
+        executer.execute(new Runnable() {
+          @Override
+          public void run() {
+            lcloser.onClose(UDPClient.this);
+          }});
       }
     }
-
   }
   
   @Override
-  public void addReadBuffer(ByteBuffer bb) {
+  protected void addReadBuffer(ByteBuffer bb) {
     stats.addRead(bb.remaining());
     final Reader lreader = reader;
     if(lreader != null) {
@@ -120,7 +107,7 @@ public class UDPClient extends Client {
         int start = readBuffers.remaining();
         readBuffers.add(bb);
         if(start == 0){
-          sei.execute(new Runnable() {
+          executer.execute(new Runnable() {
             @Override
             public void run() {
               lreader.onRead(UDPClient.this);
@@ -186,21 +173,19 @@ public class UDPClient extends Client {
   }
 
   @Override
-  public boolean canRead() {
+  protected boolean canRead() {
     return true;
   }
 
   @Override
-  public boolean canWrite() {
+  protected boolean canWrite() {
     return true;
   }
 
   @Override
-  public ByteBuffer provideReadByteBuffer() {
-    if(readByteBuffer.remaining() < minAllowedReadBuffer) {
-      readByteBuffer = ByteBuffer.allocate(maxBufferSize*2);
-    }
-    return readByteBuffer;
+  protected ByteBuffer provideReadByteBuffer() {
+    //All Reads happen on the UDP Server
+    return null;
   }
 
   @Override
@@ -210,7 +195,7 @@ public class UDPClient extends Client {
 
   @Override
   public int getWriteBufferSize() {
-    return this.writeBuffers.remaining();
+    return 0;
   }
 
   @Override
@@ -220,18 +205,18 @@ public class UDPClient extends Client {
 
   @Override
   public Executor getClientsThreadExecutor() {
-    return sei;
+    return executer;
   }
 
   @Override
   public SocketExecuterInterface getClientsSocketExecuter() {
-    return seb;
+    return sei;
   }
 
   @Override
-  public void setClientsSocketExecuter(SocketExecuterInterface cse) {
-    if(cse == null) {
-      seb = cse;
+  protected void setClientsSocketExecuter(SocketExecuterInterface sei) {
+    if(sei != null) {
+      this.sei = sei;
     }
   }
 
@@ -250,20 +235,17 @@ public class UDPClient extends Client {
       }
       mbb = readBuffers.duplicateAndClean();
     }
-    if(getReadBufferSize() + mbb.remaining() >= maxBufferSize) {
-      seb.flagNewRead(this);
-    }
     return mbb;
   }
 
   @Override
-  public ByteBuffer getWriteBuffer() {
+  protected ByteBuffer getWriteBuffer() {
     return null;
   }
 
   @Override
-  public void reduceWrite(int size) {
-    
+  protected void reduceWrite(int size) {
+    //UDPClient does not have pending writes to reduce
   }
 
   @Override
@@ -282,7 +264,7 @@ public class UDPClient extends Client {
   }
 
   @Override
-  public void setConnectionStatus(Throwable t) {
+  protected void setConnectionStatus(Throwable t) {
   }
 
   

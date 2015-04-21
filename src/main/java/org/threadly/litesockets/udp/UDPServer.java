@@ -75,11 +75,14 @@ public class UDPServer extends Server {
               if(udpc == null) {
                 udpc = clients.get(sa);
                 udpc.setClientsThreadExecutor(clientDistributer.getSubmitterForKey(udpc));
+                udpc.setClientsSocketExecuter(se);
                 clientAcceptor.accept(udpc);
               }
             }
             UDPClient udpc = clients.get(sa);
-            udpc.addReadBuffer(bb);
+            if(udpc.canRead()) {
+              udpc.addReadBuffer(bb);
+            }
           }});
       } catch (IOException e) {
 
@@ -134,6 +137,7 @@ public class UDPServer extends Server {
       UDPClient c = new UDPClient(new InetSocketAddress(host, port), this);
       clients.putIfAbsent(sa, c);
       c.setClientsThreadExecutor(clientDistributer.getSubmitterForKey(c));
+      c.setClientsSocketExecuter(se);
     }
     return clients.get(sa);
   }
