@@ -15,7 +15,7 @@ dependencies {
   testCompile group: 'junit', name: 'junit', version: '4.12'
 
   compile (
-    'org.threadly:threadly:3.4.1'
+    "org.threadly:threadly:$threadlyVersion"
   )
 }
 
