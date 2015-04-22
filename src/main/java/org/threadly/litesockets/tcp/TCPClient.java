@@ -65,7 +65,7 @@ public class TCPClient extends Client {
   protected ClientByteStats stats = new ClientByteStats();
   protected AtomicBoolean closed = new AtomicBoolean(false);
 
-  private ByteBuffer currentWriteBuffer;
+  private volatile ByteBuffer currentWriteBuffer = ByteBuffer.allocate(0);
   private ByteBuffer readByteBuffer = ByteBuffer.allocate(NEW_READ_BUFFER_SIZE);
 
 
@@ -254,7 +254,7 @@ public class TCPClient extends Client {
 
   @Override
   protected boolean canWrite() {
-    if(writeBuffers.remaining() > 0) {
+    if(writeBuffers.remaining() > 0 || currentWriteBuffer.remaining() > 0) {
       return true;
     }
     return false;
@@ -275,7 +275,7 @@ public class TCPClient extends Client {
 
   @Override
   public int getWriteBufferSize() {
-    return this.writeBuffers.remaining();
+    return this.writeBuffers.remaining() + currentWriteBuffer.remaining();
   }
 
   @Override
@@ -384,6 +384,7 @@ public class TCPClient extends Client {
     synchronized(writeBuffers) {
       boolean needNotify = ! canWrite();
       writeBuffers.add(bb.slice());
+      System.out.println("CurrentWriteSize:"+writeBuffers.remaining());
       if(needNotify && seb != null && channel.isConnected()) {
         seb.flagNewWrite(this);
       }
@@ -392,7 +393,7 @@ public class TCPClient extends Client {
 
   @Override
   protected ByteBuffer getWriteBuffer() {
-    if(currentWriteBuffer != null && currentWriteBuffer.remaining() == 0) {
+    if(currentWriteBuffer.remaining() != 0) {
       return currentWriteBuffer;
     }
     synchronized(writeBuffers) {
@@ -417,7 +418,7 @@ public class TCPClient extends Client {
     synchronized(writeBuffers) {
       stats.addWrite(size);
       if(! currentWriteBuffer.hasRemaining()) {
-        currentWriteBuffer = null;
+        currentWriteBuffer = ByteBuffer.allocate(0);
       }
       writeBuffers.notifyAll();
     }
