@@ -19,6 +19,28 @@ import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.util.ExceptionUtils;
 import org.threadly.util.debug.Profiler;
 
+
+/**
+ * The ProfileServer Uses Threadlys {@link Profiler} tying it to a listen socket to make it easy
+ * to profile running java processes as needed. 
+ *
+ * This will open a listen port on specified ip/port and allow connections to send basic commands to the
+ * process to control the profiler.
+ * 
+ * Here are a list of commands:
+ * 
+ * start - Starts the profiler
+ * stop - Stops the profiler (Profile is maintained)
+ * reset - Resets the profilers data
+ * dump - dumps the profiler current data
+ * 
+ * Commands must end with a newline.
+ * 
+ * NOTE: the profiler should only be used when needed and stopped and reset when not in use.  The longer it
+ * runs the more CPU and Memory it will consume, to the point where it could eat up an entire CPU core and over fill
+ * memory.
+ *
+ */
 public class ProfileServer extends AbstractService implements ClientAcceptor, Reader, Closer{
   protected static final ByteBuffer DUMP_EXCEPTION = ByteBuffer.wrap("Got Exception doing Dump!\n\n".getBytes()).asReadOnlyBuffer();
   protected static final ByteBuffer BAD_DATA = ByteBuffer.wrap("Got Bad Data from you, closing!!\n\n".getBytes()).asReadOnlyBuffer();
@@ -38,7 +60,7 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
     StringBuilder sb = new StringBuilder();
     sb.append("HELP MENU:\n");
     sb.append(START_PROFILE).append(" - Starts the profiler\n");
-    sb.append(STOP_PROFILE).append(" - Stops the profiler (Profile is maintaned)\n");
+    sb.append(STOP_PROFILE).append(" - Stops the profiler (Profile is maintained)\n");
     sb.append(RESET_PROFILE).append(" - Resets the profilers data\n");
     sb.append(DUMP_PROFILE).append(" - dumps the profiler current data\n");
     HELP = ByteBuffer.wrap(sb.toString().getBytes()).asReadOnlyBuffer();
@@ -52,10 +74,19 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
   private final int port;
   private TCPServer server;
   
-  public ProfileServer(SocketExecuterInterface socketEx, String host, int port, int delay) throws IOException {
+  
+  /**
+   * Construct a ProileServer
+   * 
+   * @param socketEx The SocketExecuterInterface to use with this Server.
+   * @param host the host to create the servers listen port on.
+   * @param port the port to use.
+   * @param frequency the frequency of the profiler in ms. 
+   */
+  public ProfileServer(SocketExecuterInterface socketEx, String host, int port, int frequency) {
     scheduler = socketEx.getThreadScheduler();
     this.socketEx = socketEx;
-    profiler = new Profiler(delay);
+    profiler = new Profiler(frequency);
     this.host = host;
     this.port = port;
   }
