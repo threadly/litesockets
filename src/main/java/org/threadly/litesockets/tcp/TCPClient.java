@@ -384,7 +384,6 @@ public class TCPClient extends Client {
     synchronized(writeBuffers) {
       boolean needNotify = ! canWrite();
       writeBuffers.add(bb.slice());
-      System.out.println("CurrentWriteSize:"+writeBuffers.remaining());
       if(needNotify && seb != null && channel.isConnected()) {
         seb.flagNewWrite(this);
       }
