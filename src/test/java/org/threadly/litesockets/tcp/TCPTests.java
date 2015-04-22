@@ -236,9 +236,10 @@ public class TCPTests {
     new TestCondition(){
       @Override
       public boolean get() {
+        //System.out.println(SE.getClientCount());
         return SE.getClientCount() == 2;
       }
-    }.blockTillTrue(5000, 100);    
+    }.blockTillTrue(5000);    
     
     client.close();
     server.close();

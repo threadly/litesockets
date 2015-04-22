@@ -159,7 +159,6 @@ public class TCPClient extends Client {
     if(! startedConnection.get()) {
       return false;
     }
-    System.out.println(Clock.lastKnownForwardProgressingMillis()+":"+connectExpiresAt);
     if(channel.isConnected()) {
       return false;
     }

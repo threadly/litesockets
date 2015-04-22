@@ -92,9 +92,10 @@ public class ServerExecuterTests {
     new TestCondition(){
       @Override
       public boolean get() {
+        //System.out.println("SE Clients:"+SE.getClientCount()+":"+SE.readSelector.keys().size());
         return serverFC.map.size() == 0;
       }
-    }.blockTillTrue(5000, 1000);    
+    }.blockTillTrue(5000, 100);    
   }
   
   @Test

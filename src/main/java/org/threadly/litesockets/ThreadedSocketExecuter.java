@@ -140,9 +140,11 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
         SelectionKey sk2 = client.getChannel().keyFor(writeSelector);
         if(sk != null) {
           sk.cancel();
+          readSelector.wakeup();
         }
         if(sk2 != null) {
           sk2.cancel();
+          writeSelector.wakeup();
         }
       }
     }
@@ -348,7 +350,6 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
                     }
                   }
                 } catch(IOException e) {
-                  e.printStackTrace();
                   client.setConnectionStatus(e);
                   removeClient(client);
                   client.close();
@@ -368,7 +369,6 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
                     readByteBuffer.position(origPos+read);
                     resultBuffer.limit(read);
                     client.addReadBuffer(resultBuffer.asReadOnlyBuffer());
-                    //client.callReader();
                     if(! client.canRead()) {
                       client.getChannel().register(readSelector, 0);
                     }
