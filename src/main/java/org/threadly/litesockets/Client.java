@@ -326,8 +326,17 @@ public abstract class Client {
    */
   public abstract void close();
   
+  /**
+   * 
+   * @return the remote {@link SocketAddress} this client is connected to.
+   */
   public abstract SocketAddress getRemoteSocketAddress();
   
+  
+  /**
+   * 
+   * @return the local {@link SocketAddress} this client is using.
+   */
   public abstract SocketAddress getLocalSocketAddress();
   
   
