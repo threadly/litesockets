@@ -26,21 +26,21 @@ public class UDPClient extends Client {
 
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
   private final MergedByteBuffers readBuffers = new MergedByteBuffers();
-  protected final SocketAddress sa;
+  protected final SocketAddress remoteAddress;
   protected final UDPServer udpServer;
 
   protected int maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;
   protected int minAllowedReadBuffer = MIN_READ;
-  private ByteBuffer readByteBuffer = ByteBuffer.allocate(maxBufferSize*2);
 
   protected volatile Closer closer;
   protected volatile Reader reader;
   protected volatile Executor executer;
   protected volatile SocketExecuterInterface sei;
   protected AtomicBoolean closed = new AtomicBoolean(false);
+
   
   protected UDPClient(SocketAddress sa, UDPServer server) {
-    this.sa = sa;
+    this.remoteAddress = sa;
     udpServer = server;
   }
   
@@ -49,7 +49,7 @@ public class UDPClient extends Client {
     if(o instanceof UDPClient) {
       if(hashCode() == o.hashCode()) {
         UDPClient u = (UDPClient)o;
-        if(u.sa.equals(this.sa) && u.udpServer.getSelectableChannel().equals(udpServer.getSelectableChannel())) {
+        if(u.remoteAddress.equals(this.remoteAddress) && u.udpServer.getSelectableChannel().equals(udpServer.getSelectableChannel())) {
           return true;
         }
       }
@@ -59,7 +59,7 @@ public class UDPClient extends Client {
   
   @Override
   public int hashCode() {
-    return sa.hashCode() * udpServer.getSelectableChannel().hashCode();
+    return remoteAddress.hashCode() * udpServer.getSelectableChannel().hashCode();
   }
   
   @Override
@@ -122,7 +122,7 @@ public class UDPClient extends Client {
     stats.addWrite(bb.remaining());
     if(!closed.get()) {
       try {
-        udpServer.channel.send(bb, sa);
+        udpServer.channel.send(bb, remoteAddress);
       } catch (IOException e) {
       }
     }
@@ -265,6 +265,24 @@ public class UDPClient extends Client {
 
   @Override
   protected void setConnectionStatus(Throwable t) {
+  }
+  
+  @Override
+  public SocketAddress getRemoteSocketAddress() {
+    return remoteAddress;
+  }
+
+  @Override
+  public SocketAddress getLocalSocketAddress() {
+    if(this.udpServer.channel != null) {
+      return udpServer.channel.socket().getLocalSocketAddress();
+    }
+    return null;
+  }
+  
+  @Override
+  public String toString() {
+    return "UDPClient:FROM:"+getLocalSocketAddress()+":TO:"+getRemoteSocketAddress();
   }
 
   

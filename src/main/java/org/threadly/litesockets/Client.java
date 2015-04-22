@@ -1,6 +1,7 @@
 package org.threadly.litesockets;
 
 import java.net.Socket;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.Executor;
@@ -324,6 +325,10 @@ public abstract class Client {
    * called (if set) once all reads are done.</p>
    */
   public abstract void close();
+  
+  public abstract SocketAddress getRemoteSocketAddress();
+  
+  public abstract SocketAddress getLocalSocketAddress();
   
   
   /**
