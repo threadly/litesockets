@@ -93,9 +93,7 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
   
   @Override
   public void onClose(Client client) {
-    synchronized(clients) {
-      clients.remove(client);
-    }
+    clients.remove(client);
   }
 
   @Override
