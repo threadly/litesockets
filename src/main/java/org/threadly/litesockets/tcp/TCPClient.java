@@ -3,6 +3,7 @@ package org.threadly.litesockets.tcp;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
@@ -64,6 +65,7 @@ public class TCPClient extends Client {
   protected SettableListenableFuture<Boolean> connectionFuture = new SettableListenableFuture<Boolean>();
   protected ClientByteStats stats = new ClientByteStats();
   protected AtomicBoolean closed = new AtomicBoolean(false);
+  protected final SocketAddress remoteAddress;
 
   private volatile ByteBuffer currentWriteBuffer = ByteBuffer.allocate(0);
   private ByteBuffer readByteBuffer = ByteBuffer.allocate(NEW_READ_BUFFER_SIZE);
@@ -92,6 +94,7 @@ public class TCPClient extends Client {
     maxConnectionTime = timeout;
     this.host = host;
     this.port = port;
+    remoteAddress = new InetSocketAddress(host, port);
   }
 
   /**
@@ -112,6 +115,7 @@ public class TCPClient extends Client {
       channel.configureBlocking(false);
     }
     this.channel = channel;
+    remoteAddress = channel.socket().getRemoteSocketAddress();
     startedConnection.set(true);
   }
   
@@ -439,6 +443,24 @@ public class TCPClient extends Client {
       ArgumentVerifier.assertNotNegative(size, "size");
       super.addRead(size);
     }
+  }
+
+  @Override
+  public SocketAddress getRemoteSocketAddress() {
+    return remoteAddress;
+  }
+
+  @Override
+  public SocketAddress getLocalSocketAddress() {
+    if(this.channel != null) {
+      return channel.socket().getLocalSocketAddress();
+    }
+    return null;
+  }
+  
+  @Override
+  public String toString() {
+    return "TCPClient:FROM:"+getLocalSocketAddress()+":TO:"+getRemoteSocketAddress();
   }
 
 }
