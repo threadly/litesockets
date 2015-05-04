@@ -14,9 +14,9 @@ import java.nio.channels.SocketChannel;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 
-import org.threadly.concurrent.AbstractService;
 import org.threadly.concurrent.NoThreadScheduler;
 import org.threadly.concurrent.SchedulerServiceInterface;
+import org.threadly.util.AbstractService;
 import org.threadly.util.ArgumentVerifier;
 
 /**

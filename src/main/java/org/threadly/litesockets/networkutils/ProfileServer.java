@@ -7,7 +7,6 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.threadly.concurrent.AbstractService;
 import org.threadly.concurrent.SimpleSchedulerInterface;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.Closer;
@@ -16,6 +15,7 @@ import org.threadly.litesockets.Server.ClientAcceptor;
 import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.tcp.TCPServer;
 import org.threadly.litesockets.utils.MergedByteBuffers;
+import org.threadly.util.AbstractService;
 import org.threadly.util.ExceptionUtils;
 import org.threadly.util.debug.Profiler;
 
