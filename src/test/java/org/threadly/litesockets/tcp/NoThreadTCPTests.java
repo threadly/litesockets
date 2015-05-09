@@ -56,14 +56,5 @@ public class NoThreadTCPTests extends TCPTests {
   public void simpleWriteTest() throws IOException, InterruptedException {
     super.simpleWriteTest();
   }
-  
-  @Test
-  public void loop() throws IOException, InterruptedException, ExecutionException {
-    for(int i=0; i<1000; i++) {
-      clientDoubleAdd();
-      stop();
-      start();
-    }
-  }
 
 }
