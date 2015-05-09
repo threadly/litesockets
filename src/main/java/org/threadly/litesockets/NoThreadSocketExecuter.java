@@ -20,6 +20,7 @@ import org.threadly.litesockets.ThreadedSocketExecuter.SocketExecuterByteStats;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.AbstractService;
 import org.threadly.util.ArgumentVerifier;
+import org.threadly.util.ExceptionUtils;
 
 /**
  * <p>The NoThreadSocketExecuter is a simpler implementation of a {@link SocketExecuterInterface} 
@@ -225,7 +226,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
         selector.close();
       }
     } catch (Exception e) {
-
+      ExceptionUtils.getExceptionHandler().handleException(e);
     }
     clients.clear();
     servers.clear();
