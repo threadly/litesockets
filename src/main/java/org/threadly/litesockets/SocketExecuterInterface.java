@@ -1,6 +1,7 @@
 package org.threadly.litesockets;
 
 import org.threadly.concurrent.SimpleSchedulerInterface;
+import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.ServiceInterface;
 
 /**
@@ -100,4 +101,13 @@ public interface SocketExecuterInterface extends ServiceInterface {
    * @return returns the {@link SimpleSchedulerInterface} the SocketExecuter is using.
    */
   public SimpleSchedulerInterface getThreadScheduler();
+  
+  /**
+   * <p>This will give you read and write stats for the SocketExecuter.  This will tell you information about
+   * the number of bytes sent/received by this SocketExecuter.</p>
+   * 
+   * @return a {@link SimpleByteStats} object to allow you to get the stats for this SocketExecuter.
+   */
+  public SimpleByteStats getStats();
+  
 }
