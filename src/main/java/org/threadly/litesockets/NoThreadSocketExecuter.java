@@ -340,7 +340,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
           removeClient(client);
           client.close();
         } else if( read > 0) {
-          stats.addWrite(read);
+          stats.addRead(read);
           readByteBuffer.position(origPos);
           ByteBuffer resultBuffer = readByteBuffer.slice();
           readByteBuffer.position(origPos+read);
