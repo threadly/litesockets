@@ -226,7 +226,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
         selector.close();
       }
     } catch (Exception e) {
-      ExceptionUtils.getExceptionHandler().handleException(e);
+      ExceptionUtils.handleException(e);
     }
     clients.clear();
     servers.clear();
