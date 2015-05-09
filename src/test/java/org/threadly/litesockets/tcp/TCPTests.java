@@ -45,6 +45,7 @@ public class TCPTests {
   
   @Before
   public void start() throws IOException {
+    port = Utils.findTCPPort();
     PS = new PriorityScheduler(5);
     SE = new ThreadedSocketExecuter(PS);
     SE.start();
@@ -225,7 +226,7 @@ public class TCPTests {
   }
   
   @Test
-  public void clientDoubleAdd() throws IOException, InterruptedException {
+  public void clientDoubleAdd() throws IOException, InterruptedException, ExecutionException {
     SocketChannel cs = SocketChannel.open(new InetSocketAddress("localhost", port));
     cs.configureBlocking(true);
     TCPClient client = new TCPClient(cs);

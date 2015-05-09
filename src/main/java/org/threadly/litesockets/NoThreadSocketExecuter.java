@@ -16,8 +16,11 @@ import java.util.concurrent.TimeoutException;
 
 import org.threadly.concurrent.NoThreadScheduler;
 import org.threadly.concurrent.SchedulerServiceInterface;
+import org.threadly.litesockets.ThreadedSocketExecuter.SocketExecuterByteStats;
+import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.AbstractService;
 import org.threadly.util.ArgumentVerifier;
+import org.threadly.util.ExceptionUtils;
 
 /**
  * <p>The NoThreadSocketExecuter is a simpler implementation of a {@link SocketExecuterInterface} 
@@ -42,6 +45,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
   private final NoThreadScheduler scheduler = new NoThreadScheduler(false);
   private final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
+  private final SocketExecuterByteStats stats = new SocketExecuterByteStats();
   private Selector selector;
 
   /**
@@ -221,8 +225,8 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
       if(selector != null && selector.isOpen()) {
         selector.close();
       }
-    } catch (IOException e) {
-
+    } catch (Exception e) {
+      ExceptionUtils.handleException(e);
     }
     clients.clear();
     servers.clear();
@@ -337,6 +341,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
           removeClient(client);
           client.close();
         } else if( read > 0) {
+          stats.addRead(read);
           readByteBuffer.position(origPos);
           ByteBuffer resultBuffer = readByteBuffer.slice();
           readByteBuffer.position(origPos+read);
@@ -367,6 +372,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
     if(client != null) {
       try {
         int writeSize = sc.write(client.getWriteBuffer());
+        stats.addWrite(writeSize);
         client.reduceWrite(writeSize);
         if(! client.canWrite()  && ! client.canRead()) {
           client.getChannel().register(selector, 0);
@@ -405,5 +411,10 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
         }
       }
     }
+  }
+
+  @Override
+  public SimpleByteStats getStats() {
+    return stats;
   }
 }

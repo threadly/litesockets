@@ -20,6 +20,7 @@ import org.threadly.concurrent.KeyDistributedExecutor;
 import org.threadly.concurrent.ScheduledExecutorServiceWrapper;
 import org.threadly.concurrent.SimpleSchedulerInterface;
 import org.threadly.concurrent.SingleThreadScheduler;
+import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.AbstractService;
 import org.threadly.util.ArgumentVerifier;
 
@@ -42,6 +43,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
   private final SimpleSchedulerInterface schedulerPool;
   private final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
+  private final SocketExecuterByteStats stats = new SocketExecuterByteStats();
 
   protected volatile long readThreadID = 0;
   protected Selector readSelector;
@@ -364,6 +366,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
                     removeClient(client);
                     client.close();
                   } else if( read > 0){
+                    stats.addRead(read);
                     readByteBuffer.position(origPos);
                     ByteBuffer resultBuffer = readByteBuffer.slice();
                     readByteBuffer.position(origPos+read);
@@ -405,6 +408,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
               if(client != null) {
                 try {
                   int writeSize = sc.write(client.getWriteBuffer());
+                  stats.addWrite(writeSize);
                   client.reduceWrite(writeSize);
                   if(! client.canWrite()) {
                     client.getChannel().register(writeSelector, 0);
@@ -457,5 +461,23 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
   @Override
   public SimpleSchedulerInterface getThreadScheduler() {
     return schedulerPool;
+  }
+
+  @Override
+  public SimpleByteStats getStats() {
+    return stats;
+  }
+  
+  protected static class SocketExecuterByteStats extends SimpleByteStats {
+    
+    @Override
+    protected void addWrite(int size) {
+      super.addWrite(size);
+    }
+    
+    @Override
+    protected void addRead(int size) {
+      super.addRead(size);
+    }
   }
 }
