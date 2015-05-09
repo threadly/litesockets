@@ -23,6 +23,7 @@ public class ServerExecuterTests {
   
   @Before
   public void start() {
+    port = Utils.findTCPPort();
     PS = new PriorityScheduler(5);
     SE = new ThreadedSocketExecuter();
     SE.start();
@@ -85,7 +86,7 @@ public class ServerExecuterTests {
       public boolean get() {
         return serverFC.map.size() == 100;
       }
-    }.blockTillTrue(5000, 100);
+    }.blockTillTrue(10000, 100);
     for(TCPClient c: clients) {
       c.close();
     }
@@ -95,7 +96,7 @@ public class ServerExecuterTests {
         //System.out.println("SE Clients:"+SE.getClientCount()+":"+SE.readSelector.keys().size());
         return serverFC.map.size() == 0;
       }
-    }.blockTillTrue(5000, 100);    
+    }.blockTillTrue(10000, 100);    
   }
   
   @Test

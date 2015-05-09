@@ -1,9 +1,11 @@
 package org.threadly.litesockets.tcp;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.concurrent.SingleThreadScheduler;
 import org.threadly.litesockets.NoThreadSocketExecuter;
