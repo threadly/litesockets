@@ -224,7 +224,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
       if(selector != null && selector.isOpen()) {
         selector.close();
       }
-    } catch (IOException e) {
+    } catch (Exception e) {
 
     }
     clients.clear();

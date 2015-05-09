@@ -109,6 +109,7 @@ public class TCPClient extends Client {
     if(! channel.isOpen()) {
       throw new ClosedChannelException();
     }
+    connectionFuture.setResult(true);
     host = channel.socket().getInetAddress().getHostAddress();
     port = channel.socket().getPort();
     if(channel.isBlocking()) {

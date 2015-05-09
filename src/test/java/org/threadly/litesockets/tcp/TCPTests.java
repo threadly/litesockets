@@ -225,7 +225,7 @@ public class TCPTests {
   }
   
   @Test
-  public void clientDoubleAdd() throws IOException, InterruptedException {
+  public void clientDoubleAdd() throws IOException, InterruptedException, ExecutionException {
     SocketChannel cs = SocketChannel.open(new InetSocketAddress("localhost", port));
     cs.configureBlocking(true);
     TCPClient client = new TCPClient(cs);
