@@ -1,9 +1,11 @@
 package org.threadly.litesockets.tcp;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.concurrent.SingleThreadScheduler;
 import org.threadly.litesockets.NoThreadSocketExecuter;
@@ -53,6 +55,15 @@ public class NoThreadTCPTests extends TCPTests {
   @Override
   public void simpleWriteTest() throws IOException, InterruptedException {
     super.simpleWriteTest();
+  }
+  
+  @Test
+  public void loop() throws IOException, InterruptedException, ExecutionException {
+    for(int i=0; i<1000; i++) {
+      clientDoubleAdd();
+      stop();
+      start();
+    }
   }
 
 }

@@ -46,7 +46,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
   private final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
   private final SocketExecuterByteStats stats = new SocketExecuterByteStats();
-  private Selector selector;
+  private volatile Selector selector;
 
   /**
    * Constructs a NoThreadSocketExecuter.  {@link #start()} must still be called before using it.
@@ -221,12 +221,16 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
     scheduler.clearTasks();
     selector.wakeup();
     selector.wakeup();
-    try {
-      if(selector != null && selector.isOpen()) {
-        selector.close();
-      }
-    } catch (Exception e) {
-      ExceptionUtils.handleException(e);
+    if(selector != null && selector.isOpen()) {
+      scheduler.execute(new Runnable() {
+        @Override
+        public void run() {
+          try {
+            selector.close();
+          } catch (Exception e) {
+            ExceptionUtils.handleException(e);
+          }
+        }});
     }
     clients.clear();
     servers.clear();
@@ -360,7 +364,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
       }
     }else {
       final Server server = servers.get(sc);
-      if(server.getServerType() == WireProtocol.UDP) {
+      if(server != null && server.getServerType() == WireProtocol.UDP) {
         server.acceptChannel((DatagramChannel)server.getSelectableChannel());
       }
     }
@@ -384,7 +388,13 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
         client.close();
       }
     }
-
+  }
+  
+  private void flushOutSelector() {
+    try {
+      selector.selectNow();
+    } catch (IOException e) {
+    }
   }
 
   private class AddToSelector implements Runnable {
@@ -402,6 +412,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
     public void run() {
       if(isRunning()) {
         try {
+          flushOutSelector();
           local_client.getChannel().register(local_selector, registerType);
         } catch (ClosedChannelException e) {
           removeClient(local_client);
