@@ -45,6 +45,7 @@ public class TCPTests {
   
   @Before
   public void start() throws IOException {
+    port = Utils.findTCPPort();
     PS = new PriorityScheduler(5);
     SE = new ThreadedSocketExecuter(PS);
     SE.start();
