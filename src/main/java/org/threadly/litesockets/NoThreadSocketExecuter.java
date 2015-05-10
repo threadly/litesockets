@@ -39,10 +39,9 @@ import org.threadly.util.ExceptionUtils;
  * {@link #removeServer(Server)} can be called from other threads safely.</p>
  * 
  * @author lwahlmeier
- *
  */
 public class NoThreadSocketExecuter extends AbstractService implements SocketExecuterInterface {
-  private final NoThreadScheduler scheduler = new NoThreadScheduler(false);
+  private final NoThreadScheduler scheduler = new NoThreadScheduler();
   private final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
   private final SocketExecuterByteStats stats = new SocketExecuterByteStats();
@@ -50,7 +49,6 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
 
   /**
    * Constructs a NoThreadSocketExecuter.  {@link #start()} must still be called before using it.
-   * 
    */
   public NoThreadSocketExecuter() {
   }
@@ -249,11 +247,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
   public void select(int delay) {
     ArgumentVerifier.assertNotNegative(delay, "delay");
     if(isRunning()) {
-      try {
-        scheduler.tick(null);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-      }
+      scheduler.tick(null);
       try {
         if(delay == 0) {
           selector.selectNow();
@@ -292,7 +286,6 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
               SocketChannel sc = (SocketChannel)key.channel();
               doWrite(sc);
             }
-
           } catch(CancelledKeyException e) {
             //Key could be cancelled at any point, we dont really care about it.
           }
@@ -304,11 +297,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
       } catch (NullPointerException e) {
         //There is a bug in some JVMs around this where the select() can throw an NPE from native code.
       }
-      try {
-        scheduler.tick(null);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-      }
+      scheduler.tick(null);
     }
   }
 
@@ -360,7 +349,6 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
         server.acceptChannel((DatagramChannel)server.getSelectableChannel());
       }
     }
-
   }
 
   private void doWrite(SocketChannel sc) {
@@ -445,7 +433,6 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
         removeServer(server);
         server.close();
       }
-
     }
   }
 
