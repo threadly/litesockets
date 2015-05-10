@@ -248,7 +248,7 @@ public abstract class Client {
    * </p>
    * 
    * @param bb the {@link ByteBuffer} to write.
-   * @throws {@link InterruptedException} This happens only if the thread that is blocked is interrupted while waiting. 
+   * @throws InterruptedException This happens only if the thread that is blocked is interrupted while waiting. 
    */
   public abstract void writeBlocking(ByteBuffer bb) throws InterruptedException;
   

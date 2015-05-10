@@ -60,9 +60,7 @@ public class SSLClient extends TCPClient {
    *  
    * @param host The host or IP to connect to.
    * @param port The port on the host to connect to.
-   * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
    */
-
   public SSLClient(String host, int port) {
     this(host, port, SSLUtils.OPEN_SSL_CTX.createSSLEngine(host, port));
   }
@@ -76,7 +74,6 @@ public class SSLClient extends TCPClient {
    * @param host The host or IP to connect to.
    * @param port The port on the host to connect to.
    * @param ssle The SSLEngine to use for the connection.
-   * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
    */
   public SSLClient(String host, int port, SSLEngine ssle) {
     this(host, port, ssle, TCPClient.DEFAULT_SOCKET_TIMEOUT);
@@ -93,7 +90,6 @@ public class SSLClient extends TCPClient {
    * @param port The port on the host to connect to.
    * @param ssle The SSLEngine to use for the connection.
    * @param timeout This is the connection timeout.  It is used for the actual connection timeout and separately for the SSLHandshake.
-   * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
    */
   public SSLClient(String host, int port, SSLEngine ssle, int timeout){
     this(host, port, ssle, TCPClient.DEFAULT_SOCKET_TIMEOUT, true);
@@ -110,7 +106,6 @@ public class SSLClient extends TCPClient {
    * @param ssle The SSLEngine to use for the connection.
    * @param timeout This is the connection timeout.  It is used for the actual connection timeout and separately for the SSLHandshake.
    * @param doHandshake This allows you to delay the handshake till a later negotiated time.
-   * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
    */
   public SSLClient(String host, int port, SSLEngine ssle, int timeout, boolean doHandshake){
     super(host, port, timeout);
@@ -239,8 +234,7 @@ public class SSLClient extends TCPClient {
    * socket will queue.</p>
    * 
    * 
-   * @return A listenable Future.  If a result was given it succeeded, if there is an error it failed.  The connection is closed on failures.
-   * @throws IOException
+   * @return A ListenableFuture.  If a result was given it succeeded, if there is an error it failed.  The connection is closed on failures.
    */
   public ListenableFuture<SSLSession> doHandShake() {
     if(startedHandshake.compareAndSet(false, true)) {
