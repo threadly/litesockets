@@ -102,7 +102,14 @@ public class SSLTests {
         return serverFC.clients.size() == 2;
       }
     }.blockTillTrue(5000);
-    Thread.sleep(100);
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return client.isEncrypted();
+      }
+    }.blockTillTrue(5000);
+    assertTrue(client.isEncrypted());
+    assertTrue(sclient.isEncrypted());
     System.out.println("Write");
     sclient.writeForce(TCPTests.SMALL_TEXT_BUFFER.duplicate());
     System.out.println("Write Done");

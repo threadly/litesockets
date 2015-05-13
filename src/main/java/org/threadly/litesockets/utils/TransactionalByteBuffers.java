@@ -123,7 +123,7 @@ public class TransactionalByteBuffers extends MergedByteBuffers {
       return super.getShort();
     } else if(lock.isHeldByCurrentThread()) {
       short v = super.getShort(); 
-      consumedSinceBegin+=2;
+      consumedSinceBegin+=BYTES_IN_SHORT;
       return v;
     } else {
       throw new IllegalStateException(ACCESS_ERROR);
@@ -136,7 +136,7 @@ public class TransactionalByteBuffers extends MergedByteBuffers {
       return super.getInt();
     } else if(lock.isHeldByCurrentThread()) {
       int v = super.getInt(); 
-      consumedSinceBegin+=4;
+      consumedSinceBegin+=BYTES_IN_INT;
       return v;
     } else {
       throw new IllegalStateException(ACCESS_ERROR);
@@ -148,7 +148,7 @@ public class TransactionalByteBuffers extends MergedByteBuffers {
     if(! lock.isLocked()) {
       return super.getLong();
     } else if(lock.isHeldByCurrentThread()) {
-      consumedSinceBegin+=8;
+      consumedSinceBegin+=BYTES_IN_LONG;
       return super.getLong();
     } else {
       throw new IllegalStateException(ACCESS_ERROR);
