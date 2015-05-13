@@ -15,6 +15,10 @@ import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
+
+/**
+ * Common utilities for SSL connections. 
+ */
 public class SSLUtils {
   public static final String SSL_HANDSHAKE_ERROR = "Problem doing SSL Handshake";
   public static final TrustManager[] OPEN_TRUST_MANAGER = new TrustManager [] {new SSLUtils.FullTrustManager() };
@@ -85,7 +89,19 @@ public class SSLUtils {
     }
   }
   
-  public static SSLEngineResult.HandshakeStatus doHandShakeRead(ByteBuffer networkDataBuffer, ByteBuffer peerData, SSLEngine ssle, SocketChannel channel) throws IOException {
+  /**
+   * This is a helper function used to complete the SSLHandshake internally.  This is what we do when 
+   * the HandshakeStatus is NEED_UNWRAP, which basically means need Read.
+   * 
+   * @param networkDataBuffer this is the networkBuffer that was last read off the wire. 
+   * @param peerData This is the buffer to write into after we 
+   * @param ssle the SSLEngine used in the handshake.
+   * @param channel the socketChannel the handshake is happening on.
+   * @return the current HandshalStatus
+   * @throws IOException this will happen if there is any problems decrypting the data or reading/writing to the socket.
+   */
+  public static SSLEngineResult.HandshakeStatus doHandShakeRead(ByteBuffer networkDataBuffer, 
+      ByteBuffer peerData, SSLEngine ssle, SocketChannel channel) throws IOException {
     peerData.clear();
     SSLEngineResult.HandshakeStatus hs;
     if (channel.read(networkDataBuffer) < 0) {
@@ -103,7 +119,19 @@ public class SSLUtils {
     return hs;
   } 
   
-  public static SSLEngineResult.HandshakeStatus doHandShakeWrite(ByteBuffer appBuffer, ByteBuffer networkData, SSLEngine ssle, SocketChannel channel) throws IOException {
+  /**
+   * This is a helper function used to complete the SSLHandshake internally.  This is what 
+   * we do when the HandshakeStatus is NEED_WRAP, which basically means need write.
+   *
+   * @param appBuffer This is the buffer that is encrypted.  It should essentially be empty as wrap will add the handshake data needed to it. 
+   * @param networkData this is the buffer that will store the encrypted data and be written to the socket. 
+   * @param ssle the SSLEngine used in the handshake.
+   * @param channel the socketChannel the handshake is happening on.
+   * @return the current HandshalStatus
+   * @throws IOException this will happen if there is any problems decrypting the data or reading/writing to the socket.
+   */
+  public static SSLEngineResult.HandshakeStatus doHandShakeWrite(ByteBuffer appBuffer, ByteBuffer networkData, 
+      SSLEngine ssle, SocketChannel channel) throws IOException {
     networkData.clear();
     SSLEngineResult.HandshakeStatus hs;
     SSLEngineResult res = ssle.wrap(appBuffer, networkData);

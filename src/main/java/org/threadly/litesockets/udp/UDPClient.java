@@ -18,6 +18,17 @@ import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.Clock;
 
+/**
+ *  This is the UDPClient for litesockets.  The UDPClient is a little special as it is
+ *  not actually a selectable client.  The Server actually does all the "Reading" for the socket. 
+ *  
+ *  Since all UDP connections must has a bound port all UDPClients in litesockets are tight to a UDPServer.
+ *  The UDPClient is basically a unique host that is sending messages to the open UDP socket.
+ *  
+ *  Another unique aspect to UDPClients is there writing.  When any form of "write" is called it is immediately done
+ *  on the socket.
+ *  
+ */
 public class UDPClient extends Client {
   public static final int DEFAULT_MAX_BUFFER_SIZE = 64*1024;
   public static final int MIN_READ= 4*1024;
@@ -285,7 +296,9 @@ public class UDPClient extends Client {
     return "UDPClient:FROM:"+getLocalSocketAddress()+":TO:"+getRemoteSocketAddress();
   }
 
-  
+  /**
+   * Implementation of the SimpleByteStats.
+   */
   private static class ClientByteStats extends SimpleByteStats {
     public ClientByteStats() {
       super();

@@ -34,7 +34,8 @@ import org.threadly.util.ExceptionUtils;
  *
  */
 public class SSLClient extends TCPClient {
-
+  public static final int EXTRA_BUFFER_AMOUNT = 50;
+  public static final int PREALLOCATE_BUFFER_MULTIPLIER = 3;
   private final AtomicBoolean finishedHandshake = new AtomicBoolean(false);
   private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
   private final boolean connectHandshake;
@@ -113,7 +114,7 @@ public class SSLClient extends TCPClient {
     ssle.setUseClientMode(true);
     connectHandshake = doHandshake;
     super.setReader(classReader);
-    encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+50);
+    encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+EXTRA_BUFFER_AMOUNT);
   }
 
   /**
@@ -152,7 +153,7 @@ public class SSLClient extends TCPClient {
       doHandShake();
     }
     super.setReader(classReader);
-    encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+50);
+    encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+EXTRA_BUFFER_AMOUNT);
   }
 
   /**
@@ -186,7 +187,7 @@ public class SSLClient extends TCPClient {
       doHandShake();
     }
     super.setReader(classReader);
-    encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+50);
+    encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+EXTRA_BUFFER_AMOUNT);
   }
   
   @Override
@@ -209,8 +210,8 @@ public class SSLClient extends TCPClient {
   }
 
   private ByteBuffer getDecryptedByteBuffer() {
-    if(decryptedReadBuffer == null || decryptedReadBuffer.remaining() < ssle.getSession().getApplicationBufferSize()*1.5) {
-      decryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getApplicationBufferSize()*3);
+    if(decryptedReadBuffer == null || decryptedReadBuffer.remaining() < ssle.getSession().getApplicationBufferSize()+EXTRA_BUFFER_AMOUNT) {
+      decryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getApplicationBufferSize()*PREALLOCATE_BUFFER_MULTIPLIER);
     }
     return decryptedReadBuffer;
   }
@@ -286,8 +287,8 @@ public class SSLClient extends TCPClient {
   }
 
   private ByteBuffer getAppWriteBuffer() {
-    if(this.writeBuffer == null || this.writeBuffer.remaining() < ssle.getSession().getPacketBufferSize()*1.5) {
-      this.writeBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()*3);
+    if(this.writeBuffer == null || this.writeBuffer.remaining() < ssle.getSession().getPacketBufferSize()+EXTRA_BUFFER_AMOUNT) {
+      this.writeBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()*PREALLOCATE_BUFFER_MULTIPLIER);
     }
     return writeBuffer;
   }
@@ -371,16 +372,16 @@ public class SSLClient extends TCPClient {
   }
 
   private void doRead() {
-    MergedByteBuffers client_buffer = super.getRead();
+    MergedByteBuffers clientBuffer = super.getRead();
     if(this.startedHandshake.get()) {
       try {
-        while(client_buffer.remaining() > 0) {
-          if(client_buffer.remaining() > encryptedReadBuffer.remaining()) {
+        while(clientBuffer.remaining() > 0) {
+          if(clientBuffer.remaining() > encryptedReadBuffer.remaining()) {
             byte[] ba = new byte[encryptedReadBuffer.remaining()];
-            client_buffer.get(ba);
+            clientBuffer.get(ba);
             encryptedReadBuffer.put(ba);
           } else {
-            encryptedReadBuffer.put(client_buffer.pop());
+            encryptedReadBuffer.put(clientBuffer.pop());
           }
           while(encryptedReadBuffer.position() > 0) {
             encryptedReadBuffer.flip();
@@ -415,7 +416,7 @@ public class SSLClient extends TCPClient {
         this.close();
       }
     } else {
-      decryptedReadList.add(client_buffer);
+      decryptedReadList.add(clientBuffer);
       sslReader.onRead(this);
     }
   }
@@ -448,6 +449,9 @@ public class SSLClient extends TCPClient {
     }
   }
   
+  /**
+   * Reader for SSLClient.  This is used to read from the TCPClient into the SSLClient. 
+   */
   private class SSLReader implements Reader {
     @Override
     public void onRead(Client client) {
