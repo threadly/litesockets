@@ -12,12 +12,12 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeoutException;
 
 import org.threadly.concurrent.NoThreadScheduler;
 import org.threadly.concurrent.SchedulerServiceInterface;
 import org.threadly.litesockets.ThreadedSocketExecuter.SocketExecuterByteStats;
 import org.threadly.litesockets.utils.SimpleByteStats;
+import org.threadly.litesockets.utils.WatchdogCache;
 import org.threadly.util.AbstractService;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.ExceptionUtils;
@@ -45,6 +45,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
   private final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
   private final SocketExecuterByteStats stats = new SocketExecuterByteStats();
+  private final WatchdogCache dogCache = new WatchdogCache(scheduler);
   private volatile Selector selector;
 
   /**
@@ -90,16 +91,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
         Client nc = clients.putIfAbsent(client.getChannel(), client);
         if(nc == null) {
           scheduler.execute(new AddToSelector(client.getChannel(), selector, SelectionKey.OP_CONNECT));
-          scheduler.schedule(new Runnable() {
-            @Override
-            public void run() {
-              if(client.hasConnectionTimedOut()) {
-                client.setConnectionStatus(new TimeoutException("Timed out while connecting!"));
-                if(client.isClosed() && clients.containsKey(client)) {
-                  removeClient(client);
-                }
-              }
-            }}, client.getTimeout()+10);
+          dogCache.watch(client.connect(), client.getTimeout());
           selector.wakeup();
         }
       }

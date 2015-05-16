@@ -13,7 +13,6 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeoutException;
 
 import org.threadly.concurrent.ConfigurableThreadFactory;
 import org.threadly.concurrent.KeyDistributedExecutor;
@@ -21,9 +20,9 @@ import org.threadly.concurrent.ScheduledExecutorServiceWrapper;
 import org.threadly.concurrent.SimpleSchedulerInterface;
 import org.threadly.concurrent.SingleThreadScheduler;
 import org.threadly.litesockets.utils.SimpleByteStats;
+import org.threadly.litesockets.utils.WatchdogCache;
 import org.threadly.util.AbstractService;
 import org.threadly.util.ArgumentVerifier;
-import org.threadly.util.Clock;
 
 
 /**
@@ -48,6 +47,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
   private final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
   private final SocketExecuterByteStats stats = new SocketExecuterByteStats();
+  private final WatchdogCache dogCache;
 
   protected volatile long readThreadID = 0;
   protected Selector readSelector;
@@ -65,9 +65,9 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
    * thread pool.</p>
    */
   public ThreadedSocketExecuter() {
-    schedulerPool = new SingleThreadScheduler(
-        new ConfigurableThreadFactory("SocketClientThread", false, true, Thread.currentThread().getPriority(), null, null));
-    clientDistributer = new KeyDistributedExecutor(schedulerPool);
+    this(new SingleThreadScheduler(
+        new ConfigurableThreadFactory(
+            "SocketClientThread", false, true, Thread.currentThread().getPriority(), null, null)));
   }
 
   /**
@@ -76,9 +76,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
    * @param exec The {@link ScheduledExecutorService} to be used for client/server callbacks.
    */
   public ThreadedSocketExecuter(ScheduledExecutorService exec) {
-    ArgumentVerifier.assertNotNull(exec, "ScheduledExecutorService");
-    schedulerPool = new ScheduledExecutorServiceWrapper(exec);
-    clientDistributer = new KeyDistributedExecutor(schedulerPool);
+    this(new ScheduledExecutorServiceWrapper(exec));
   }
   
   /**
@@ -91,6 +89,8 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
     ArgumentVerifier.assertNotNull(exec, "SimpleSchedulerInterface");
     schedulerPool = exec;
     clientDistributer = new KeyDistributedExecutor(schedulerPool);
+    dogCache = new WatchdogCache(schedulerPool);
+
   }
 
   @Override
@@ -119,16 +119,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
         if(nc == null) {
           readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_CONNECT));
           readSelector.wakeup();
-          schedulerPool.schedule(new Runnable() {
-            @Override
-            public void run() {
-              if(client.hasConnectionTimedOut()) {
-                client.setConnectionStatus(new TimeoutException("Timed out while connecting!"));
-                if(client.isClosed() && clients.containsKey(client)) {
-                  removeClient(client);
-                }
-              }
-            }}, client.getTimeout() + Clock.AUTOMATIC_UPDATE_FREQUENCY_IN_MS);
+          dogCache.watch(client.connect(), client.getTimeout());
         }
       }
     }
