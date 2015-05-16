@@ -39,7 +39,6 @@ import org.threadly.util.ExceptionUtils;
  * {@link #removeServer(Server)} can be called from other threads safely.</p>
  * 
  * @author lwahlmeier
- *
  */
 public class NoThreadSocketExecuter extends AbstractService implements SocketExecuterInterface {
   private final NoThreadScheduler scheduler = new NoThreadScheduler();
@@ -50,7 +49,6 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
 
   /**
    * Constructs a NoThreadSocketExecuter.  {@link #start()} must still be called before using it.
-   * 
    */
   public NoThreadSocketExecuter() {
   }
@@ -285,7 +283,6 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
               SocketChannel sc = (SocketChannel)key.channel();
               doWrite(sc);
             }
-
           } catch(CancelledKeyException e) {
             //Key could be cancelled at any point, we dont really care about it.
           }
@@ -349,7 +346,6 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
         server.acceptChannel((DatagramChannel)server.getSelectableChannel());
       }
     }
-
   }
 
   private void doWrite(SocketChannel sc) {
@@ -443,7 +439,6 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
         removeServer(server);
         server.close();
       }
-
     }
   }
 

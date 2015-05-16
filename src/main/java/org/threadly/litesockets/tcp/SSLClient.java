@@ -30,7 +30,6 @@ import org.threadly.util.ExceptionUtils;
  * By default it will not check the servers certs and will only do TLS connections.
  * 
  * @author lwahlmeier
- *
  */
 public class SSLClient extends TCPClient {
   public static final int EXTRA_BUFFER_AMOUNT = 50;
@@ -46,12 +45,11 @@ public class SSLClient extends TCPClient {
 
   private volatile Reader sslReader;
   private ByteBuffer writeBuffer;
-  private SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>();
+  private SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>(false);
   
   private ByteBuffer decryptedReadBuffer;
   
    
-
   /**
    * <p>This is a simple SSLConstructor.  It uses the default socket timeout, and very insecure cert
    * checking.  This setup to generally connect to any server, and does not validate anything.</p>
@@ -224,13 +222,11 @@ public class SSLClient extends TCPClient {
     return true;
   }
 
-
   /**
    * <p>If doHandshake was set to false in the constructor you can start the handshake by calling this method.
    * The client will not start the handshake till its added to a SocketExecuter.  The future allows you to know
    * when the handshake has finished if if there was an error.  While the handshake is processing all writes to the 
    * socket will queue.</p>
-   * 
    * 
    * @return A ListenableFuture.  If a result was given it succeeded, if there is an error it failed.  The connection is closed on failures.
    */
@@ -249,7 +245,8 @@ public class SSLClient extends TCPClient {
         seb.getThreadScheduler().schedule(new Runnable() {
           @Override
           public void run() {
-            if(handshakeFuture.setFailure(new TimeoutException("Timed out doing SSLHandshake!!!"))) {
+            if(! handshakeFuture.isDone() && 
+               handshakeFuture.setFailure(new TimeoutException("Timed out doing SSLHandshake!!!"))) {
               close();
             }
           }}, maxConnectionTime);
@@ -265,7 +262,8 @@ public class SSLClient extends TCPClient {
       sei.getThreadScheduler().schedule(new Runnable() {
         @Override
         public void run() {
-          if(handshakeFuture.setFailure(new TimeoutException("Timed out doing SSLHandshake!!!"))) {
+          if(! handshakeFuture.isDone() && 
+             handshakeFuture.setFailure(new TimeoutException("Timed out doing SSLHandshake!!!"))) {
             close();
           }
         }}, maxConnectionTime);
@@ -333,8 +331,8 @@ public class SSLClient extends TCPClient {
               super.writeForce(tmpBB);
             }
           } catch(Exception e) {
-            if(!handshakeFuture.isDone()) {
-              handshakeFuture.setFailure(e);
+            if(! handshakeFuture.isDone() && 
+               handshakeFuture.setFailure(e)) {
               this.close();
             }
             break;
@@ -343,9 +341,7 @@ public class SSLClient extends TCPClient {
         if(gotFinished) {
           if(finishedHandshake.compareAndSet(false, true)) {
             writeForce(ByteBuffer.allocate(0));
-            if(!handshakeFuture.isDone()) {
-              handshakeFuture.setResult(ssle.getSession());
-            }
+            handshakeFuture.setResult(ssle.getSession());
           }
         }
       }
@@ -404,9 +400,7 @@ public class SSLClient extends TCPClient {
           }
         }
       } catch (SSLException e) {
-        if(!handshakeFuture.isDone()) {
-          handshakeFuture.setFailure(e);
-        }
+        handshakeFuture.setFailure(e);
         ExceptionUtils.handleException(e);
         this.close();
       }
@@ -422,9 +416,7 @@ public class SSLClient extends TCPClient {
       synchronized(tmpWriteBuffers) {
         if(this.finishedHandshake.compareAndSet(false, true)){
           writeForce(ByteBuffer.allocate(0));
-          if(!handshakeFuture.isDone()) {
-            handshakeFuture.setResult(ssle.getSession());
-          }
+          handshakeFuture.setResult(ssle.getSession());
         }
       }
     } break;

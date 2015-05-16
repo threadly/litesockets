@@ -65,7 +65,7 @@ public class TCPClient extends Client {
   protected volatile Executor cexec;
   protected volatile SocketExecuterInterface seb;
   protected volatile long connectExpiresAt = -1;
-  protected SettableListenableFuture<Boolean> connectionFuture = new SettableListenableFuture<Boolean>();
+  protected SettableListenableFuture<Boolean> connectionFuture = new SettableListenableFuture<Boolean>(false);
   protected ClientByteStats stats = new ClientByteStats();
   protected AtomicBoolean closed = new AtomicBoolean(false);
   protected final SocketAddress remoteAddress;
@@ -162,7 +162,6 @@ public class TCPClient extends Client {
     }
   }
   
-
   @Override
   public boolean hasConnectionTimedOut() {
     if(! startedConnection.get()) {
@@ -174,7 +173,6 @@ public class TCPClient extends Client {
     return Clock.lastKnownForwardProgressingMillis() > connectExpiresAt; 
   }
   
-
   @Override
   public int getTimeout() {
     return maxConnectionTime;
@@ -224,7 +222,6 @@ public class TCPClient extends Client {
       this.reader = reader;
     }
   }
-
 
   @Override
   public Reader getReader() {
@@ -420,7 +417,6 @@ public class TCPClient extends Client {
     return currentWriteBuffer;
   }
 
-
   @Override
   protected void reduceWrite(int size) {
     synchronized(writeBuffers) {
@@ -470,5 +466,4 @@ public class TCPClient extends Client {
   public String toString() {
     return "TCPClient:FROM:"+getLocalSocketAddress()+":TO:"+getRemoteSocketAddress();
   }
-
 }

@@ -23,6 +23,7 @@ import org.threadly.concurrent.SingleThreadScheduler;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.AbstractService;
 import org.threadly.util.ArgumentVerifier;
+import org.threadly.util.Clock;
 
 
 /**
@@ -127,7 +128,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
                   removeClient(client);
                 }
               }
-            }}, client.getTimeout()+100);
+            }}, client.getTimeout() + Clock.AUTOMATIC_UPDATE_FREQUENCY_IN_MS);
         }
       }
     }
@@ -217,7 +218,6 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
-
   }
 
   @Override
@@ -270,7 +270,6 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
   public int getServerCount() {
     return servers.size();
   }
-
   
   /**
    * <p>This is used to figure out if the current used thread is the SocketExecuters ReadThread.
@@ -429,7 +428,6 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
                 }
               }
             }
-
           }
         } catch (IOException e) {
           stopIfRunning();
@@ -486,7 +484,6 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
    * Implementation of the SimpleByteStats.
    */
   protected static class SocketExecuterByteStats extends SimpleByteStats {
-    
     @Override
     protected void addWrite(int size) {
       super.addWrite(size);
