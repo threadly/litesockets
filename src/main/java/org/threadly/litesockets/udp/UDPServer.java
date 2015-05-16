@@ -15,6 +15,16 @@ import org.threadly.litesockets.Server;
 import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 
+
+/**
+ * This is a UDP socket implementation for litesockets.  This UDPServer is treated like a
+ * TCPServer.  It will notify the ClientAcceptor any time a new unique ip:port send a packet to this
+ * UDP socket.  The UDPServer does not technically "Accept" new connections it just reads data from the socket
+ * and that data also has the host/port of where it came from.
+ * 
+ * You can also just create a {@link UDPClient} from a server to initiate a connection to another UDP server, if
+ * that server sends data back from that same port/ip pair it will show up as a read in the created client.
+ */
 public class UDPServer extends Server {
   
   protected final DatagramChannel channel;

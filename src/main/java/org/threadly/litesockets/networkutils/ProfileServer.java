@@ -21,8 +21,8 @@ import org.threadly.util.debug.Profiler;
 
 
 /**
- * The ProfileServer Uses Threadlys {@link Profiler} tying it to a listen socket to make it easy
- * to profile running java processes as needed. 
+ * <p>The ProfileServer Uses Threadly's {@link Profiler} tying it to a listen socket to make it easy
+ * to profile running java processes as needed.</p> 
  *
  * This will open a listen port on specified ip/port and allow connections to send basic commands to the
  * process to control the profiler.
@@ -42,6 +42,7 @@ import org.threadly.util.debug.Profiler;
  *
  */
 public class ProfileServer extends AbstractService implements ClientAcceptor, Reader, Closer{
+  public static final int DISCONNECT_DELAY = 500;
   protected static final ByteBuffer DUMP_EXCEPTION = ByteBuffer.wrap("Got Exception doing Dump!\n\n".getBytes()).asReadOnlyBuffer();
   protected static final ByteBuffer BAD_DATA = ByteBuffer.wrap("Got Bad Data from you, closing!!\n\n".getBytes()).asReadOnlyBuffer();
   protected static final ByteBuffer STARTED_RESPONSE = ByteBuffer.wrap("Profiler Started\n\n".getBytes()).asReadOnlyBuffer();
@@ -76,7 +77,7 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
   
   
   /**
-   * Construct a ProileServer
+   * Constructs a ProileServer.
    * 
    * @param socketEx The SocketExecuterInterface to use with this Server.
    * @param host the host to create the servers listen port on.
@@ -134,7 +135,7 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
         @Override
         public void run() {
           client.close();
-        }}, 500);
+        }}, DISCONNECT_DELAY);
     }
         
   }

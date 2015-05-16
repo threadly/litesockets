@@ -377,19 +377,24 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
     }
   }
 
+  /**
+   * This class is a helper runnable to generically remove SelectableChannels from a selector.
+   * 
+   *
+   */
   private class RemoveFromSelector implements Runnable {
-    SelectableChannel local_channel;
-    Selector local_selector;
+    SelectableChannel localChannel;
+    Selector localSelector;
 
     public RemoveFromSelector(SelectableChannel channel, Selector selector) {
-      local_channel = channel;
-      local_selector = selector;
+      localChannel = channel;
+      localSelector = selector;
     }
 
     @Override
     public void run() {
       if(isRunning()) {
-        SelectionKey sk = local_channel.keyFor(local_selector);
+        SelectionKey sk = localChannel.keyFor(localSelector);
         if(sk != null) {
           sk.cancel();
           flushOutSelector();
@@ -398,14 +403,18 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
     }
   }
 
+  /**
+   * This class is a helper runnable to generically add SelectableChannels to a selector for certain operations.
+   * 
+   */
   private class AddToSelector implements Runnable {
-    SelectableChannel local_channel;
-    Selector local_selector;
+    SelectableChannel localChannel;
+    Selector localSelector;
     int registerType;
 
     public AddToSelector(SelectableChannel channel, Selector selector, int registerType) {
-      local_channel = channel;
-      local_selector = selector;
+      localChannel = channel;
+      localSelector = selector;
       this.registerType = registerType;
     }
 
@@ -414,7 +423,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
       if(isRunning()) {
         try {
           flushOutSelector();
-          local_channel.register(local_selector, registerType);
+          localChannel.register(localSelector, registerType);
         } catch (ClosedChannelException e) {
           removeChannel();
         } catch (CancelledKeyException e) {
@@ -424,8 +433,8 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
     }
 
     private void removeChannel() {
-      Client client = clients.remove(local_channel);
-      Server server = servers.remove(local_channel);
+      Client client = clients.remove(localChannel);
+      Server server = servers.remove(localChannel);
       if(client != null) {
         removeClient(client);
         client.close();

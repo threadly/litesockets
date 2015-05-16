@@ -18,6 +18,14 @@ import org.threadly.util.ArgumentVerifier;
  * 
  */
 public class MergedByteBuffers {
+  public static final int BYTES_IN_LONG = Long.SIZE/Byte.SIZE;
+  public static final int BYTES_IN_INT = Integer.SIZE/Byte.SIZE;
+  public static final int BYTES_IN_SHORT = Short.SIZE/Byte.SIZE;
+  
+  public static final short UNSIGNED_BYTE_MASK = 0xff;
+  public static final int UNSIGNED_SHORT_MASK = 0xffff;
+  public static final long UNSIGNED_INT_MASK = 0xffffffffL;
+  
   protected final ArrayDeque<ByteBuffer> availableBuffers = new ArrayDeque<ByteBuffer>();
   protected volatile int currentSize = 0;
 
@@ -51,6 +59,11 @@ public class MergedByteBuffers {
     mbb.currentSize = 0;
   }
   
+  /**
+   * This will flush all the data in this MergedByteBuffer into another MergedByteBuffer.
+   * 
+   * @return a new MergedByteBuffer with the data that was in the original one.
+   */
   public MergedByteBuffers duplicateAndClean() {
     MergedByteBuffers mbb = new MergedByteBuffers();
     mbb.add(this);
@@ -61,7 +74,7 @@ public class MergedByteBuffers {
    * Like the indexOf in String object this find a pattern of bytes and reports the position they start at.
    * 
    * @param pattern String pattern to search for
-   * @return an int with the offset of the first occurrence of the given . 
+   * @return an {@code int} with the offset of the first occurrence of the given . 
    */
   public int indexOf(String pattern) {
     ArgumentVerifier.assertNotNull(pattern, "String");
@@ -69,10 +82,10 @@ public class MergedByteBuffers {
   }
   
   /**
-   * Like the indexOf in String object this find a pattern of bytes and reports the position they start at
+   * Like the indexOf in String object this find a pattern of bytes and reports the position they start at.
    * 
-   * @param pattern - byte[] pattern to search for
-   * @return - an int with the offset of the first occurrence of the given . 
+   * @param pattern byte[] pattern to search for
+   * @return an {@code int} with the offset of the first occurrence of the given . 
    */
   public int indexOf(byte[] pattern) {
     ArgumentVerifier.assertNotNull(pattern, "byte[]");
@@ -84,13 +97,13 @@ public class MergedByteBuffers {
     int bufPos = 0;
     int listPos = 0;
 
-    ArrayList<ByteBuffer> Buffers = new ArrayList<ByteBuffer>(availableBuffers);
-    ByteBuffer currentBuffer = Buffers.get(listPos).duplicate();
+    ArrayList<ByteBuffer> localBuffers = new ArrayList<ByteBuffer>(availableBuffers);
+    ByteBuffer currentBuffer = localBuffers.get(listPos).duplicate();
     listPos++;
 
     while((bufPos+patPos) < currentSize) {
       if(!currentBuffer.hasRemaining()) {
-        currentBuffer = Buffers.get(listPos).duplicate();
+        currentBuffer = localBuffers.get(listPos).duplicate();
         listPos++;
       }
 
@@ -104,7 +117,7 @@ public class MergedByteBuffers {
           if(currentBuffer.position()-patPos < 0) {
             ByteBuffer old = currentBuffer;
             listPos--;
-            currentBuffer = Buffers.get(listPos).duplicate();
+            currentBuffer = localBuffers.get(listPos).duplicate();
             currentBuffer.position(currentBuffer.limit() - (patPos-old.position()));
           } else {
             currentBuffer.position(currentBuffer.position()-patPos);
@@ -119,18 +132,18 @@ public class MergedByteBuffers {
 
 
   /**
-   * Check how much data is available in the consolidator.
+   * Check how much data is available in the MergedByteBuffer.
    * 
-   * @return the current about of space remaining in the consolidator.
+   * @return the current about of space remaining in the MergedByteBuffer.
    */
   public int remaining() {
     return currentSize;
   }
 
   /**
-   * Returns the next byte stored in the consolidator.
+   * Returns the next byte stored in the MergedByteBuffer.
    * 
-   * @return the next single Byte from the consolidator.
+   * @return the next single Byte from the MergedByteBuffer.
    */
   public byte get() {
     ByteBuffer buf = availableBuffers.peek();
@@ -145,39 +158,32 @@ public class MergedByteBuffers {
 
     return result;
   }
-
+  
   /**
+   * Returns the next {@code byte} unsigned as {@code short} stored in the MergedByteBuffer.
    * 
-   * @param destBytes - fills the given byteArray with the next bytes from the consolidator.
-   * 
-   * NOTE: do not give a byteArray bigger then the remaining size left in the consolidator.
+   * @return the next single unsigned {@code byte} as {@code short} from the MergedByteBuffer.
    */
-  public void get(byte[] destBytes) {
-    ArgumentVerifier.assertNotNull(destBytes, "byte[]");
-    if (currentSize < destBytes.length) {
-      throw new BufferUnderflowException();
-    }
-    currentSize -= destBytes.length;
-    doGet(destBytes);
+  public short getUnsignedByte() {
+    return (short)(get() & UNSIGNED_BYTE_MASK);
   }
 
-
   /**
-   * Returns an unsigned short (as an int) from the next 2 stored bytes.
+   * Returns an unsigned {@code short} (as an {@code int}) from the next 2 stored bytes.
    * 
-   * @return the next 2 byte as an int (unsigned Short)
+   * @return the next 2 byte as an {@code int} (unsigned Short)
    */
   public int getUnsignedShort() {
-    return getShort() & 0xFFFF;
+    return getShort() & UNSIGNED_SHORT_MASK;
   }
 
   /**
-   * Returns the next 2 bytes as a short value.
+   * Returns the next 2 bytes as a {@code short} value.
    * 
-   * @return short of the next 2 bytes.
+   * @return {@code short} of the next 2 bytes.
    */
   public short getShort() {
-    if (currentSize < 2) {
+    if (currentSize < BYTES_IN_SHORT) {
       throw new BufferUnderflowException();
     }
 
@@ -192,78 +198,95 @@ public class MergedByteBuffers {
     } else {
       result = (short)readValue(2);
     }      
-    currentSize -= 2;
+    currentSize -= BYTES_IN_SHORT;
 
     return result;
   }
 
   /**
-   * Returns the next 4 bytes as an int value.
+   * Returns the next 4 bytes as an {@code int} value.
    * 
-   * @return an int from the next 4 bytes
+   * @return an {@code int} from the next 4 bytes
    */
   public int getInt() {
-    if (currentSize < 4) {
+    if (currentSize < BYTES_IN_INT) {
       throw new BufferUnderflowException();
     }
 
     int result;
     ByteBuffer first = availableBuffers.peek();
-    if (first.remaining() >= 4) {
+    if (first.remaining() >= BYTES_IN_INT) {
       result = first.getInt();
 
       if (! first.hasRemaining()) {
         removeFirstBuffer();
       }
     } else {
-      result = (int)readValue(4);
+      result = (int)readValue(BYTES_IN_INT);
     }
-    currentSize -= 4;
+    currentSize -= BYTES_IN_INT;
 
     return result;
   }
 
   /**
-   * Returns an unsigned short (as an int) from the next 2 stored bytes.
+   * Returns an unsigned short (as an {@code int}) from the next 2 stored bytes.
    * 
-   * @return the next 2 byte as an int (unsigned Short)
+   * @return the next 2 byte as an {@code int} (unsigned Short)
    */
   public long getUnsignedInt() {    
-    return getInt() & 0xFFFFFFFFL;
+    return getInt() & UNSIGNED_INT_MASK;
   }
 
   /**
-   * Returns the next 8 bytes as a long value.
+   * Returns the next 8 bytes as a {@code long} value.
    * 
-   * @return a long from the next 8 bytes.
+   * @return a {@code long} from the next 8 bytes.
    */
   public long getLong() {
-    if (currentSize < 8) {
+    if (currentSize < BYTES_IN_LONG) {
       throw new BufferUnderflowException();
     }
 
     long result;
     ByteBuffer first = availableBuffers.peek();
-    if (first.remaining() >= 8) {
+    if (first.remaining() >= BYTES_IN_LONG) {
       result = first.getLong();
 
       if (! first.hasRemaining()) {
         removeFirstBuffer();
       }
     } else {
-      result = readValue(8);
+      result = readValue(BYTES_IN_LONG);
     }
 
-    currentSize -= 8;
+    currentSize -= BYTES_IN_LONG;
 
     return result;
   }
   
+
+  /**
+   * Fills the passed {@code byte[]} completely with data from the MergedByteBuffer. 
+   * 
+   * @param destBytes fills the given byteArray with the next bytes from the MergedByteBuffer.
+   * 
+   * @throws BufferUnderflowException if the {@code byte[]} is larger then the {@link #remaining()} in the MergedByteBuffer.
+   */
+  public void get(byte[] destBytes) {
+    ArgumentVerifier.assertNotNull(destBytes, "byte[]");
+    if (currentSize < destBytes.length) {
+      throw new BufferUnderflowException();
+    }
+    currentSize -= destBytes.length;
+    doGet(destBytes);
+  }
+  
   
   /**
-   * Get the size of the next full ByteBuffer in the queue
+   * Get the size of the next full {@link ByteBuffer} in the queue.
    * 
-   * @return the size of the Next ByteBuffer in the queue.
+   * @return the size of the next {@link ByteBuffer} in the queue.
    */
   public int nextPopSize() {
     if (currentSize == 0) {
@@ -273,8 +296,10 @@ public class MergedByteBuffers {
   }
   
   /**
-   * Get the next Complete ByteBuffer in its entirety.  This byteBuffer could be 
+   * Get the next Complete {@link ByteBuffer} in its entirety.  This byteBuffer could be 
    * any size and it will just pull it off the queue and return it.
+   * 
+   * If {@link #remaining()} is 0 you will get an empty {@link ByteBuffer}.
    * 
    * @return the next byteBuffer in the queue.
    */
@@ -289,8 +314,9 @@ public class MergedByteBuffers {
 
   /**
    * 
-   * @param size - size to pull out of the consolidator as a ByteBuffer.
-   * @return a ByteBuffer of the next %SIZE% bytes.
+   * @param size size of the {@link ByteBuffer} to pull out of the MergedByteBuffer.
+   * 
+   * @return a {@link ByteBuffer} of %SIZE% bytes.
    */
   public ByteBuffer pull(int size) {
     ArgumentVerifier.assertNotNegative(size, "size");
@@ -321,8 +347,9 @@ public class MergedByteBuffers {
   }
 
   /**
-   * discard just drops how ever many bytes you tell it to on the floor
-   * @param size - the number of bytes to discard
+   * Discard will drop how ever many bytes you tell it to on the floor.
+   * 
+   * @param size the number of bytes to discard.
    */
   public void discard(int size) {
     ArgumentVerifier.assertNotNegative(size, "size");
@@ -347,6 +374,12 @@ public class MergedByteBuffers {
     currentSize -= size;
   }
 
+  /**
+   * This will return the specified number of bytes as a String object.
+   * 
+   * @param size the number of bytes to put into the string.
+   * @return as String Object with set number of bytes in it.
+   */
   public String getAsString(int size) {
     ArgumentVerifier.assertNotNegative(size, "size");
     byte[] ba = new byte[size];
@@ -355,6 +388,7 @@ public class MergedByteBuffers {
     return new String(ba);
   }
 
+  
   private void doGet(byte[] destBytes) {
     int remainingToCopy = destBytes.length;
 
@@ -376,7 +410,7 @@ public class MergedByteBuffers {
     // work backwards
     for (int i = bytes - 1; i >= 0; i--) {
       ByteBuffer buf = availableBuffers.peek();
-      result = result | ((buf.get() & (long)0xFF) << (i * 8));
+      result = result | ((buf.get() & (long)UNSIGNED_BYTE_MASK) << (i * Byte.SIZE));
 
       if (! buf.hasRemaining()) {
         availableBuffers.removeFirst();

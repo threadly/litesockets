@@ -27,11 +27,11 @@ import org.threadly.util.Clock;
  */
 public class TCPClient extends Client {
   /**
-   * The default SocketConnection time out (10 seconds)
+   * The default SocketConnection time out (10 seconds).
    */
   public static final int DEFAULT_SOCKET_TIMEOUT = 10000;
   /**
-   * Default max buffer size (64k).  Read and write buffers are independent of eachother.
+   * Default max buffer size (64k).  Read and write buffers are independent of each other.
    */
   public static final int DEFAULT_MAX_BUFFER_SIZE = 64*1024;
   /**
@@ -42,6 +42,9 @@ public class TCPClient extends Client {
    * When we hit the minimum read buffer size we will create a new one of this size (64k).
    */
   public static final int NEW_READ_BUFFER_SIZE = 64*1024;
+  
+  public static final int MIN_WRITE_BUFFER_SIZE = 8192;
+  public static final int MAX_COMBINED_WRITE_BUFFER_SIZE = 65536;
   
 
   private final MergedByteBuffers readBuffers = new MergedByteBuffers();
@@ -398,11 +401,11 @@ public class TCPClient extends Client {
     synchronized(writeBuffers) {
       //This is to keep from doing a ton of little writes if we can.  We will try to 
       //do at least 8k at a time, and up to 65k if we are already having to combine buffers
-      if(writeBuffers.nextPopSize() < 65536/8 && writeBuffers.remaining() > writeBuffers.nextPopSize()) {
-        if(writeBuffers.remaining() < 65536) {
+      if(writeBuffers.nextPopSize() < MIN_WRITE_BUFFER_SIZE && writeBuffers.remaining() > writeBuffers.nextPopSize()) {
+        if(writeBuffers.remaining() < MAX_COMBINED_WRITE_BUFFER_SIZE) {
           currentWriteBuffer = writeBuffers.pull(writeBuffers.remaining());
         } else {
-          currentWriteBuffer = writeBuffers.pull(65536);
+          currentWriteBuffer = writeBuffers.pull(MAX_COMBINED_WRITE_BUFFER_SIZE);
         }
       } else {
         currentWriteBuffer = writeBuffers.pop();
@@ -422,6 +425,9 @@ public class TCPClient extends Client {
     }
   }
   
+  /**
+   * Implementation of the SimpleByteStats.
+   */
   private static class ClientByteStats extends SimpleByteStats {
     public ClientByteStats() {
       super();

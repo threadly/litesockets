@@ -1,27 +1,12 @@
-apply plugin: 'java'
+apply from: 'build.shared'
 apply plugin: 'maven'
 apply plugin: 'signing'
+apply plugin: 'checkstyle'
 
 sourceCompatibility = 1.6
 targetCompatibility = 1.6
 
-repositories {
-  mavenCentral()
-}
-
-project.archivesBaseName='litesockets'
-
-dependencies {
-  testCompile group: 'junit', name: 'junit', version: '4.12'
-
-  compile (
-    "org.threadly:threadly:$threadlyVersion"
-  )
-}
-
 compileJava {
-  options.compilerArgs << "-Xlint:all" << "-Xlint:-deprecation" << "-Werror"
-  
   String[] java6Paths = new String[5]
   java6Paths[0] = "/usr/lib/jvm/java-6-openjdk-amd64/jre/lib/rt.jar"
   java6Paths[1] = "/usr/lib/jvm/java-6-openjdk/jre/lib/rt.jar"
@@ -57,38 +42,6 @@ compileTestJava {
       break
     }
   }
-}
-
-test {
-  getReports().getJunitXml().setDestination(file("$buildDir/test-results/xml"))
-}
-
-jar {
-  manifest {
-    attributes 'Implementation-Title': 'litesockets', 'Implementation-Version': version
-  }
-  baseName = 'litesockets'
-}
-
-javadoc {
-  source = sourceSets.main.allJava
-  options.memberLevel = org.gradle.external.javadoc.JavadocMemberLevel.PUBLIC
-}
-
-task javadocJar(type: Jar, dependsOn: javadoc) {
-  classifier = 'javadoc'
-  from 'build/docs/javadoc'
-}
-
-task sourcesJar(type: Jar) {
-  from sourceSets.main.allSource
-  classifier = 'sources'
-}
-
-artifacts {
-  archives jar
-  archives javadocJar
-  archives sourcesJar
 }
 
 signing {
