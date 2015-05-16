@@ -40,12 +40,12 @@ public class SSLClient extends TCPClient {
   private final MergedByteBuffers tmpWriteBuffers = new MergedByteBuffers();
   private final MergedByteBuffers decryptedReadList = new MergedByteBuffers();
   private final Reader classReader = new SSLReader();
+  private final SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>(false);
   private final SSLEngine ssle;
   private final ByteBuffer encryptedReadBuffer;
 
   private volatile Reader sslReader;
   private ByteBuffer writeBuffer;
-  private SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>(false);
   
   private ByteBuffer decryptedReadBuffer;
   
@@ -232,7 +232,6 @@ public class SSLClient extends TCPClient {
    */
   public ListenableFuture<SSLSession> doHandShake() {
     if(startedHandshake.compareAndSet(false, true)) {
-      handshakeFuture = new SettableListenableFuture<SSLSession>(false);
       try {
         ssle.beginHandshake();
       } catch (SSLException e) {

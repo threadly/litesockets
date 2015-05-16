@@ -54,6 +54,7 @@ public class TCPClient extends Client {
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
   protected final int maxConnectionTime;
   protected final AtomicBoolean startedConnection = new AtomicBoolean(false);
+  protected final SettableListenableFuture<Boolean> connectionFuture = new SettableListenableFuture<Boolean>(false);
 
   protected volatile SocketChannel channel;
   protected volatile int maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;
@@ -65,7 +66,6 @@ public class TCPClient extends Client {
   protected volatile Executor cexec;
   protected volatile SocketExecuterInterface seb;
   protected volatile long connectExpiresAt = -1;
-  protected SettableListenableFuture<Boolean> connectionFuture = new SettableListenableFuture<Boolean>(false);
   protected ClientByteStats stats = new ClientByteStats();
   protected AtomicBoolean closed = new AtomicBoolean(false);
   protected final SocketAddress remoteAddress;
@@ -137,7 +137,6 @@ public class TCPClient extends Client {
   @Override
   public ListenableFuture<Boolean> connect(){
     if(startedConnection.compareAndSet(false, true)) {
-      connectionFuture = new SettableListenableFuture<Boolean>(false);
       try {
         channel = SocketChannel.open();
         channel.configureBlocking(false);
