@@ -137,14 +137,15 @@ public class TCPClient extends Client {
   @Override
   public ListenableFuture<Boolean> connect(){
     if(startedConnection.compareAndSet(false, true)) {
-      connectionFuture = new SettableListenableFuture<Boolean>();
+      connectionFuture = new SettableListenableFuture<Boolean>(false);
       try {
-      channel = SocketChannel.open();
-      channel.configureBlocking(false);
-      channel.connect(new InetSocketAddress(host, port));
-      connectExpiresAt = maxConnectionTime + Clock.lastKnownForwardProgressingMillis();
+        channel = SocketChannel.open();
+        channel.configureBlocking(false);
+        channel.connect(new InetSocketAddress(host, port));
+        connectExpiresAt = maxConnectionTime + Clock.lastKnownForwardProgressingMillis();
       } catch (Exception e) {
         connectionFuture.setFailure(e);
+        close();
       }
     }
     return connectionFuture;
@@ -152,12 +153,12 @@ public class TCPClient extends Client {
   
   @Override
   protected void setConnectionStatus(Throwable t) {
-    if(!connectionFuture.isDone()) {
-      if(t != null) {
-        connectionFuture.setFailure(t);
-      } else {
-        connectionFuture.setResult(true);
+    if(t != null) {
+      if(connectionFuture.setFailure(t)) {
+        close();
       }
+    } else {
+      connectionFuture.setResult(true);
     }
   }
   

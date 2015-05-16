@@ -42,7 +42,7 @@ import org.threadly.util.ExceptionUtils;
  *
  */
 public class NoThreadSocketExecuter extends AbstractService implements SocketExecuterInterface {
-  private final NoThreadScheduler scheduler = new NoThreadScheduler(false);
+  private final NoThreadScheduler scheduler = new NoThreadScheduler();
   private final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
   private final SocketExecuterByteStats stats = new SocketExecuterByteStats();
@@ -96,13 +96,10 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
             @Override
             public void run() {
               if(client.hasConnectionTimedOut()) {
-                SelectionKey sk = client.getChannel().keyFor(selector);
-                if(sk != null) {
-                  sk.cancel();
-                }
-                removeClient(client);
-                client.close();
                 client.setConnectionStatus(new TimeoutException("Timed out while connecting!"));
+                if(client.isClosed() && clients.containsKey(client)) {
+                  removeClient(client);
+                }
               }
             }}, client.getTimeout()+10);
           selector.wakeup();
@@ -249,11 +246,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
   public void select(int delay) {
     ArgumentVerifier.assertNotNegative(delay, "delay");
     if(isRunning()) {
-      try {
-        scheduler.tick(null);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-      }
+      scheduler.tick(null);
       try {
         if(delay == 0) {
           selector.selectNow();
@@ -304,11 +297,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
       } catch (NullPointerException e) {
         //There is a bug in some JVMs around this where the select() can throw an NPE from native code.
       }
-      try {
-        scheduler.tick(null);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-      }
+      scheduler.tick(null);
     }
   }
 

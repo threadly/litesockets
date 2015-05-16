@@ -122,13 +122,10 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
             @Override
             public void run() {
               if(client.hasConnectionTimedOut()) {
-                SelectionKey sk = client.getChannel().keyFor(readSelector);
-                if(sk != null) {
-                  sk.cancel();
-                }
-                removeClient(client);
-                client.close();
                 client.setConnectionStatus(new TimeoutException("Timed out while connecting!"));
+                if(client.isClosed() && clients.containsKey(client)) {
+                  removeClient(client);
+                }
               }
             }}, client.getTimeout()+100);
         }
