@@ -1,6 +1,7 @@
 package org.threadly.litesockets;
 
 import org.threadly.concurrent.SimpleSchedulerInterface;
+import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.ServiceInterface;
 
@@ -109,5 +110,7 @@ public interface SocketExecuterInterface extends ServiceInterface {
    * @return a {@link SimpleByteStats} object to allow you to get the stats for this SocketExecuter.
    */
   public SimpleByteStats getStats();
+  
+  public void watchFuture(ListenableFuture<?> lf, long delay);
   
 }

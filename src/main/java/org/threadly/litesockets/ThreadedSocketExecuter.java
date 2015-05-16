@@ -19,6 +19,7 @@ import org.threadly.concurrent.KeyDistributedExecutor;
 import org.threadly.concurrent.ScheduledExecutorServiceWrapper;
 import org.threadly.concurrent.SimpleSchedulerInterface;
 import org.threadly.concurrent.SingleThreadScheduler;
+import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.litesockets.utils.WatchdogCache;
 import org.threadly.util.AbstractService;
@@ -206,6 +207,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
       acceptScheduler.execute(acceptor);
       readScheduler.execute(reader);
       writeScheduler.execute(writer);
+      dogCache.start();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -231,7 +233,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
     }
     clients.clear();
     servers.clear();
-
+    dogCache.stop();
   }
 
   @Override
@@ -484,5 +486,10 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
     protected void addRead(int size) {
       super.addRead(size);
     }
+  }
+
+  @Override
+  public void watchFuture(ListenableFuture<?> lf, long delay) {
+    dogCache.watch(lf, delay);
   }
 }

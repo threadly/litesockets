@@ -7,7 +7,6 @@ import static javax.net.ssl.SSLEngineResult.HandshakeStatus.NEED_WRAP;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.net.ssl.SSLEngine;
@@ -34,6 +33,7 @@ import org.threadly.util.ExceptionUtils;
 public class SSLClient extends TCPClient {
   public static final int EXTRA_BUFFER_AMOUNT = 50;
   public static final int PREALLOCATE_BUFFER_MULTIPLIER = 3;
+  
   private final AtomicBoolean finishedHandshake = new AtomicBoolean(false);
   private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
   private final boolean connectHandshake;
@@ -241,14 +241,7 @@ public class SSLClient extends TCPClient {
         writeForce(ByteBuffer.allocate(0));
       }
       if(this.seb != null) {
-        seb.getThreadScheduler().schedule(new Runnable() {
-          @Override
-          public void run() {
-            if(! handshakeFuture.isDone() && 
-               handshakeFuture.setFailure(new TimeoutException("Timed out doing SSLHandshake!!!"))) {
-              close();
-            }
-          }}, maxConnectionTime);
+        seb.watchFuture(handshakeFuture, maxConnectionTime);
       }
     }
     return handshakeFuture;
@@ -258,14 +251,7 @@ public class SSLClient extends TCPClient {
   protected void setClientsSocketExecuter(SocketExecuterInterface sei) {
     super.setClientsSocketExecuter(sei);
     if(startedHandshake.get() && !handshakeFuture.isDone()) {
-      sei.getThreadScheduler().schedule(new Runnable() {
-        @Override
-        public void run() {
-          if(! handshakeFuture.isDone() && 
-             handshakeFuture.setFailure(new TimeoutException("Timed out doing SSLHandshake!!!"))) {
-            close();
-          }
-        }}, maxConnectionTime);
+      seb.watchFuture(handshakeFuture, maxConnectionTime);
     }
   }
 

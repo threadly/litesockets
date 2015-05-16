@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.threadly.concurrent.NoThreadScheduler;
 import org.threadly.concurrent.SchedulerServiceInterface;
+import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.ThreadedSocketExecuter.SocketExecuterByteStats;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.litesockets.utils.WatchdogCache;
@@ -188,6 +189,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
   protected void startupService() {
     try {
       selector = Selector.open();
+      dogCache.start();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -211,6 +213,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
     }
     clients.clear();
     servers.clear();
+    dogCache.stop();
   }
 
   /**
@@ -437,5 +440,10 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
   @Override
   public SimpleByteStats getStats() {
     return stats;
+  }
+  
+  @Override
+  public void watchFuture(ListenableFuture<?> lf, long delay) {
+    dogCache.watch(lf, delay);
   }
 }
