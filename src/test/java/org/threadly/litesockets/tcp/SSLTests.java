@@ -10,6 +10,7 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.security.KeyStore;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -134,7 +135,7 @@ public class SSLTests {
       SE.addClient(client);
       client.doHandShake().get();
       fail();
-    } catch(ExecutionException e) {
+    } catch(CancellationException e) {
       e.printStackTrace();
       assertTrue(System.currentTimeMillis()-start >= 200);
       System.out.println(System.currentTimeMillis()-start );

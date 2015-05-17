@@ -12,12 +12,13 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeoutException;
 
 import org.threadly.concurrent.NoThreadScheduler;
 import org.threadly.concurrent.SchedulerServiceInterface;
+import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.ThreadedSocketExecuter.SocketExecuterByteStats;
 import org.threadly.litesockets.utils.SimpleByteStats;
+import org.threadly.litesockets.utils.WatchdogCache;
 import org.threadly.util.AbstractService;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.ExceptionUtils;
@@ -41,10 +42,24 @@ import org.threadly.util.ExceptionUtils;
  * @author lwahlmeier
  */
 public class NoThreadSocketExecuter extends AbstractService implements SocketExecuterInterface {
+  public static final int WATCHDOG_CLEANUP_TIME = 30000;
+  
   private final NoThreadScheduler scheduler = new NoThreadScheduler();
   private final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
   private final SocketExecuterByteStats stats = new SocketExecuterByteStats();
+  private final WatchdogCache dogCache = new WatchdogCache(scheduler);
+  private final Runnable watchDogCleanup = new Runnable() {
+    @Override
+    public void run() {
+      if(isRunning()) {
+        try{
+          dogCache.cleanup();
+        } finally {
+          scheduler.schedule(this, WATCHDOG_CLEANUP_TIME);
+        }
+      }
+    }};
   private volatile Selector selector;
 
   /**
@@ -90,16 +105,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
         Client nc = clients.putIfAbsent(client.getChannel(), client);
         if(nc == null) {
           scheduler.execute(new AddToSelector(client.getChannel(), selector, SelectionKey.OP_CONNECT));
-          scheduler.schedule(new Runnable() {
-            @Override
-            public void run() {
-              if(client.hasConnectionTimedOut()) {
-                client.setConnectionStatus(new TimeoutException("Timed out while connecting!"));
-                if(client.isClosed() && clients.containsKey(client)) {
-                  removeClient(client);
-                }
-              }
-            }}, client.getTimeout()+10);
+          dogCache.watch(client.connect(), client.getTimeout());
           selector.wakeup();
         }
       }
@@ -196,6 +202,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
   protected void startupService() {
     try {
       selector = Selector.open();
+      scheduler.schedule(watchDogCleanup, WATCHDOG_CLEANUP_TIME);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -219,6 +226,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
     }
     clients.clear();
     servers.clear();
+    dogCache.cleanAll();
   }
 
   /**
@@ -445,5 +453,10 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
   @Override
   public SimpleByteStats getStats() {
     return stats;
+  }
+  
+  @Override
+  public void watchFuture(ListenableFuture<?> lf, long delay) {
+    dogCache.watch(lf, delay);
   }
 }
