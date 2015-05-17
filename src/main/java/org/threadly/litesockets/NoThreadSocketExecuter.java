@@ -12,12 +12,13 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeoutException;
 
 import org.threadly.concurrent.NoThreadScheduler;
 import org.threadly.concurrent.SchedulerServiceInterface;
+import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.ThreadedSocketExecuter.SocketExecuterByteStats;
 import org.threadly.litesockets.utils.SimpleByteStats;
+import org.threadly.litesockets.utils.WatchdogCache;
 import org.threadly.util.AbstractService;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.ExceptionUtils;
@@ -39,18 +40,30 @@ import org.threadly.util.ExceptionUtils;
  * {@link #removeServer(Server)} can be called from other threads safely.</p>
  * 
  * @author lwahlmeier
- *
  */
 public class NoThreadSocketExecuter extends AbstractService implements SocketExecuterInterface {
-  private final NoThreadScheduler scheduler = new NoThreadScheduler(false);
+  public static final int WATCHDOG_CLEANUP_TIME = 30000;
+  
+  private final NoThreadScheduler scheduler = new NoThreadScheduler();
   private final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
   private final SocketExecuterByteStats stats = new SocketExecuterByteStats();
+  private final WatchdogCache dogCache = new WatchdogCache(scheduler);
+  private final Runnable watchDogCleanup = new Runnable() {
+    @Override
+    public void run() {
+      if(isRunning()) {
+        try{
+          dogCache.cleanup();
+        } finally {
+          scheduler.schedule(this, WATCHDOG_CLEANUP_TIME);
+        }
+      }
+    }};
   private volatile Selector selector;
 
   /**
    * Constructs a NoThreadSocketExecuter.  {@link #start()} must still be called before using it.
-   * 
    */
   public NoThreadSocketExecuter() {
   }
@@ -92,19 +105,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
         Client nc = clients.putIfAbsent(client.getChannel(), client);
         if(nc == null) {
           scheduler.execute(new AddToSelector(client.getChannel(), selector, SelectionKey.OP_CONNECT));
-          scheduler.schedule(new Runnable() {
-            @Override
-            public void run() {
-              if(client.hasConnectionTimedOut()) {
-                SelectionKey sk = client.getChannel().keyFor(selector);
-                if(sk != null) {
-                  sk.cancel();
-                }
-                removeClient(client);
-                client.close();
-                client.setConnectionStatus(new TimeoutException("Timed out while connecting!"));
-              }
-            }}, client.getTimeout()+10);
+          dogCache.watch(client.connect(), client.getTimeout());
           selector.wakeup();
         }
       }
@@ -201,6 +202,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
   protected void startupService() {
     try {
       selector = Selector.open();
+      scheduler.schedule(watchDogCleanup, WATCHDOG_CLEANUP_TIME);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -224,6 +226,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
     }
     clients.clear();
     servers.clear();
+    dogCache.cleanAll();
   }
 
   /**
@@ -249,11 +252,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
   public void select(int delay) {
     ArgumentVerifier.assertNotNegative(delay, "delay");
     if(isRunning()) {
-      try {
-        scheduler.tick(null);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-      }
+      scheduler.tick(null);
       try {
         if(delay == 0) {
           selector.selectNow();
@@ -292,7 +291,6 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
               SocketChannel sc = (SocketChannel)key.channel();
               doWrite(sc);
             }
-
           } catch(CancelledKeyException e) {
             //Key could be cancelled at any point, we dont really care about it.
           }
@@ -304,11 +302,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
       } catch (NullPointerException e) {
         //There is a bug in some JVMs around this where the select() can throw an NPE from native code.
       }
-      try {
-        scheduler.tick(null);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-      }
+      scheduler.tick(null);
     }
   }
 
@@ -360,7 +354,6 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
         server.acceptChannel((DatagramChannel)server.getSelectableChannel());
       }
     }
-
   }
 
   private void doWrite(SocketChannel sc) {
@@ -454,12 +447,16 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
         removeServer(server);
         server.close();
       }
-
     }
   }
 
   @Override
   public SimpleByteStats getStats() {
     return stats;
+  }
+  
+  @Override
+  public void watchFuture(ListenableFuture<?> lf, long delay) {
+    dogCache.watch(lf, delay);
   }
 }

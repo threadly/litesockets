@@ -8,6 +8,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
@@ -401,7 +402,7 @@ public class TCPTests {
     client.connectionFuture.get();
   }
   
-  @Test(expected=TimeoutException.class)
+  @Test(expected=CancellationException.class)
   public void tcpTimeout() throws Throwable {
     TCPClient client = new TCPClient("2.0.0.2", port, 10);
     final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);

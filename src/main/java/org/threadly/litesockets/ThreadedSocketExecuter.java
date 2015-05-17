@@ -13,14 +13,15 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeoutException;
 
 import org.threadly.concurrent.ConfigurableThreadFactory;
 import org.threadly.concurrent.KeyDistributedExecutor;
 import org.threadly.concurrent.ScheduledExecutorServiceWrapper;
 import org.threadly.concurrent.SimpleSchedulerInterface;
 import org.threadly.concurrent.SingleThreadScheduler;
+import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.utils.SimpleByteStats;
+import org.threadly.litesockets.utils.WatchdogCache;
 import org.threadly.util.AbstractService;
 import org.threadly.util.ArgumentVerifier;
 
@@ -36,6 +37,7 @@ import org.threadly.util.ArgumentVerifier;
  *
  */
 public class ThreadedSocketExecuter extends AbstractService implements SocketExecuterInterface {
+  public static final int WATCHDOG_CLEANUP_TIME = 30000;
   private final SingleThreadScheduler acceptScheduler = 
       new SingleThreadScheduler(new ConfigurableThreadFactory("SocketAcceptor", false, true, Thread.currentThread().getPriority(), null, null));
   private final SingleThreadScheduler readScheduler = 
@@ -47,6 +49,18 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
   private final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
   private final SocketExecuterByteStats stats = new SocketExecuterByteStats();
+  private final Runnable watchDogCleanup = new Runnable() {
+    @Override
+    public void run() {
+      if(isRunning()) {
+        try{
+          dogCache.cleanup();
+        } finally {
+          schedulerPool.schedule(this, WATCHDOG_CLEANUP_TIME);
+        }
+      }
+    }};
+  private final WatchdogCache dogCache;
 
   protected volatile long readThreadID = 0;
   protected Selector readSelector;
@@ -64,9 +78,9 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
    * thread pool.</p>
    */
   public ThreadedSocketExecuter() {
-    schedulerPool = new SingleThreadScheduler(
-        new ConfigurableThreadFactory("SocketClientThread", false, true, Thread.currentThread().getPriority(), null, null));
-    clientDistributer = new KeyDistributedExecutor(schedulerPool);
+    this(new SingleThreadScheduler(
+        new ConfigurableThreadFactory(
+            "SocketClientThread", false, true, Thread.currentThread().getPriority(), null, null)));
   }
 
   /**
@@ -75,9 +89,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
    * @param exec The {@link ScheduledExecutorService} to be used for client/server callbacks.
    */
   public ThreadedSocketExecuter(ScheduledExecutorService exec) {
-    ArgumentVerifier.assertNotNull(exec, "ScheduledExecutorService");
-    schedulerPool = new ScheduledExecutorServiceWrapper(exec);
-    clientDistributer = new KeyDistributedExecutor(schedulerPool);
+    this(new ScheduledExecutorServiceWrapper(exec));
   }
   
   /**
@@ -90,6 +102,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
     ArgumentVerifier.assertNotNull(exec, "SimpleSchedulerInterface");
     schedulerPool = exec;
     clientDistributer = new KeyDistributedExecutor(schedulerPool);
+    dogCache = new WatchdogCache(schedulerPool);
   }
 
   @Override
@@ -118,19 +131,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
         if(nc == null) {
           readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_CONNECT));
           readSelector.wakeup();
-          schedulerPool.schedule(new Runnable() {
-            @Override
-            public void run() {
-              if(client.hasConnectionTimedOut()) {
-                SelectionKey sk = client.getChannel().keyFor(readSelector);
-                if(sk != null) {
-                  sk.cancel();
-                }
-                removeClient(client);
-                client.close();
-                client.setConnectionStatus(new TimeoutException("Timed out while connecting!"));
-              }
-            }}, client.getTimeout()+100);
+          dogCache.watch(client.connect(), client.getTimeout());
         }
       }
     }
@@ -217,10 +218,10 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
       acceptScheduler.execute(acceptor);
       readScheduler.execute(reader);
       writeScheduler.execute(writer);
+      schedulerPool.schedule(watchDogCleanup, WATCHDOG_CLEANUP_TIME);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
-
   }
 
   @Override
@@ -243,7 +244,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
     }
     clients.clear();
     servers.clear();
-
+    dogCache.cleanAll();
   }
 
   @Override
@@ -273,7 +274,6 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
   public int getServerCount() {
     return servers.size();
   }
-
   
   /**
    * <p>This is used to figure out if the current used thread is the SocketExecuters ReadThread.
@@ -432,7 +432,6 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
                 }
               }
             }
-
           }
         } catch (IOException e) {
           stopIfRunning();
@@ -489,7 +488,6 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
    * Implementation of the SimpleByteStats.
    */
   protected static class SocketExecuterByteStats extends SimpleByteStats {
-    
     @Override
     protected void addWrite(int size) {
       super.addWrite(size);
@@ -499,5 +497,10 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
     protected void addRead(int size) {
       super.addRead(size);
     }
+  }
+
+  @Override
+  public void watchFuture(ListenableFuture<?> lf, long delay) {
+    dogCache.watch(lf, delay);
   }
 }
