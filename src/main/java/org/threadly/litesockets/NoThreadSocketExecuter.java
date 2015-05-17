@@ -53,8 +53,11 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
     @Override
     public void run() {
       if(isRunning()) {
-        dogCache.cleanup();
-        scheduler.schedule(this, WATCHDOG_CLEANUP_TIME);
+        try{
+          dogCache.cleanup();
+        } finally {
+          scheduler.schedule(this, WATCHDOG_CLEANUP_TIME);
+        }
       }
     }};
   private volatile Selector selector;

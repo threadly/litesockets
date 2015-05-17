@@ -53,8 +53,11 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
     @Override
     public void run() {
       if(isRunning()) {
-        dogCache.cleanup();
-        schedulerPool.schedule(this, WATCHDOG_CLEANUP_TIME);
+        try{
+          dogCache.cleanup();
+        } finally {
+          schedulerPool.schedule(this, WATCHDOG_CLEANUP_TIME);
+        }
       }
     }};
   private final WatchdogCache dogCache;
