@@ -42,11 +42,21 @@ import org.threadly.util.ExceptionUtils;
  * @author lwahlmeier
  */
 public class NoThreadSocketExecuter extends AbstractService implements SocketExecuterInterface {
+  public static final int WATCHDOG_CLEANUP_TIME = 30000;
+  
   private final NoThreadScheduler scheduler = new NoThreadScheduler();
   private final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
   private final SocketExecuterByteStats stats = new SocketExecuterByteStats();
   private final WatchdogCache dogCache = new WatchdogCache(scheduler);
+  private final Runnable watchDogCleanup = new Runnable() {
+    @Override
+    public void run() {
+      if(isRunning()) {
+        dogCache.cleanup();
+        scheduler.schedule(this, WATCHDOG_CLEANUP_TIME);
+      }
+    }};
   private volatile Selector selector;
 
   /**
@@ -189,7 +199,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
   protected void startupService() {
     try {
       selector = Selector.open();
-      dogCache.start();
+      scheduler.schedule(watchDogCleanup, WATCHDOG_CLEANUP_TIME);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -213,7 +223,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
     }
     clients.clear();
     servers.clear();
-    dogCache.stop();
+    dogCache.cleanAll();
   }
 
   /**

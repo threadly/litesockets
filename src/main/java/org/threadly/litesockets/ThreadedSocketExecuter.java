@@ -37,6 +37,7 @@ import org.threadly.util.ArgumentVerifier;
  *
  */
 public class ThreadedSocketExecuter extends AbstractService implements SocketExecuterInterface {
+  public static final int WATCHDOG_CLEANUP_TIME = 30000;
   private final SingleThreadScheduler acceptScheduler = 
       new SingleThreadScheduler(new ConfigurableThreadFactory("SocketAcceptor", false, true, Thread.currentThread().getPriority(), null, null));
   private final SingleThreadScheduler readScheduler = 
@@ -48,6 +49,14 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
   private final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
   private final SocketExecuterByteStats stats = new SocketExecuterByteStats();
+  private final Runnable watchDogCleanup = new Runnable() {
+    @Override
+    public void run() {
+      if(isRunning()) {
+        dogCache.cleanup();
+        schedulerPool.schedule(this, WATCHDOG_CLEANUP_TIME);
+      }
+    }};
   private final WatchdogCache dogCache;
 
   protected volatile long readThreadID = 0;
@@ -91,7 +100,6 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
     schedulerPool = exec;
     clientDistributer = new KeyDistributedExecutor(schedulerPool);
     dogCache = new WatchdogCache(schedulerPool);
-
   }
 
   @Override
@@ -207,7 +215,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
       acceptScheduler.execute(acceptor);
       readScheduler.execute(reader);
       writeScheduler.execute(writer);
-      dogCache.start();
+      schedulerPool.schedule(watchDogCleanup, WATCHDOG_CLEANUP_TIME);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -233,7 +241,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
     }
     clients.clear();
     servers.clear();
-    dogCache.stop();
+    dogCache.cleanAll();
   }
 
   @Override
