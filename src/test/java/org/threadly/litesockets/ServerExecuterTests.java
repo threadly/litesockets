@@ -46,15 +46,16 @@ public class ServerExecuterTests {
   
   @Test
   public void manyClientsTest() throws IOException, InterruptedException {
+    final int clientCount = 50;
     TCPServer server = new TCPServer("localhost", port);
     final FakeTCPServerClient serverFC = new FakeTCPServerClient(SE);
     server.setClientAcceptor(serverFC);
     server.setCloser(serverFC);
     SE.addServer(server);
-    final ArrayList<TCPClient> clients = new  ArrayList<TCPClient>(100);
-    final ArrayList<TCPServer> servers = new  ArrayList<TCPServer>(100);
-    final ArrayList<FakeTCPServerClient> FCclients = new  ArrayList<FakeTCPServerClient>(100);
-    for(int i = 0; i<100; i++) {
+    final ArrayList<TCPClient> clients = new  ArrayList<TCPClient>(clientCount);
+    final ArrayList<TCPServer> servers = new  ArrayList<TCPServer>(clientCount);
+    final ArrayList<FakeTCPServerClient> FCclients = new  ArrayList<FakeTCPServerClient>(clientCount);
+    for(int i = 0; i<clientCount; i++) {
       PS.execute(new Runnable() {
         public void run() {
           TCPClient client;
@@ -84,9 +85,9 @@ public class ServerExecuterTests {
     new TestCondition(){
       @Override
       public boolean get() {
-        return serverFC.map.size() == 100;
+        return serverFC.map.size() == clientCount;
       }
-    }.blockTillTrue(10000, 100);
+    }.blockTillTrue(20 * 1000, 100);
     for(TCPClient c: clients) {
       c.close();
     }
@@ -96,7 +97,7 @@ public class ServerExecuterTests {
         //System.out.println("SE Clients:"+SE.getClientCount()+":"+SE.readSelector.keys().size());
         return serverFC.map.size() == 0;
       }
-    }.blockTillTrue(10000, 100);    
+    }.blockTillTrue(20 * 1000, 100);    
   }
   
   @Test

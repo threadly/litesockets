@@ -16,9 +16,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.threadly.concurrent.NoThreadScheduler;
 import org.threadly.concurrent.SchedulerServiceInterface;
 import org.threadly.concurrent.future.ListenableFuture;
+import org.threadly.concurrent.future.WatchdogCache;
 import org.threadly.litesockets.ThreadedSocketExecuter.SocketExecuterByteStats;
 import org.threadly.litesockets.utils.SimpleByteStats;
-import org.threadly.litesockets.utils.WatchdogCache;
 import org.threadly.util.AbstractService;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.ExceptionUtils;
@@ -48,18 +48,7 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
   private final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
   private final SocketExecuterByteStats stats = new SocketExecuterByteStats();
-  private final WatchdogCache dogCache = new WatchdogCache(scheduler);
-  private final Runnable watchDogCleanup = new Runnable() {
-    @Override
-    public void run() {
-      if(isRunning()) {
-        try{
-          dogCache.cleanup();
-        } finally {
-          scheduler.schedule(this, WATCHDOG_CLEANUP_TIME);
-        }
-      }
-    }};
+  private final WatchdogCache dogCache = new WatchdogCache(scheduler, true);
   private volatile Selector selector;
 
   /**
@@ -202,7 +191,6 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
   protected void startupService() {
     try {
       selector = Selector.open();
-      scheduler.schedule(watchDogCleanup, WATCHDOG_CLEANUP_TIME);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -226,7 +214,6 @@ public class NoThreadSocketExecuter extends AbstractService implements SocketExe
     }
     clients.clear();
     servers.clear();
-    dogCache.cleanAll();
   }
 
   /**
