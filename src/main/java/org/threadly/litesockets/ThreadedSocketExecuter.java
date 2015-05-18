@@ -20,11 +20,10 @@ import org.threadly.concurrent.ScheduledExecutorServiceWrapper;
 import org.threadly.concurrent.SimpleSchedulerInterface;
 import org.threadly.concurrent.SingleThreadScheduler;
 import org.threadly.concurrent.future.ListenableFuture;
+import org.threadly.concurrent.future.WatchdogCache;
 import org.threadly.litesockets.utils.SimpleByteStats;
-import org.threadly.litesockets.utils.WatchdogCache;
 import org.threadly.util.AbstractService;
 import org.threadly.util.ArgumentVerifier;
-
 
 /**
  * <p>This is a mutliThreaded implementation of a {@link SocketExecuterInterface}.  It uses separate threads to perform Accepts, Reads and Writes.  
@@ -49,17 +48,6 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
   private final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   private final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
   private final SocketExecuterByteStats stats = new SocketExecuterByteStats();
-  private final Runnable watchDogCleanup = new Runnable() {
-    @Override
-    public void run() {
-      if(isRunning()) {
-        try{
-          dogCache.cleanup();
-        } finally {
-          schedulerPool.schedule(this, WATCHDOG_CLEANUP_TIME);
-        }
-      }
-    }};
   private final WatchdogCache dogCache;
 
   protected volatile long readThreadID = 0;
@@ -102,7 +90,7 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
     ArgumentVerifier.assertNotNull(exec, "SimpleSchedulerInterface");
     schedulerPool = exec;
     clientDistributer = new KeyDistributedExecutor(schedulerPool);
-    dogCache = new WatchdogCache(schedulerPool);
+    dogCache = new WatchdogCache(schedulerPool, true);
   }
 
   @Override
@@ -218,7 +206,6 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
       acceptScheduler.execute(acceptor);
       readScheduler.execute(reader);
       writeScheduler.execute(writer);
-      schedulerPool.schedule(watchDogCleanup, WATCHDOG_CLEANUP_TIME);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -244,7 +231,6 @@ public class ThreadedSocketExecuter extends AbstractService implements SocketExe
     }
     clients.clear();
     servers.clear();
-    dogCache.cleanAll();
   }
 
   @Override
