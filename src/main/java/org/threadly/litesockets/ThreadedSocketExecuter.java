@@ -30,7 +30,6 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   private final SingleThreadScheduler localReadScheduler;
   private final SingleThreadScheduler localWriteScheduler;
 
-
   protected volatile long readThreadID = 0;
 
   private AcceptRunner acceptor;
