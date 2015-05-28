@@ -71,13 +71,13 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
     ArgumentVerifier.assertNotNull(client, "Client");
     if(isRunning() && clients.containsKey(client.getChannel())) {
       if(client.canWrite() && client.canRead()) {
-        schedulerPool.execute(new SEUtils.AddToSelector(client, commonSelector, SelectionKey.OP_WRITE|SelectionKey.OP_READ));
+        schedulerPool.execute(new AddToSelector(client, commonSelector, SelectionKey.OP_WRITE|SelectionKey.OP_READ));
       } else if (client.canRead()){
-        schedulerPool.execute(new SEUtils.AddToSelector(client, commonSelector, SelectionKey.OP_READ));
+        schedulerPool.execute(new AddToSelector(client, commonSelector, SelectionKey.OP_READ));
       } else if (client.canWrite()){
-        schedulerPool.execute(new SEUtils.AddToSelector(client, commonSelector, SelectionKey.OP_WRITE));
+        schedulerPool.execute(new AddToSelector(client, commonSelector, SelectionKey.OP_WRITE));
       } else {
-        schedulerPool.execute(new SEUtils.AddToSelector(client, commonSelector, 0));
+        schedulerPool.execute(new AddToSelector(client, commonSelector, 0));
       }
       commonSelector.wakeup();
     }    
@@ -85,7 +85,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
 
   @Override
   protected void startupService() {
-    commonSelector = SEUtils.openSelector();
+    commonSelector = openSelector();
     this.acceptSelector = commonSelector;
     this.readSelector = commonSelector;
     this.writeSelector = commonSelector;
@@ -99,7 +99,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
       schedulerPool.execute(new Runnable() {
         @Override
         public void run() {
-          SEUtils.closeSelector(commonSelector);
+          closeSelector(commonSelector);
         }});
       commonSelector.wakeup();
     }
@@ -140,20 +140,20 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
         for(SelectionKey key: commonSelector.selectedKeys()) {
           try {
             if(key.isAcceptable()) {
-              SEUtils.doServerAccept(servers.get(key.channel()));
+              doServerAccept(servers.get(key.channel()));
             } else {
               Client tmpClient = clients.get(key.channel());
               if(key.isConnectable() && tmpClient != null) {
-                  SEUtils.doClientConnect(tmpClient, commonSelector);
+                  doClientConnect(tmpClient, commonSelector);
                   this.updateClientOps(tmpClient);
               } else if(key.isReadable()) {
-                stats.addRead(SEUtils.doClientRead(tmpClient, commonSelector));
+                stats.addRead(doClientRead(tmpClient, commonSelector));
                 final Server server = servers.get(key.channel());
                 if(server != null && server.getServerType() == WireProtocol.UDP) {
                   server.acceptChannel((DatagramChannel)server.getSelectableChannel());
                 }
               } else if(key.isWritable()) {
-                stats.addWrite(SEUtils.doClientWrite(tmpClient, commonSelector));
+                stats.addWrite(doClientWrite(tmpClient, commonSelector));
               }
             }
           } catch(CancelledKeyException e) {

@@ -82,9 +82,9 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
 
   @Override
   protected void startupService() {
-    acceptSelector = SEUtils.openSelector();
-    readSelector = SEUtils.openSelector();
-    writeSelector = SEUtils.openSelector();
+    acceptSelector = openSelector();
+    readSelector = openSelector();
+    writeSelector = openSelector();
     acceptor = new AcceptRunner();
     reader = new ReadRunner();
     writer = new WriteRunner();
@@ -98,9 +98,9 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
     localAcceptScheduler.shutdownNow();
     localReadScheduler.shutdownNow();
     localWriteScheduler.shutdownNow();
-    SEUtils.closeSelector(acceptSelector);
-    SEUtils.closeSelector(readSelector);
-    SEUtils.closeSelector(writeSelector);
+    closeSelector(acceptSelector);
+    closeSelector(readSelector);
+    closeSelector(writeSelector);
     clients.clear();
     servers.clear();
   }
@@ -109,7 +109,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   public void flagNewWrite(Client client) {
     ArgumentVerifier.assertNotNull(client, "Client");
     if(isRunning() && clients.containsKey(client.getChannel()) && client.canWrite()) {
-      writeScheduler.execute(new SEUtils.AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
+      writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
       writeSelector.wakeup();
     }
   }
@@ -118,7 +118,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   public void flagNewRead(Client client) {
     ArgumentVerifier.assertNotNull(client, "Client");
     if(isRunning() && clients.containsKey(client.getChannel()) && client.canRead()) {
-      readScheduler.execute(new SEUtils.AddToSelector(client, readSelector, SelectionKey.OP_READ));
+      readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
       readSelector.wakeup();
     }
   }
@@ -137,7 +137,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
             for(SelectionKey sk: acceptSelector.selectedKeys()) {
               if(sk.isAcceptable()) {
                 ServerSocketChannel server = (ServerSocketChannel) sk.channel();
-                SEUtils.doServerAccept(servers.get(server));
+                doServerAccept(servers.get(server));
               } else if(sk.isReadable()) {
                 DatagramChannel server = (DatagramChannel) sk.channel();
                 final Server udpServer = servers.get(server);
@@ -175,11 +175,11 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
             for(SelectionKey sk: readSelector.selectedKeys()) {
               Client client = clients.get(sk.channel());
               if(sk.isConnectable()) {
-                SEUtils.doClientConnect(client, readSelector);
+                doClientConnect(client, readSelector);
                 flagNewRead(client);
                 flagNewWrite(client);
               } else {
-                stats.addRead(SEUtils.doClientRead(client, readSelector));
+                stats.addRead(doClientRead(client, readSelector));
               }
             }
           }
@@ -207,7 +207,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
           if(isRunning() && ! writeSelector.selectedKeys().isEmpty()) {
             for(SelectionKey sk: writeSelector.selectedKeys()) {
               final Client client = clients.get(sk.channel());
-              stats.addWrite(SEUtils.doClientWrite(client, writeSelector));
+              stats.addWrite(doClientWrite(client, writeSelector));
             }
           }
         } catch (IOException e) {
