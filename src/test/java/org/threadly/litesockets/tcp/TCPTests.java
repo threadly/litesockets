@@ -1,8 +1,11 @@
 package org.threadly.litesockets.tcp;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
@@ -22,6 +25,7 @@ import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.test.concurrent.TestCondition;
+import org.threadly.util.Clock;
 
 
 public class TCPTests {
@@ -323,7 +327,7 @@ public class TCPTests {
     new TestCondition(){
       @Override
       public boolean get() {
-        return serverFC.map.size() == 1;
+        return serverFC.clients.size() == 1;
       }
     }.blockTillTrue(5000, 100);
     
@@ -402,14 +406,33 @@ public class TCPTests {
     client.connectionFuture.get();
   }
   
-  @Test(expected=CancellationException.class)
+  @Test
   public void tcpTimeout() throws Throwable {
     TCPClient client = new TCPClient("2.0.0.2", port, 10);
-    final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
+    assertTrue(!client.hasConnectionTimedOut());
     SE.addClient(client);
     try {
       client.connectionFuture.get();
+      fail();
+    } catch(CancellationException e) {
+      Clock.accurateForwardProgressingMillis();
+      assertTrue(client.hasConnectionTimedOut());
+    }
+  }
+  
+  @Test(expected=ConnectException.class)
+  public void tcpConnectionRefused() throws Throwable {
+    server.close();
+    TCPClient client = new TCPClient("localhost", port);
+    assertTrue(!client.hasConnectionTimedOut());
+    //final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
+    SE.addClient(client);
+    try {
+      client.connectionFuture.get();
+      fail();
     } catch(ExecutionException e) {
+      assertTrue(!client.hasConnectionTimedOut());
+      assertEquals(0, SE.getClientCount());
       throw e.getCause();
     }
   }

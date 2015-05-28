@@ -225,9 +225,14 @@ public class SSLTests {
     //System.out.println(serverFC);
     
     final TCPClient tcp_client = new TCPClient("localhost", port);
-    tcp_client.connect();
-    tcp_client.getChannel().finishConnect();
-    //System.out.println(System.currentTimeMillis()-start);
+    SE.addClient(tcp_client);
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return tcp_client.connect().isDone();
+      }
+    }.blockTillTrue(5000);
+    SE.removeClient(tcp_client);
     final SSLClient client = new SSLClient(tcp_client, this.sslCtx.createSSLEngine("localhost", port), true, true);
     //System.out.println(serverFC);
     new TestCondition(){

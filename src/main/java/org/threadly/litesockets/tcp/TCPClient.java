@@ -128,9 +128,10 @@ public class TCPClient extends Client {
    * This will make this {@link TCPClient} unusable.
    */
   protected void markClosed() {
-    this.closed.set(true);
-    if(seb != null) {
-      this.seb.removeClient(this);
+    if(closed.compareAndSet(false, true)) {
+      if(seb != null) {
+        seb.removeClient(this);
+      }
     }
   }
   

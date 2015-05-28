@@ -1,5 +1,6 @@
 package org.threadly.litesockets;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -13,6 +14,7 @@ import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.tcp.FakeTCPServerClient;
 import org.threadly.litesockets.tcp.TCPClient;
 import org.threadly.litesockets.tcp.TCPServer;
+import org.threadly.litesockets.tcp.TCPTests;
 import org.threadly.litesockets.tcp.Utils;
 import org.threadly.test.concurrent.TestCondition;
 
@@ -33,15 +35,6 @@ public class ServerExecuterTests {
   public void stop() {
     SE.stopIfRunning();
     PS.shutdownNow();
-  }
-  
-  @Test
-  public void checkReadThread() {
-    final boolean badCheck = SE.verifyReadThread();
-    assertFalse(badCheck);
-    SE.readThreadID = Thread.currentThread().getId();
-    final boolean goodCheck = SE.verifyReadThread();
-    assertTrue(goodCheck);
   }
   
   @Test
@@ -88,6 +81,8 @@ public class ServerExecuterTests {
         return serverFC.map.size() == clientCount;
       }
     }.blockTillTrue(20 * 1000, 100);
+    assertEquals(clientCount*2, SE.getClientCount());
+    assertEquals(clientCount+1, SE.getServerCount());
     for(TCPClient c: clients) {
       c.close();
     }
@@ -111,4 +106,69 @@ public class ServerExecuterTests {
     SE.acceptSelector.close();
     
   }
+  
+  
+  @Test
+  public void SEStatsTest() throws IOException, InterruptedException {
+    final int sendCount = 1000;
+    int port = Utils.findTCPPort();
+    final FakeTCPServerClient serverFC = new FakeTCPServerClient(SE);
+    final TCPServer server = new TCPServer("localhost", port);
+    server.setClientAcceptor(serverFC);
+    server.setCloser(serverFC);
+    SE.addServer(server);
+    final TCPClient client = new TCPClient("localhost", port);
+    final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
+    client.setReader(clientFC);
+    client.setCloser(clientFC);
+    SE.addClient(client);
+
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.map.size() == 1;
+      }
+    }.blockTillTrue(5000);
+
+    final TCPClient sclient = (TCPClient) serverFC.map.keys().nextElement();
+    for(int i=0; i<sendCount; i++) {
+      client.writeForce(TCPTests.SMALL_TEXT_BUFFER.duplicate());
+    }
+
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.map.get(sclient).remaining() == TCPTests.SMALL_TEXT_BUFFER.remaining()*sendCount;
+      }
+    }.blockTillTrue(5000);
+    for(int i=0; i<sendCount; i++) {
+      sclient.writeForce(TCPTests.SMALL_TEXT_BUFFER.duplicate());
+    }
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        boolean test = false;
+        try {
+          test =clientFC.map.get(client).remaining() == TCPTests.SMALL_TEXT_BUFFER.remaining()*sendCount;
+        } catch(Exception e) {
+
+        }
+        return test;
+      }
+    }.blockTillTrue(1000);
+
+    client.close();
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return sclient.isClosed() && client.isClosed();
+      }
+    }.blockTillTrue(5000);
+    server.close();
+    assertEquals(sendCount*2*TCPTests.SMALL_TEXT_BUFFER.remaining(), SE.getStats().getTotalWrite());
+    assertEquals(sendCount*2*TCPTests.SMALL_TEXT_BUFFER.remaining(), SE.getStats().getTotalRead());
+    System.out.println(SE.getStats().getTotalWrite());
+    System.out.println(SE.getStats().getTotalRead());
+  }
+
 }
