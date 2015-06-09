@@ -57,4 +57,17 @@ public class NoThreadTCPTests extends TCPTests {
     super.simpleWriteTest();
   }
 
+  //@Test
+  public void loop() throws IOException, InterruptedException {
+    for(int i=0; i<100; i++) {
+      clientLateReadStart();
+      this.stop();
+      this.start();
+    }
+  }
+  
+  @Override
+  public void clientLateReadStart() throws IOException, InterruptedException {
+    super.clientLateReadStart();
+  }
 }
