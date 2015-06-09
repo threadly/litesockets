@@ -20,6 +20,10 @@ import org.threadly.util.AbstractService;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.ExceptionUtils;
 
+
+/**
+ *  This is a common base class for the Threaded and NoThread SocketExecuters. 
+ */
 abstract class SocketExecuterCommonBase extends AbstractService implements SocketExecuterInterface {
   public static final int WATCHDOG_CLEANUP_TIME = 30000;
   protected final SchedulerServiceInterface acceptScheduler;
@@ -245,6 +249,10 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     }
   }
 
+  /**
+   * This exception in thrown when we have problems doing common operations during startup.
+   * This is usually around opening selectors.
+   */
   public static class StartupException extends RuntimeException {
 
     private static final long serialVersionUID = 358704530394209047L;
