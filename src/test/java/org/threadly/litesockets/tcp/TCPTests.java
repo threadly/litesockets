@@ -25,6 +25,7 @@ import org.threadly.litesockets.SocketExecuterInterface;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.test.concurrent.TestCondition;
+import org.threadly.test.concurrent.TestUtils;
 import org.threadly.util.Clock;
 
 
@@ -415,7 +416,7 @@ public class TCPTests {
       client.connectionFuture.get();
       fail();
     } catch(CancellationException e) {
-      Clock.accurateForwardProgressingMillis();
+      TestUtils.blockTillClockAdvances();
       assertTrue(client.hasConnectionTimedOut());
     }
   }
