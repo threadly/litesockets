@@ -184,8 +184,8 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
           client.setConnectionStatus(null);
         }
       } catch(IOException e) {
-        client.setConnectionStatus(e);
         client.close();
+        client.setConnectionStatus(e);
         ExceptionUtils.handleException(e);
       }
     }
