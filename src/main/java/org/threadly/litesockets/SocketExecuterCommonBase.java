@@ -73,11 +73,13 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         }
       } else {
         client.connect();
-        Client nc = clients.putIfAbsent(client.getChannel(), client);
-        if(nc== null) {
-          readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_CONNECT));
-          readSelector.wakeup();
-          dogCache.watch(client.connect(), client.getTimeout());
+        if(client.getChannel() != null) {
+          Client nc = clients.putIfAbsent(client.getChannel(), client);
+          if(nc == null) {
+            readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_CONNECT));
+            readSelector.wakeup();
+            dogCache.watch(client.connect(), client.getTimeout());
+          }
         }
       }
     }
