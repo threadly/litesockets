@@ -230,6 +230,7 @@ public abstract class Client {
    * @param bb the {@link ByteBuffer} to write to the client.
    * @return true if the client has taken the ByteBuffer false if it did not.
    */
+  @Deprecated
   public abstract boolean writeTry(ByteBuffer bb);
   
   /**
@@ -250,6 +251,7 @@ public abstract class Client {
    * @param bb the {@link ByteBuffer} to write.
    * @throws InterruptedException This happens only if the thread that is blocked is interrupted while waiting. 
    */
+  @Deprecated
   public abstract void writeBlocking(ByteBuffer bb) throws InterruptedException;
   
   /**
@@ -263,7 +265,12 @@ public abstract class Client {
    * 
    * @param bb the ByteBuffer to write to the client.
    */
+  @Deprecated
   public abstract void writeForce(ByteBuffer bb);
+  
+  
+  public abstract ListenableFuture<Long> write(ByteBuffer bb);
+
   
   /**
    * <p>This provides the next available Write buffer.  This is typically only called by the {@link SocketExecuterInterface}.

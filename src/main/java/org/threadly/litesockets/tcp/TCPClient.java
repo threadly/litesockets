@@ -7,6 +7,8 @@ import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -33,22 +35,22 @@ public class TCPClient extends Client {
   /**
    * Default max buffer size (64k).  Read and write buffers are independent of each other.
    */
-  public static final int DEFAULT_MAX_BUFFER_SIZE = 64*1024;
+  public static final int DEFAULT_MAX_BUFFER_SIZE = 65536;
   /**
    * Minimum allowed readBuffer (4k).  If the readBuffer is lower then this we will create a new one.
    */
-  public static final int MIN_READ_BUFFER_SIZE = 4*1024;
+  public static final int MIN_READ_BUFFER_SIZE = 4096;
   /**
    * When we hit the minimum read buffer size we will create a new one of this size (64k).
    */
-  public static final int NEW_READ_BUFFER_SIZE = 64*1024;
+  public static final int NEW_READ_BUFFER_SIZE = 65536;
   
   public static final int MIN_WRITE_BUFFER_SIZE = 8192;
   public static final int MAX_COMBINED_WRITE_BUFFER_SIZE = 65536;
   
 
   private final MergedByteBuffers readBuffers = new MergedByteBuffers();
-  private final MergedByteBuffers writeBuffers = new MergedByteBuffers();
+  private final Deque<ConsumableBuffers> writeBuffers = new ArrayDeque<ConsumableBuffers>();
   protected final String host;
   protected final int port;
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
@@ -101,8 +103,8 @@ public class TCPClient extends Client {
   }
 
   /**
-   * <p>This creates a TCPClient based off an already existing {@link SocketChannel}.  This {@link SocketChannel} must already be 
-   * connected.</p>
+   * <p>This creates a TCPClient based off an already existing {@link SocketChannel}.  
+   * This {@link SocketChannel} must already be connected.</p>
    * 
    * @param channel the {@link SocketChannel} to use for this client.
    * @throws IOException if there is anything wrong with the {@link SocketChannel} this will be thrown.
@@ -260,10 +262,7 @@ public class TCPClient extends Client {
 
   @Override
   protected boolean canWrite() {
-    if(writeBuffers.remaining() > 0 || currentWriteBuffer.remaining() > 0) {
-      return true;
-    }
-    return false;
+    return !writeBuffers.isEmpty() && (writeBuffers.peek().getByteBuffer().hasRemaining() || writeBuffers.size() > 1);
   }
 
   @Override
@@ -281,7 +280,7 @@ public class TCPClient extends Client {
 
   @Override
   public int getWriteBufferSize() {
-    return this.writeBuffers.remaining() + currentWriteBuffer.remaining();
+    return -1;
   }
 
   @Override
@@ -360,40 +359,32 @@ public class TCPClient extends Client {
   }
 
   @Override
-  public boolean writeTry(ByteBuffer bb) {
-    if(bb.hasRemaining()) {
-      synchronized(writeBuffers) {
-        if(getWriteBufferSize() < getMaxBufferSize()) {
-          writeForce(bb);
-          return true;
-        } else {
-          return false;
-        }
+  public ListenableFuture<Long> write(ByteBuffer bb) {
+    synchronized(writeBuffers) {
+      boolean needNotify = ! canWrite();
+      SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>(); 
+      writeBuffers.add(new ConsumableByteBuffer(bb, slf));
+      if(needNotify && seb != null && channel.isConnected()) {
+        seb.flagNewWrite(this);
       }
+      return slf;
     }
+  }
+  
+  @Override
+  public boolean writeTry(ByteBuffer bb) {
+    this.write(bb);
     return true;
   }
 
   @Override
   public void writeBlocking(ByteBuffer bb) throws InterruptedException {
-    if (bb.hasRemaining()) {
-      synchronized (writeBuffers) {
-        while(! writeTry(bb) && ! isClosed()) {
-          writeBuffers.wait(1000);
-        }
-      }
-    }
+    this.write(bb);
   }
 
   @Override
   public void writeForce(ByteBuffer bb) {
-    synchronized(writeBuffers) {
-      boolean needNotify = ! canWrite();
-      writeBuffers.add(bb.slice());
-      if(needNotify && seb != null && channel.isConnected()) {
-        seb.flagNewWrite(this);
-      }
-    }
+    this.write(bb);
   }
 
   @Override
@@ -402,16 +393,11 @@ public class TCPClient extends Client {
       return currentWriteBuffer;
     }
     synchronized(writeBuffers) {
-      //This is to keep from doing a ton of little writes if we can.  We will try to 
-      //do at least 8k at a time, and up to 65k if we are already having to combine buffers
-      if(writeBuffers.nextPopSize() < MIN_WRITE_BUFFER_SIZE && writeBuffers.remaining() > writeBuffers.nextPopSize()) {
-        if(writeBuffers.remaining() < MAX_COMBINED_WRITE_BUFFER_SIZE) {
-          currentWriteBuffer = writeBuffers.pull(writeBuffers.remaining());
-        } else {
-          currentWriteBuffer = writeBuffers.pull(MAX_COMBINED_WRITE_BUFFER_SIZE);
+      if(!writeBuffers.isEmpty()) {
+        while(writeBuffers.peek().isDone()) {
+          writeBuffers.pop();
         }
-      } else {
-        currentWriteBuffer = writeBuffers.pop();
+        currentWriteBuffer = writeBuffers.peek().getByteBuffer();
       }
     }
     return currentWriteBuffer;
@@ -466,4 +452,35 @@ public class TCPClient extends Client {
   public String toString() {
     return "TCPClient:FROM:"+getLocalSocketAddress()+":TO:"+getRemoteSocketAddress();
   }
+  
+  protected interface ConsumableBuffers {
+    public ByteBuffer getByteBuffer();
+    public boolean isDone();
+  }
+  
+  protected static class ConsumableByteBuffer implements ConsumableBuffers {
+
+    private final ByteBuffer buffer;
+    private final long size;
+    private final SettableListenableFuture<Long> slf;
+    
+    public ConsumableByteBuffer(ByteBuffer bb, SettableListenableFuture<Long> slf) {
+      buffer = bb.slice().asReadOnlyBuffer();
+      size = buffer.remaining();
+      this.slf = slf;
+    }
+    @Override
+    public ByteBuffer getByteBuffer() {
+      return buffer;
+    }
+
+    @Override
+    public boolean isDone() {
+      if(!buffer.hasRemaining() && !slf.isDone()) {
+        slf.setResult(size);
+      }
+      return !buffer.hasRemaining();
+    }
+  }
+
 }

@@ -38,6 +38,7 @@ public class SSLClient extends TCPClient {
   private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
   private final boolean connectHandshake;
   private final MergedByteBuffers tmpWriteBuffers = new MergedByteBuffers();
+  private final  SettableListenableFuture<Long> tmpWriteBuffersSLF = new SettableListenableFuture<Long>();
   private final MergedByteBuffers decryptedReadList = new MergedByteBuffers();
   private final Reader classReader = new SSLReader();
   private final SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>(false);
@@ -277,13 +278,13 @@ public class SSLClient extends TCPClient {
   }
 
   @Override
-  public void writeForce(ByteBuffer buffer) {
+  public ListenableFuture<Long> write(ByteBuffer buffer) {
     if (!this.isClosed() && startedHandshake.get()) {
-      if(!finishedHandshake.get()&& buffer.remaining() != 0) {
+      if(!finishedHandshake.get() && buffer.remaining() != 0) {
         synchronized(tmpWriteBuffers) {
           if(!finishedHandshake.get()) {
             this.tmpWriteBuffers.add(buffer);
-            return;
+            return tmpWriteBuffersSLF;
           }
         }
       } else if(finishedHandshake.get() && buffer.remaining() == 0) {
