@@ -130,13 +130,7 @@ public class UDPClient extends Client {
   
   @Override
   public void writeForce(ByteBuffer bb) {
-    stats.addWrite(bb.remaining());
-    if(!closed.get()) {
-      try {
-        udpServer.channel.send(bb, remoteAddress);
-      } catch (IOException e) {
-      }
-    }
+    write(bb);
   }
   
   @Override
@@ -315,5 +309,17 @@ public class UDPClient extends Client {
       ArgumentVerifier.assertNotNegative(size, "size");
       super.addRead(size);
     }
+  }
+
+  @Override
+  public ListenableFuture<?> write(ByteBuffer bb) {
+    stats.addWrite(bb.remaining());
+    if(!closed.get()) {
+      try {
+        udpServer.channel.send(bb, remoteAddress);
+      } catch (IOException e) {
+      }
+    }
+    return FutureUtils.immediateResultFuture(true);
   }
 }

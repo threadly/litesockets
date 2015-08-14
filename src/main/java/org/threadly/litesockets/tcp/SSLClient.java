@@ -7,6 +7,8 @@ import static javax.net.ssl.SSLEngineResult.HandshakeStatus.NEED_WRAP;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.net.ssl.SSLEngine;
@@ -17,6 +19,7 @@ import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSession;
 
 import org.threadly.concurrent.future.FutureCallback;
+import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
@@ -37,8 +40,6 @@ public class SSLClient extends TCPClient {
   private final AtomicBoolean finishedHandshake = new AtomicBoolean(false);
   private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
   private final boolean connectHandshake;
-  private final MergedByteBuffers tmpWriteBuffers = new MergedByteBuffers();
-  private final  SettableListenableFuture<Long> tmpWriteBuffersSLF = new SettableListenableFuture<Long>();
   private final MergedByteBuffers decryptedReadList = new MergedByteBuffers();
   private final Reader classReader = new SSLReader();
   private final SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>(false);
@@ -274,67 +275,58 @@ public class SSLClient extends TCPClient {
   
   @Override
   public int getWriteBufferSize() {
-    return super.getWriteBufferSize() + tmpWriteBuffers.remaining();
+    return super.getWriteBufferSize();
   }
 
   @Override
-  public ListenableFuture<Long> write(ByteBuffer buffer) {
-    if (!this.isClosed() && startedHandshake.get()) {
-      if(!finishedHandshake.get() && buffer.remaining() != 0) {
-        synchronized(tmpWriteBuffers) {
-          if(!finishedHandshake.get()) {
-            this.tmpWriteBuffers.add(buffer);
-            return tmpWriteBuffersSLF;
-          }
-        }
-      } else if(finishedHandshake.get() && buffer.remaining() == 0) {
-        synchronized(tmpWriteBuffers) {
-          if(tmpWriteBuffers.remaining() > 0) {
-            buffer = tmpWriteBuffers.pull(tmpWriteBuffers.remaining());
-          }
-        }
-      }
-      synchronized(ssle) {
-        boolean gotFinished = false;
-        ByteBuffer oldBB = buffer.duplicate();
-        ByteBuffer newBB; 
-        ByteBuffer tmpBB;
-        while (ssle.getHandshakeStatus() == NEED_WRAP || oldBB.remaining() > 0) {
-          newBB = getAppWriteBuffer();
-          try {
-            tmpBB = newBB.duplicate();
-            SSLEngineResult res = ssle.wrap(oldBB, newBB);
+  public ListenableFuture<?> write(ByteBuffer buffer) {
+    if(!isClosed() && !startedHandshake.get()){
+      return super.write(buffer);
+    } else if(!isClosed() && startedHandshake.get() && !finishedHandshake.get() && buffer.hasRemaining()) {
+      throw new IllegalStateException("Can not write until handshake is finished!");
+    }
+    synchronized(ssle) {
+      boolean gotFinished = false;
+      ByteBuffer oldBB = buffer.duplicate();
+      ByteBuffer newBB; 
+      ByteBuffer tmpBB;
+      List<ListenableFuture<?>> fl = new ArrayList<ListenableFuture<?>>();
+      while (ssle.getHandshakeStatus() == NEED_WRAP || oldBB.remaining() > 0) {
+        newBB = getAppWriteBuffer();
+        try {
+          tmpBB = newBB.duplicate();
+          SSLEngineResult res = ssle.wrap(oldBB, newBB);
 
-            if(res.getHandshakeStatus() == FINISHED) {
-              gotFinished = true;
-            } else {
-              while (ssle.getHandshakeStatus() == NEED_TASK) {
-                runTasks();
-              }
+          if(res.getHandshakeStatus() == FINISHED) {
+            gotFinished = true;
+          } else {
+            while (ssle.getHandshakeStatus() == NEED_TASK) {
+              runTasks();
             }
-            if(tmpBB.hasRemaining()) {
-              tmpBB.limit(newBB.position());
-              super.writeForce(tmpBB);
-            }
-          } catch(Exception e) {
-            if(! handshakeFuture.isDone() && 
-               handshakeFuture.setFailure(e)) {
-              this.close();
-            }
-            break;
           }
-        }
-        if(gotFinished) {
-          if(finishedHandshake.compareAndSet(false, true)) {
-            writeForce(ByteBuffer.allocate(0));
-            handshakeFuture.setResult(ssle.getSession());
+          if(tmpBB.hasRemaining()) {
+            tmpBB.limit(newBB.position());
+            ListenableFuture<?> lf = super.write(tmpBB);
+            fl.add(lf);
           }
+        } catch(Exception e) {
+          if(! handshakeFuture.isDone() && 
+              handshakeFuture.setFailure(e)) {
+            this.close();
+          }
+          break;
         }
       }
-    } else if(!isClosed() && !startedHandshake.get()){
-      super.writeForce(buffer);
+      if(gotFinished) {
+        if(finishedHandshake.compareAndSet(false, true)) {
+          writeForce(ByteBuffer.allocate(0));
+          handshakeFuture.setResult(ssle.getSession());
+        }
+      }
+      return FutureUtils.makeCompleteFuture(fl);
     }
   }
+
   
   @Override
   public MergedByteBuffers getRead() {
@@ -399,11 +391,8 @@ public class SSLClient extends TCPClient {
   private void processHandshake(HandshakeStatus status) {
     switch(status) {
     case FINISHED: {
-      synchronized(tmpWriteBuffers) {
-        if(this.finishedHandshake.compareAndSet(false, true)){
-          writeForce(ByteBuffer.allocate(0));
-          handshakeFuture.setResult(ssle.getSession());
-        }
+      if(this.finishedHandshake.compareAndSet(false, true)){
+        handshakeFuture.setResult(ssle.getSession());
       }
     } break;
     case NEED_TASK: {
@@ -431,4 +420,5 @@ public class SSLClient extends TCPClient {
       doRead();
     }
   }
+    
 }

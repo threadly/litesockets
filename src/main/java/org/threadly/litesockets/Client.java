@@ -269,7 +269,7 @@ public abstract class Client {
   public abstract void writeForce(ByteBuffer bb);
   
   
-  public abstract ListenableFuture<Long> write(ByteBuffer bb);
+  public abstract ListenableFuture<?> write(ByteBuffer bb);
 
   
   /**

@@ -9,8 +9,10 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
@@ -51,6 +53,7 @@ public class TCPClient extends Client {
 
   private final MergedByteBuffers readBuffers = new MergedByteBuffers();
   private final Deque<ConsumableBuffers> writeBuffers = new ArrayDeque<ConsumableBuffers>();
+  private final AtomicInteger writeBufferSize = new AtomicInteger(0);
   protected final String host;
   protected final int port;
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
@@ -262,7 +265,7 @@ public class TCPClient extends Client {
 
   @Override
   protected boolean canWrite() {
-    return !writeBuffers.isEmpty() && (writeBuffers.peek().getByteBuffer().hasRemaining() || writeBuffers.size() > 1);
+    return writeBufferSize.get() > 0;
   }
 
   @Override
@@ -280,7 +283,7 @@ public class TCPClient extends Client {
 
   @Override
   public int getWriteBufferSize() {
-    return -1;
+    return this.writeBufferSize.get();
   }
 
   @Override
@@ -359,10 +362,11 @@ public class TCPClient extends Client {
   }
 
   @Override
-  public ListenableFuture<Long> write(ByteBuffer bb) {
+  public ListenableFuture<?> write(ByteBuffer bb) {
     synchronized(writeBuffers) {
       boolean needNotify = ! canWrite();
-      SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>(); 
+      SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>();
+      writeBufferSize.addAndGet(bb.remaining());
       writeBuffers.add(new ConsumableByteBuffer(bb, slf));
       if(needNotify && seb != null && channel.isConnected()) {
         seb.flagNewWrite(this);
@@ -373,18 +377,25 @@ public class TCPClient extends Client {
   
   @Override
   public boolean writeTry(ByteBuffer bb) {
-    this.write(bb);
+    if(writeBufferSize.get() > this.maxBufferSize) {
+      return false;
+    }
+    write(bb);
     return true;
   }
 
   @Override
   public void writeBlocking(ByteBuffer bb) throws InterruptedException {
-    this.write(bb);
+    try {
+      write(bb).get();
+    } catch (ExecutionException e) {
+
+    }
   }
 
   @Override
   public void writeForce(ByteBuffer bb) {
-    this.write(bb);
+    write(bb);
   }
 
   @Override
@@ -406,6 +417,7 @@ public class TCPClient extends Client {
   @Override
   protected void reduceWrite(int size) {
     synchronized(writeBuffers) {
+      writeBufferSize.addAndGet(-size);
       stats.addWrite(size);
       if(! currentWriteBuffer.hasRemaining()) {
         currentWriteBuffer = ByteBuffer.allocate(0);
