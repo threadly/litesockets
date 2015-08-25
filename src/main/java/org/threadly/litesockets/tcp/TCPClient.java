@@ -75,7 +75,7 @@ public class TCPClient extends Client {
   protected AtomicBoolean closed = new AtomicBoolean(false);
   protected final SocketAddress remoteAddress;
 
-  private volatile ByteBuffer currentWriteBuffer = ByteBuffer.allocate(0);
+  private volatile ConsumableBuffers currentWriteBuffer = null;
   private ByteBuffer readByteBuffer = ByteBuffer.allocate(NEW_READ_BUFFER_SIZE);
 
 
@@ -400,18 +400,20 @@ public class TCPClient extends Client {
 
   @Override
   protected ByteBuffer getWriteBuffer() {
-    if(currentWriteBuffer.remaining() != 0) {
-      return currentWriteBuffer;
+    if(currentWriteBuffer != null && currentWriteBuffer.getByteBuffer().remaining() != 0) {
+      return currentWriteBuffer.getByteBuffer();
     }
     synchronized(writeBuffers) {
       if(!writeBuffers.isEmpty()) {
         while(writeBuffers.peek().isDone()) {
           writeBuffers.pop();
         }
-        currentWriteBuffer = writeBuffers.peek().getByteBuffer();
+        currentWriteBuffer = writeBuffers.pollFirst();
+      } else {
+        return ByteBuffer.allocate(0);
       }
     }
-    return currentWriteBuffer;
+    return currentWriteBuffer.getByteBuffer();
   }
 
   @Override
@@ -419,10 +421,9 @@ public class TCPClient extends Client {
     synchronized(writeBuffers) {
       writeBufferSize.addAndGet(-size);
       stats.addWrite(size);
-      if(! currentWriteBuffer.hasRemaining()) {
-        currentWriteBuffer = ByteBuffer.allocate(0);
+      if(currentWriteBuffer != null && currentWriteBuffer.isDone()) {
+        currentWriteBuffer = null;
       }
-      writeBuffers.notifyAll();
     }
   }
   

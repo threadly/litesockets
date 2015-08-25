@@ -53,6 +53,11 @@ public class NoThreadTCPTests extends TCPTests {
   }
   
   @Override
+  public void clientBlockingWriter() throws Exception {
+    super.clientBlockingWriter();
+  }
+  
+  @Override
   public void simpleWriteTest() throws IOException, InterruptedException {
     super.simpleWriteTest();
   }

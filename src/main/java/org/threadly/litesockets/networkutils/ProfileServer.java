@@ -108,20 +108,20 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
       if(START_PROFILE.equals(cmd)) {
         if(!profiler.isRunning()) {
           profiler.start();
-          client.writeForce(STARTED_RESPONSE.duplicate());
+          client.write(STARTED_RESPONSE.duplicate());
         } else {
-          client.writeForce(ALREADY_STARTED_RESPONSE.duplicate());
+          client.write(ALREADY_STARTED_RESPONSE.duplicate());
         }
       } else if(STOP_PROFILE.equals(cmd)) {
         if(profiler.isRunning()) {
           profiler.stop();
-          client.writeForce(STOPPED_RESPONSE.duplicate());
+          client.write(STOPPED_RESPONSE.duplicate());
         } else {
-          client.writeForce(ALREADY_STOPPED_RESPONSE.duplicate());
+          client.write(ALREADY_STOPPED_RESPONSE.duplicate());
         }
       } else if(RESET_PROFILE.equals(cmd)) {
         profiler.reset();
-        client.writeForce(RESET_RESPONSE.duplicate());
+        client.write(RESET_RESPONSE.duplicate());
       } else if(DUMP_PROFILE.equals(cmd)) {
         dumpProfile(client);
       } else {
@@ -130,7 +130,7 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
     }
     if(mbb.remaining() > 100) {
       client.setReader(null);
-      client.writeForce(BAD_DATA.duplicate());
+      client.write(BAD_DATA.duplicate());
       this.scheduler.schedule(new Runnable() {
         @Override
         public void run() {
@@ -156,7 +156,7 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
     scheduler.execute(new Runnable() {
       @Override
       public void run() {
-        client.writeForce(HELP.duplicate());
+        client.write(HELP.duplicate());
       }
     });
   }
@@ -174,8 +174,8 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
           os.write(END_DUMP.getBytes());
           os.write("\n".getBytes());
         } catch(IOException e) {
-          client.writeForce(DUMP_EXCEPTION.duplicate());
-          client.writeForce(ByteBuffer.wrap(ExceptionUtils.stackToString(e).getBytes()));
+          client.write(DUMP_EXCEPTION.duplicate());
+          client.write(ByteBuffer.wrap(ExceptionUtils.stackToString(e).getBytes()));
         } finally {
           try {
             os.close();
@@ -183,7 +183,7 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
           }
         }
         ByteBuffer dump = ByteBuffer.wrap(baos.toByteArray());
-        client.writeForce(dump);
+        client.write(dump);
       }
       
     });

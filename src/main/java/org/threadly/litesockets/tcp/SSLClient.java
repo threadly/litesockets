@@ -240,7 +240,7 @@ public class SSLClient extends TCPClient {
         this.handshakeFuture.setFailure(e);
       }
       if(ssle.getHandshakeStatus() == NEED_WRAP) {
-        writeForce(ByteBuffer.allocate(0));
+        write(ByteBuffer.allocate(0));
       }
       if(this.seb != null) {
         seb.watchFuture(handshakeFuture, maxConnectionTime);
@@ -319,7 +319,7 @@ public class SSLClient extends TCPClient {
       }
       if(gotFinished) {
         if(finishedHandshake.compareAndSet(false, true)) {
-          writeForce(ByteBuffer.allocate(0));
+          write(ByteBuffer.allocate(0));
           handshakeFuture.setResult(ssle.getSession());
         }
       }
@@ -401,7 +401,7 @@ public class SSLClient extends TCPClient {
       }
     } break;
     case NEED_WRAP: {
-      writeForce(ByteBuffer.allocate(0));
+      write(ByteBuffer.allocate(0));
     } break;
     case NOT_HANDSHAKING:
     default: {

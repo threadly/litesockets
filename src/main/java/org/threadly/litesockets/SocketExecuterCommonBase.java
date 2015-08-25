@@ -198,7 +198,9 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     if(client != null) {
       try {
         wrote = client.getChannel().write(client.getWriteBuffer());
-        client.reduceWrite(wrote);
+        if(wrote > 0) {
+          client.reduceWrite(wrote);
+        }
         SelectionKey sk = client.getChannel().keyFor(selector);
         if(! client.canWrite() && (sk.interestOps() & SelectionKey.OP_WRITE) == SelectionKey.OP_WRITE) {
           client.getChannel().register(selector, sk.interestOps() - SelectionKey.OP_WRITE);

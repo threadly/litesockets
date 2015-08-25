@@ -13,6 +13,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.junit.After;
@@ -85,7 +86,7 @@ public class TCPTests {
     }.blockTillTrue(5000);
 
     final TCPClient sclient = (TCPClient) serverFC.map.keys().nextElement();
-    client.writeForce(SMALL_TEXT_BUFFER.duplicate());
+    client.write(SMALL_TEXT_BUFFER.duplicate());
 
     new TestCondition(){
       @Override
@@ -94,7 +95,7 @@ public class TCPTests {
       }
     }.blockTillTrue(5000);
 
-    sclient.writeForce(SMALL_TEXT_BUFFER.duplicate());
+    sclient.write(SMALL_TEXT_BUFFER.duplicate());
     new TestCondition(){
       @Override
       public boolean get() {
@@ -140,26 +141,28 @@ public class TCPTests {
   }
   
   @Test
-  public void clientBlockingWriter() throws IOException, InterruptedException {
-    ByteBuffer bb = ByteBuffer.wrap("TEST111".getBytes());
-    TCPClient client = new TCPClient("localhost", port);
+  public void clientBlockingWriter() throws Exception {
+    final ByteBuffer bb = ByteBuffer.wrap("TEST111".getBytes());
+    final TCPClient client = new TCPClient("localhost", port);
     client.setMaxBufferSize(2);
-    SE.addClient(client);
+    serverFC.addTCPClient(client);
     new TestCondition(){
       @Override
       public boolean get() {
-        return serverFC.map.size() == 1;
+        return serverFC.map.size() == 2;
       }
     }.blockTillTrue(5000, 100);
-    TCPClient c2 = null;
-    for(Client c: serverFC.map.keySet()) {
-      c2 = (TCPClient)c;
-      break;
-    }
+    TCPClient c2 = (TCPClient) serverFC.clients.get(1);
     c2.setMaxBufferSize(2);
     for(int i=0; i<100; i++) {
-      c2.writeBlocking(bb.duplicate());
+      c2.write(bb.duplicate()).get(5000, TimeUnit.MILLISECONDS);
     }
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.map.get(client).remaining() == bb.remaining()*100;
+      }
+    }.blockTillTrue(5000, 100);
     c2.close();
     new TestCondition(){
       @Override
@@ -193,14 +196,14 @@ public class TCPTests {
         return serverFC.map.size() == 1;
       }
     }.blockTillTrue(5000, 100);
-    TCPClient c2 = null;
-    for(Client c: serverFC.map.keySet()) {
-      c2 = (TCPClient)c;
-      break;
-    }
+    final TCPClient c2 = (TCPClient) serverFC.clients.get(0);
+//    for(Client c: serverFC.map.keySet()) {
+//      c2 = (TCPClient)c;
+//      break;
+//    }
     c2.setMaxBufferSize(60000);
-    System.out.println(c2.writeTry(bb.duplicate()));
-    new TestCondition(){
+    c2.write(bb.duplicate());
+    new TestCondition() {
       @Override
       public boolean get() {
         return ! client.canRead();
@@ -289,7 +292,7 @@ public class TCPTests {
   public void clientStartingWrite() throws IOException, InterruptedException {
     TCPClient client = new TCPClient("localhost", port);
     final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
-    client.writeForce(SMALL_TEXT_BUFFER.duplicate());
+    client.write(SMALL_TEXT_BUFFER.duplicate());
     clientFC.addTCPClient(client);
     
     SE.addClient(client);
@@ -337,28 +340,28 @@ public class TCPTests {
     SE.removeClient(client);
     
     for(int i=0; i<50000; i++) {
-      client.writeForce(SMALL_TEXT_BUFFER.duplicate());  
+      client.write(SMALL_TEXT_BUFFER.duplicate());  
     }
     SE.addClient(client);
     SE.addClient(c2);
     new TestCondition(){
       @Override
       public boolean get() {
-        System.out.println(client.getWriteBufferSize());
+        //System.out.println(client.getWriteBufferSize());
         return serverFC.map.get(c2).remaining() == SMALL_TEXT_BUFFER.remaining()*50000 ;
       }
-    }.blockTillTrue(5000, 100);
+    }.blockTillTrue(10000, 100);
   }
   
   @Test
   public void bigWrite() throws IOException, InterruptedException {
     final TCPClient client = new TCPClient("localhost", port);
     final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
-    client.writeForce(LARGE_TEXT_BUFFER.duplicate());
+    client.write(LARGE_TEXT_BUFFER.duplicate());
     clientFC.addTCPClient(client);
-    client.writeForce(LARGE_TEXT_BUFFER.duplicate());
-    client.writeForce(LARGE_TEXT_BUFFER.duplicate());
-    client.writeForce(LARGE_TEXT_BUFFER.duplicate());
+    client.write(LARGE_TEXT_BUFFER.duplicate());
+    client.write(LARGE_TEXT_BUFFER.duplicate());
+    client.write(LARGE_TEXT_BUFFER.duplicate());
     SE.addClient(client);
     new TestCondition(){
       @Override
