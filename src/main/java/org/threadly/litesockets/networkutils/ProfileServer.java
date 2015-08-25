@@ -7,7 +7,7 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.threadly.concurrent.SimpleScheduler;
+import org.threadly.concurrent.SimpleSchedulerInterface;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.Closer;
 import org.threadly.litesockets.Client.Reader;
@@ -67,7 +67,7 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
     HELP = ByteBuffer.wrap(sb.toString().getBytes()).asReadOnlyBuffer();
   }
 
-  private final SimpleScheduler scheduler;
+  private final SimpleSchedulerInterface scheduler;
   private final SocketExecuterInterface socketEx;
   private final ConcurrentHashMap<Client, MergedByteBuffers> clients = new ConcurrentHashMap<Client, MergedByteBuffers>();
   private final Profiler profiler;
