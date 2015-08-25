@@ -29,6 +29,7 @@ import org.threadly.util.Clock;
  *  on the socket.
  *  
  */
+@SuppressWarnings("deprecation")
 public class UDPClient extends Client {
   public static final int DEFAULT_MAX_BUFFER_SIZE = 64*1024;
   public static final int MIN_READ= 4*1024;
@@ -136,7 +137,7 @@ public class UDPClient extends Client {
   @Override
   public boolean writeTry(ByteBuffer bb) {
     if(!this.closed.get()) {
-      writeForce(bb);
+      write(bb);
       return true;
     }
     return false;
@@ -144,7 +145,7 @@ public class UDPClient extends Client {
   
   @Override
   public void writeBlocking(ByteBuffer bb) {
-    writeForce(bb);
+    write(bb);
   }
   
   @Override

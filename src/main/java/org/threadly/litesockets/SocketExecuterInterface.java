@@ -1,6 +1,6 @@
 package org.threadly.litesockets;
 
-import org.threadly.concurrent.SimpleSchedulerInterface;
+import org.threadly.concurrent.SimpleScheduler;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.ServiceInterface;
@@ -95,13 +95,13 @@ public interface SocketExecuterInterface extends ServiceInterface {
   public int getServerCount();
   
   /**
-   * <p>This returns the current {@link SimpleSchedulerInterface} for this SocketExecuter.
-   * Every SocketExecuter must have some kind of a {@link SimpleSchedulerInterface} for it to 
+   * <p>This returns the current {@link SimpleScheduler} for this SocketExecuter.
+   * Every SocketExecuter must have some kind of a {@link SimpleScheduler} for it to 
    * execute client/server operations on.</p>
    * 
-   * @return returns the {@link SimpleSchedulerInterface} the SocketExecuter is using.
+   * @return returns the {@link SimpleScheduler} the SocketExecuter is using.
    */
-  public SimpleSchedulerInterface getThreadScheduler();
+  public SimpleScheduler getThreadScheduler();
   
   /**
    * <p>This will give you read and write stats for the SocketExecuter.  This will tell you information about

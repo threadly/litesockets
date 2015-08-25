@@ -29,6 +29,7 @@ import org.threadly.util.Clock;
  * from a client from a {@link TCPServer}, and both function the same way.
  *   
  */
+@SuppressWarnings("deprecation")
 public class TCPClient extends Client {
   /**
    * The default SocketConnection time out (10 seconds).
@@ -466,12 +467,12 @@ public class TCPClient extends Client {
     return "TCPClient:FROM:"+getLocalSocketAddress()+":TO:"+getRemoteSocketAddress();
   }
   
-  protected interface ConsumableBuffers {
+  private interface ConsumableBuffers {
     public ByteBuffer getByteBuffer();
     public boolean isDone();
   }
   
-  protected static class ConsumableByteBuffer implements ConsumableBuffers {
+  private static class ConsumableByteBuffer implements ConsumableBuffers {
 
     private final ByteBuffer buffer;
     private final long size;

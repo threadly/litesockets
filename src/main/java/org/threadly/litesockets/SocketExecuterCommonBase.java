@@ -11,8 +11,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.threadly.concurrent.SchedulerServiceInterface;
-import org.threadly.concurrent.SimpleSchedulerInterface;
+import org.threadly.concurrent.SimpleScheduler;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.WatchdogCache;
 import org.threadly.litesockets.utils.SimpleByteStats;
@@ -26,10 +25,10 @@ import org.threadly.util.ExceptionUtils;
  */
 abstract class SocketExecuterCommonBase extends AbstractService implements SocketExecuterInterface {
   public static final int WATCHDOG_CLEANUP_TIME = 30000;
-  protected final SchedulerServiceInterface acceptScheduler;
-  protected final SchedulerServiceInterface readScheduler;
-  protected final SchedulerServiceInterface writeScheduler;
-  protected final SimpleSchedulerInterface schedulerPool;
+  protected final SimpleScheduler acceptScheduler;
+  protected final SimpleScheduler readScheduler;
+  protected final SimpleScheduler writeScheduler;
+  protected final SimpleScheduler schedulerPool;
   protected final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   protected final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
   protected final SocketExecuterByteStats stats = new SocketExecuterByteStats();
@@ -38,14 +37,14 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   protected Selector writeSelector;
   protected Selector acceptSelector;
 
-  SocketExecuterCommonBase(SchedulerServiceInterface scheduler) {
+  SocketExecuterCommonBase(SimpleScheduler scheduler) {
     this(scheduler,scheduler,scheduler,scheduler);
   }
 
-  SocketExecuterCommonBase(SchedulerServiceInterface acceptScheduler, 
-      SchedulerServiceInterface readScheduler, 
-      SchedulerServiceInterface writeScheduler, 
-      SimpleSchedulerInterface ssi) {
+  SocketExecuterCommonBase(SimpleScheduler acceptScheduler, 
+      SimpleScheduler readScheduler, 
+      SimpleScheduler writeScheduler, 
+      SimpleScheduler ssi) {
     ArgumentVerifier.assertNotNull(ssi, "ThreadScheduler");    
     ArgumentVerifier.assertNotNull(acceptScheduler, "Accept Scheduler");
     ArgumentVerifier.assertNotNull(readScheduler, "Read Scheduler");
@@ -134,7 +133,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   }
 
   @Override
-  public SimpleSchedulerInterface getThreadScheduler() {
+  public SimpleScheduler getThreadScheduler() {
     return schedulerPool;
   }
 

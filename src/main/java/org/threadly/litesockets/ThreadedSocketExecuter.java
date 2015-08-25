@@ -10,7 +10,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import org.threadly.concurrent.ConfigurableThreadFactory;
 import org.threadly.concurrent.KeyDistributedExecutor;
 import org.threadly.concurrent.ScheduledExecutorServiceWrapper;
-import org.threadly.concurrent.SimpleSchedulerInterface;
+import org.threadly.concurrent.SimpleScheduler;
 import org.threadly.concurrent.SingleThreadScheduler;
 import org.threadly.util.ArgumentVerifier;
 
@@ -63,7 +63,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
    * 
    * @param exec the {@link ScheduledExecutorService} to be used for client/server callbacks.
    */
-  public ThreadedSocketExecuter(SimpleSchedulerInterface exec) {
+  public ThreadedSocketExecuter(SimpleScheduler exec) {
     super(new SingleThreadScheduler(new ConfigurableThreadFactory("SocketAccept", false, true, Thread.currentThread().getPriority(), null, null)),
         new SingleThreadScheduler(new ConfigurableThreadFactory("SocketReader", false, true, Thread.currentThread().getPriority(), null, null)),
         new SingleThreadScheduler(new ConfigurableThreadFactory("SocketWriter", false, true, Thread.currentThread().getPriority(), null, null)),

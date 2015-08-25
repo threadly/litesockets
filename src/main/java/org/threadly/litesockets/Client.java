@@ -217,6 +217,7 @@ public abstract class Client {
   protected abstract void addReadBuffer(ByteBuffer bb);
   
   /**
+   * @deprecated
    * <p> This tries to write the ByteBuffer passed to it to the Client.  If the Clients writeBuffer 
    * is greater than the maxbufferSize the {@link ByteBuffer} will not be added and false will be returned.
    * If the current writeBuffer is less than the maxBufferSize then the ByteBuffer will be added and this
@@ -234,6 +235,7 @@ public abstract class Client {
   public abstract boolean writeTry(ByteBuffer bb);
   
   /**
+   * @deprecated
    * <p>This write will block until the write can be done.  This block will only happen if the clients
    * current writeBuffer size is more than the set maxBuffer.  This block will persist either until
    * the clients writeBuffer is less than the maxWriteBuffer or the client is closed.</p>
@@ -255,6 +257,7 @@ public abstract class Client {
   public abstract void writeBlocking(ByteBuffer bb) throws InterruptedException;
   
   /**
+   * @deprecated
    * <p>This write forces the client to go over its maxBufferSize.  This can be dangerous if used incorrectly.
    * Its assumed if this is used you are keeping track of the clients writeBuffer on your own.</p>
    * 
