@@ -11,6 +11,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +21,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
+import org.threadly.concurrent.future.FutureUtils;
+import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.SocketExecuterInterface;
@@ -154,9 +157,11 @@ public class TCPTests {
     }.blockTillTrue(5000, 100);
     TCPClient c2 = (TCPClient) serverFC.clients.get(1);
     c2.setMaxBufferSize(2);
+    ArrayList<ListenableFuture<?>> lfl = new ArrayList<ListenableFuture<?>>(); 
     for(int i=0; i<100; i++) {
-      c2.write(bb.duplicate()).get(5000, TimeUnit.MILLISECONDS);
+      lfl.add(c2.write(bb.duplicate()));
     }
+    FutureUtils.makeCompleteFuture(lfl).get(5000, TimeUnit.MILLISECONDS);;
     new TestCondition(){
       @Override
       public boolean get() {
