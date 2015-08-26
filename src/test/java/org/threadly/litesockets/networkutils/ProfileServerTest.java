@@ -165,7 +165,11 @@ public class ProfileServerTest {
     final TCPClient client = new TCPClient("localhost", port);
     clientHandler.addTCPClient(client);
     for(int i=0; i<10000; i++) {
-      client.writeForce(ByteBuffer.wrap("crap".getBytes()));
+      try {
+        client.write(ByteBuffer.wrap("crap".getBytes()));
+      } catch(Exception e) {
+        
+      }
     }
     new TestCondition(){
       @Override
