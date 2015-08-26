@@ -482,36 +482,6 @@ public class TCPClient extends Client {
     return "TCPClient:FROM:"+getLocalSocketAddress()+":TO:"+getRemoteSocketAddress();
   }
   
-  private interface ConsumableBuffers {
-    public ByteBuffer getByteBuffer();
-    public boolean isDone();
-  }
-  
-  private static class ConsumableByteBuffer implements ConsumableBuffers {
-
-    private final ByteBuffer buffer;
-    private final long size;
-    private final SettableListenableFuture<Long> slf;
-    
-    public ConsumableByteBuffer(ByteBuffer bb, SettableListenableFuture<Long> slf) {
-      buffer = bb.slice().asReadOnlyBuffer();
-      size = buffer.remaining();
-      this.slf = slf;
-    }
-    @Override
-    public ByteBuffer getByteBuffer() {
-      return buffer;
-    }
-
-    @Override
-    public boolean isDone() {
-      if(!buffer.hasRemaining() && !slf.isDone()) {
-        slf.setResult(size);
-      }
-      return !buffer.hasRemaining();
-    }
-  }
-  
   private static class Pair {
     private final long size;
     private final SettableListenableFuture<Long> slf;
