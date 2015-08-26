@@ -269,7 +269,9 @@ public class TransactionalByteBuffersTests {
     tbb.rollback();
     assertEquals(size, tbb.remaining());
     ByteBuffer bb = tbb.pop();
-    assertEquals(s, new String(bb.array()));
+    byte[] ba = new byte[bb.remaining()];
+    bb.get(ba);
+    assertEquals(s, new String(ba));
     tbb.begin();
     final AtomicBoolean hitException = new AtomicBoolean(false);
     PS.execute(new Runnable() {
@@ -289,11 +291,17 @@ public class TransactionalByteBuffersTests {
     }.blockTillTrue(5000);
     tbb.commit();
     bb = tbb.pop();
-    assertEquals(s, new String(bb.array()));
+    ba = new byte[bb.remaining()];
+    bb.get(ba);
+    assertEquals(s, new String(ba));
     bb = tbb.pop();
-    assertEquals(s, new String(bb.array()));
+    ba = new byte[bb.remaining()];
+    bb.get(ba);
+    assertEquals(s, new String(ba));
     bb = tbb.pop();
-    assertEquals(s, new String(bb.array()));
+    ba = new byte[bb.remaining()];
+    bb.get(ba);
+    assertEquals(s, new String(ba));
   }
   
   @Test
@@ -351,9 +359,7 @@ public class TransactionalByteBuffersTests {
     tbb.rollback();
     assertEquals(size, tbb.remaining());
     tbb.discard(4);
-    ByteBuffer bb = tbb.pull(10);
-    System.out.println(bb);
-    assertEquals("1234567890", new String(bb.array(), 4, 10));
+    assertEquals("1234567890", tbb.getAsString(10));
     tbb.begin();
     final AtomicBoolean hitException = new AtomicBoolean(false);
     PS.execute(new Runnable() {

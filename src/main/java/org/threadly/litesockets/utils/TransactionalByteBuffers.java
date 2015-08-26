@@ -118,54 +118,8 @@ public class TransactionalByteBuffers extends MergedByteBuffers {
   }
   
   @Override
-  public short getShort() {
-    if(! lock.isLocked()) {
-      return super.getShort();
-    } else if(lock.isHeldByCurrentThread()) {
-      short v = super.getShort(); 
-      consumedSinceBegin+=BYTES_IN_SHORT;
-      return v;
-    } else {
-      throw new IllegalStateException(ACCESS_ERROR);
-    }
-  }
-  
-  @Override
-  public int getInt() {
-    if(! lock.isLocked()) {
-      return super.getInt();
-    } else if(lock.isHeldByCurrentThread()) {
-      int v = super.getInt(); 
-      consumedSinceBegin+=BYTES_IN_INT;
-      return v;
-    } else {
-      throw new IllegalStateException(ACCESS_ERROR);
-    }
-  }
-  
-  @Override
-  public long getLong() {
-    if(! lock.isLocked()) {
-      return super.getLong();
-    } else if(lock.isHeldByCurrentThread()) {
-      consumedSinceBegin+=BYTES_IN_LONG;
-      return super.getLong();
-    } else {
-      throw new IllegalStateException(ACCESS_ERROR);
-    }
-  }
-  
-  @Override
   public ByteBuffer pop() {
-    if(! lock.isLocked()) {
-      return super.pop();
-    } else if(lock.isHeldByCurrentThread()) {
-      ByteBuffer bb = super.pop();
-      consumedSinceBegin+=bb.remaining();
-      return bb.duplicate();
-    } else {
-      throw new IllegalStateException(ACCESS_ERROR);
-    }
+    return super.pop();
   }
   
   @Override
@@ -195,16 +149,10 @@ public class TransactionalByteBuffers extends MergedByteBuffers {
   
   @Override
   public String getAsString(int size) {
-    if(! lock.isLocked()) {
-      return super.getAsString(size);
-    } else if(lock.isHeldByCurrentThread()) {
-      consumedSinceBegin+=size;
-      return super.getAsString(size);
-    } else {
-      throw new IllegalStateException(ACCESS_ERROR);
-    }
+    return super.getAsString(size);
   }
-  
+
+
   @Override
   protected ByteBuffer removeFirstBuffer() {
     ByteBuffer bb = super.removeFirstBuffer();
@@ -213,4 +161,5 @@ public class TransactionalByteBuffers extends MergedByteBuffers {
     }
     return bb;
   }
+
 }

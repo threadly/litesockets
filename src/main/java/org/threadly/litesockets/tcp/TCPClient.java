@@ -12,7 +12,6 @@ import java.util.Deque;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
@@ -53,8 +52,8 @@ public class TCPClient extends Client {
   
 
   private final MergedByteBuffers readBuffers = new MergedByteBuffers();
-  private final Deque<ConsumableBuffers> writeBuffers = new ArrayDeque<ConsumableBuffers>();
-  private final AtomicInteger writeBufferSize = new AtomicInteger(0);
+  private final MergedByteBuffers writeBuffers = new MergedByteBuffers();
+  private final Deque<Pair> writeFutures = new ArrayDeque<Pair>();
   protected final String host;
   protected final int port;
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
@@ -76,7 +75,7 @@ public class TCPClient extends Client {
   protected AtomicBoolean closed = new AtomicBoolean(false);
   protected final SocketAddress remoteAddress;
 
-  private volatile ConsumableBuffers currentWriteBuffer = null;
+  private volatile ByteBuffer currentWriteBuffer = ByteBuffer.allocate(0);;
   private ByteBuffer readByteBuffer = ByteBuffer.allocate(NEW_READ_BUFFER_SIZE);
 
 
@@ -202,6 +201,13 @@ public class TCPClient extends Client {
   @Override
   public void close() {
     if(closed.compareAndSet(false, true)) {
+      for(Pair p: this.writeFutures) {
+        p.slf.setFailure(new ClosedChannelException());
+      }
+      synchronized(writeBuffers) {
+        writeFutures.clear();
+        writeBuffers.discard(this.writeBuffers.remaining());
+      }
       try {
         if(seb != null) {
           seb.removeClient(this);
@@ -266,7 +272,7 @@ public class TCPClient extends Client {
 
   @Override
   protected boolean canWrite() {
-    return writeBufferSize.get() > 0;
+    return writeBuffers.remaining() > 0;
   }
 
   @Override
@@ -284,7 +290,7 @@ public class TCPClient extends Client {
 
   @Override
   public int getWriteBufferSize() {
-    return this.writeBufferSize.get();
+    return this.writeBuffers.remaining();
   }
 
   @Override
@@ -364,11 +370,14 @@ public class TCPClient extends Client {
 
   @Override
   public ListenableFuture<?> write(ByteBuffer bb) {
+    if(isClosed()) {
+      throw new IllegalStateException("Cannot write to closed client!");
+    }
     synchronized(writeBuffers) {
       boolean needNotify = ! canWrite();
       SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>();
-      writeBufferSize.addAndGet(bb.remaining());
-      writeBuffers.add(new ConsumableByteBuffer(bb, slf));
+      writeBuffers.add(bb);
+      this.writeFutures.add(new Pair(writeBuffers.getTotalConsumedBytes()+writeBuffers.remaining(), slf));
       if(needNotify && seb != null && channel.isConnected()) {
         seb.flagNewWrite(this);
       }
@@ -378,7 +387,7 @@ public class TCPClient extends Client {
   
   @Override
   public boolean writeTry(ByteBuffer bb) {
-    if(writeBufferSize.get() > this.maxBufferSize) {
+    if(writeBuffers.remaining() > this.maxBufferSize) {
       return false;
     }
     write(bb);
@@ -401,29 +410,35 @@ public class TCPClient extends Client {
 
   @Override
   protected ByteBuffer getWriteBuffer() {
-    if(currentWriteBuffer != null && currentWriteBuffer.getByteBuffer().remaining() != 0) {
-      return currentWriteBuffer.getByteBuffer();
+    if(currentWriteBuffer.remaining() != 0) {
+      return currentWriteBuffer;
     }
     synchronized(writeBuffers) {
-      if(!writeBuffers.isEmpty()) {
-        while(writeBuffers.peek().isDone()) {
-          writeBuffers.pop();
+      //This is to keep from doing a ton of little writes if we can.  We will try to 
+      //do at least 8k at a time, and up to 65k if we are already having to combine buffers
+      if(writeBuffers.nextPopSize() < MIN_WRITE_BUFFER_SIZE && writeBuffers.remaining() > writeBuffers.nextPopSize()) {
+        if(writeBuffers.remaining() < MAX_COMBINED_WRITE_BUFFER_SIZE) {
+          currentWriteBuffer = writeBuffers.pull(writeBuffers.remaining());
+        } else {
+          currentWriteBuffer = writeBuffers.pull(MAX_COMBINED_WRITE_BUFFER_SIZE);
         }
-        currentWriteBuffer = writeBuffers.pollFirst();
       } else {
-        return ByteBuffer.allocate(0);
+        currentWriteBuffer = writeBuffers.pop();
       }
     }
-    return currentWriteBuffer.getByteBuffer();
+    return currentWriteBuffer;
   }
 
   @Override
   protected void reduceWrite(int size) {
     synchronized(writeBuffers) {
-      writeBufferSize.addAndGet(-size);
       stats.addWrite(size);
-      if(currentWriteBuffer != null && currentWriteBuffer.isDone()) {
-        currentWriteBuffer = null;
+      if(currentWriteBuffer.remaining() == 0) {
+        System.out.println(writeFutures.peekFirst().size+":"+writeBuffers.getTotalConsumedBytes());
+        while(this.writeFutures.peekFirst() != null && writeFutures.peekFirst().size <= writeBuffers.getTotalConsumedBytes()) {
+          Pair p = writeFutures.pollFirst();
+          p.slf.setResult(p.size);
+        }
       }
     }
   }
@@ -496,5 +511,13 @@ public class TCPClient extends Client {
       return !buffer.hasRemaining();
     }
   }
-
+  
+  private static class Pair {
+    private final long size;
+    private final SettableListenableFuture<Long> slf;
+    public Pair(long size, SettableListenableFuture<Long> slf) {
+      this.size = size;
+      this.slf = slf;
+    }
+  }
 }
