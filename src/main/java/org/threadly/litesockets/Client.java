@@ -7,7 +7,6 @@ import java.nio.channels.SocketChannel;
 import java.util.concurrent.Executor;
 
 import org.threadly.concurrent.future.ListenableFuture;
-import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
 
@@ -63,8 +62,8 @@ public abstract class Client {
   /**
    * 
    * <p>Called to connect this client to a host.  This is done non-blocking, and can be called before adding the client 
-   * to the {@link SocketExecuterInterface}, but the client must be on the {@link SocketExecuterInterface} 
-   * in order to finish connecting.  If not called {@link SocketExecuterInterface#addClient(Client)}
+   * to the {@link SocketExecuter}, but the client must be on the {@link SocketExecuter} 
+   * in order to finish connecting.  If not called {@link SocketExecuter#addClient(Client)}
    * will automatically call this.</p>
    * 
    * <p>If there is an error connecting {@link #close()} will also be called on the client.</p>
@@ -81,6 +80,8 @@ public abstract class Client {
    */
   protected abstract void setConnectionStatus(Throwable t);
   
+  
+  public abstract void setConnectionTimeout(int timeout);
   /**
    * <p>Used to get this clients connection timeout information.</p>
    * 
@@ -90,7 +91,7 @@ public abstract class Client {
   
   /**
    * <p>When this clients socket has a read pending and {@link #canRead()} is true, this is where the ByteBuffer for the read comes from.
-   * In general this should only be used by the ReadThread in the {@link SocketExecuterInterface} and it should be noted 
+   * In general this should only be used by the ReadThread in the {@link SocketExecuter} and it should be noted 
    * that it is not threadsafe.</p>
    * 
    * @return A ByteBuffer for the ReadThread to use during its read operations.
@@ -119,7 +120,7 @@ public abstract class Client {
   public abstract int getMaxBufferSize();
   
   /**
-   * <p> This returns this clients {@link Executor}.  The client must have been added to the {@link SocketExecuterInterface} or 
+   * <p> This returns this clients {@link Executor}.  The client must have been added to the {@link SocketExecuter} or 
    * this will return null.</p>
    * 
    * <p> Its worth noting that operations done on this {@link Executor} can/will block Read callbacks on the 
@@ -130,27 +131,11 @@ public abstract class Client {
   public abstract Executor getClientsThreadExecutor();
   
   /**
-   * <p>This is set when the client is added to a {@link SocketExecuterInterface}.  Care should be given if you manually set this as 
-   * it will greatly impact the behavior of the client {@link Reader} callback.<p>
+   * <p>This is used to get the clients currently assigned {@link SocketExecuter}.</p>
    * 
-   * @param cte the {@link Executor} to used for this clients callbacks.
+   * @return the {@link SocketExecuter} set for this client. if none, null is returned.
    */
-  protected abstract void setClientsThreadExecutor(Executor cte);
-  
-  /**
-   * <p>This is used to get the clients currently assigned {@link SocketExecuterInterface}.</p>
-   * 
-   * @return the {@link SocketExecuterInterface} set for this client. if none, null is returned.
-   */
-  public abstract SocketExecuterInterface getClientsSocketExecuter();
-  
-  /**
-   * <p>This is automatically done when called the client is added with {@link SocketExecuterInterface#addClient(Client)}.  
-   * In general there is no need to manually set this, and care should be given if done.</p>
-   * 
-   * @param cse the {@link SocketExecuterInterface} for this client.
-   */
-  protected abstract void setClientsSocketExecuter(SocketExecuterInterface cse);
+  public abstract SocketExecuter getClientsSocketExecuter();
   
   /**
    * <p>This is used to get the currently set {@link Closer} for this client.</p>
@@ -175,7 +160,7 @@ public abstract class Client {
   public abstract Reader getReader();
 
   /**
-   * <p>This sets the Reader for the client.This should be set before adding the Client to the {@link SocketExecuterInterface}, 
+   * <p>This sets the Reader for the client.This should be set before adding the Client to the {@link SocketExecuter}, 
    * if its not there is a chance to miss data coming in on the socket.  Once set data received on the socket will be callback 
    * on this Reader to be processed.</p>
    * 
@@ -207,7 +192,7 @@ public abstract class Client {
   
   /**
    * 
-   * <p>Adds a {@link ByteBuffer} to the Clients readBuffer.  This is normally only used by the {@link SocketExecuterInterface},
+   * <p>Adds a {@link ByteBuffer} to the Clients readBuffer.  This is normally only used by the {@link SocketExecuter},
    * though it could be used to artificially inject data through the client.  Calling this will schedule a
    * calling the currently set Reader on the client.</p>
    * 
@@ -216,67 +201,12 @@ public abstract class Client {
    */
   protected abstract void addReadBuffer(ByteBuffer bb);
   
-  /**
-   * @deprecated
-   * <p> This tries to write the ByteBuffer passed to it to the Client.  If the Clients writeBuffer 
-   * is greater than the maxbufferSize the {@link ByteBuffer} will not be added and false will be returned.
-   * If the current writeBuffer is less than the maxBufferSize then the ByteBuffer will be added and this
-   * will return true.</p>
-   * 
-   * <p>As this write is thread safe it should be noted that calling this with multiThreads can not garentee order.
-   * As such it is recommended to write full parsable protocol packets at a time, or implement your own locking around the
-   * write if you are streaming data raw data and using more then 1 thread to do such.
-   * </p>
-   * 
-   * @param bb the {@link ByteBuffer} to write to the client.
-   * @return true if the client has taken the ByteBuffer false if it did not.
-   */
-  @Deprecated
-  public abstract boolean writeTry(ByteBuffer bb);
-  
-  /**
-   * @deprecated
-   * <p>This write will block until the write can be done.  This block will only happen if the clients
-   * current writeBuffer size is more than the set maxBuffer.  This block will persist either until
-   * the clients writeBuffer is less than the maxWriteBuffer or the client is closed.</p>
-   * 
-   * <p>Care should be taken when using this.  The pending writes for the client will happen on another unblockable 
-   * thread but if a lot of clients use there read thread to write and block its possible to consume all threads
-   * in the pool.  This is only a problem if the thread pool is reading/writing from both sides of a client connection
-   * using the same thread pool.</p>
-   * 
-   * <p>As this write is thread safe it should be noted that calling this with multiThreads can not garentee order.
-   * As such it is recommended to write full parsable protocol packets at a time, or implement your own locking around the
-   * write if you are streaming data raw data and using more then 1 thread to do such.
-   * </p>
-   * 
-   * @param bb the {@link ByteBuffer} to write.
-   * @throws InterruptedException This happens only if the thread that is blocked is interrupted while waiting. 
-   */
-  @Deprecated
-  public abstract void writeBlocking(ByteBuffer bb) throws InterruptedException;
-  
-  /**
-   * @deprecated
-   * <p>This write forces the client to go over its maxBufferSize.  This can be dangerous if used incorrectly.
-   * Its assumed if this is used you are keeping track of the clients writeBuffer on your own.</p>
-   * 
-   * <p>As this write is thread safe it should be noted that calling this with multiThreads can not garentee order.
-   * As such it is recommended to write full parsable protocol packets at a time, or implement your own locking around the
-   * write if you are streaming data raw data and using more then 1 thread to do such.
-   * </p>
-   * 
-   * @param bb the ByteBuffer to write to the client.
-   */
-  @Deprecated
-  public abstract void writeForce(ByteBuffer bb);
-  
   
   public abstract ListenableFuture<?> write(ByteBuffer bb);
 
   
   /**
-   * <p>This provides the next available Write buffer.  This is typically only called by the {@link SocketExecuterInterface}.
+   * <p>This provides the next available Write buffer.  This is typically only called by the {@link SocketExecuter}.
    * This is not threadsafe as the same {@link ByteBuffer} will be provided to any thread that calls this, until 
    * something consumes all byte available in it at which point another {@link ByteBuffer} will be provided.</p>
    * 
@@ -306,7 +236,7 @@ public abstract class Client {
   protected abstract SocketChannel getChannel();
   
   /**
-   * <p>This is used by the {@link SocketExecuterInterface} to help understand how to manage this client.
+   * <p>This is used by the {@link SocketExecuter} to help understand how to manage this client.
    * Currently only UDP and TCP exist.</p>
    * 
    * @return The IP protocol type of this client.

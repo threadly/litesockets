@@ -2,11 +2,15 @@ package org.threadly.litesockets.tcp;
 
 import java.io.IOException;
 import java.nio.channels.SelectableChannel;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
+import java.util.concurrent.Executor;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
+
+import org.threadly.litesockets.Client;
+import org.threadly.litesockets.Server;
+import org.threadly.litesockets.SocketExecuter;
+import org.threadly.litesockets.WireProtocol;
 
 
 /**
@@ -14,9 +18,12 @@ import javax.net.ssl.SSLEngine;
  * applied to the clients that connect.  You can also use it as a TLS server and not complete the handshake on connection.
  * 
  */
-public class SSLServer extends TCPServer {
+public class SSLServer extends Server {
   private final SSLContext sctx;
   private final boolean completeHandshake;
+  private final TCPServer server;
+  private final ClientAcceptor tcpClientAcceptor = new SSLAcceptor();
+  private volatile ClientAcceptor localAcceptor = null;
 
   /**
    * Constructs an SSL server.
@@ -28,40 +35,86 @@ public class SSLServer extends TCPServer {
    * complete the handshake and will require that you call {@link SSLClient#doHandShake()} once the handshake needs to be done.
    * @throws IOException is thrown if there are any problems binding to the network socket.
    */
-  public SSLServer(String host, int port, SSLContext sslctx, boolean completeHandshake) throws IOException {
-    super(host, port);
-    sctx = sslctx;
+  public SSLServer(TCPServer server, SSLContext sslctx, boolean completeHandshake) throws IOException {
     this.completeHandshake = completeHandshake;
+    this.server = server;
+    sctx = sslctx;
+    localAcceptor = server.getClientAcceptor();
+    server.setClientAcceptor(this.tcpClientAcceptor);
+    server.start();
   }
+  
+  public class SSLAcceptor implements ClientAcceptor{
 
-  /**
-   * Constructs an SSL server using an existing Socket.
-   * 
-   * @param server the ServerSocketChannel to use for this connection.
-   * @param sslctx the {@link SSLContext} to apply to the clients that connect.
-   * @param completeHandshake if {@code true} the SSL handshake will be completed on connection. If {@code false} the client will not 
-   * complete the handshake and will require that you call {@link SSLClient#doHandShake()} once the handshake needs to be done.
-   * @throws IOException is thrown if there are any problems binding to the network socket.
-   */
-  public SSLServer(ServerSocketChannel server, SSLContext sslctx, boolean completeHandshake) throws IOException {
-    super(server);
-    sctx = sslctx;
-    this.completeHandshake = completeHandshake;
+    @Override
+    public void accept(Client client) {
+      TCPClient tc = (TCPClient) client;
+      ClientAcceptor ca = getClientAcceptor();
+      if(ca != null) {
+        final SSLEngine ssle = sctx.createSSLEngine(tc.getSocket().getRemoteSocketAddress().toString(), tc.getSocket().getPort());
+        final SSLClient sslClient = new SSLClient(tc, ssle, completeHandshake, false);
+        getClientAcceptor().accept(sslClient);
+      }
+    }
+    
   }
 
   @Override
-  public void acceptChannel(final SelectableChannel c) {
-    String remote = ((SocketChannel)c).socket().getRemoteSocketAddress().toString();
-    int port = ((SocketChannel)c).socket().getPort();
-    ClientAcceptor ca = getClientAcceptor();
-    if(ca != null) {
-      final SSLEngine ssle = sctx.createSSLEngine(remote, port);
-      try {
-        final SSLClient client = new SSLClient((SocketChannel)c, ssle, false, completeHandshake);
-        getClientAcceptor().accept(client);
-      } catch (IOException e1) {
-        e1.printStackTrace();
-      }
-    }
+  public void start() {
+    server.start();
+  }
+
+  @Override
+  public SocketExecuter getSocketExecuter() {
+    return server.getSocketExecuter();
+  }
+
+  @Override
+  public ServerCloser getCloser() {
+    return server.getCloser();
+  }
+
+  @Override
+  public void setCloser(ServerCloser closer) {
+    server.setCloser(closer);
+  }
+
+  @Override
+  protected void acceptChannel(SelectableChannel c) {
+    
+  }
+
+  @Override
+  public WireProtocol getServerType() {
+    return WireProtocol.FAKE;
+  }
+
+  @Override
+  protected SelectableChannel getSelectableChannel() {
+    return server.getSelectableChannel();
+  }
+
+  @Override
+  public ClientAcceptor getClientAcceptor() {
+    return localAcceptor;
+  }
+
+  @Override
+  public void setClientAcceptor(ClientAcceptor clientAcceptor) {
+    localAcceptor = clientAcceptor;
+  }
+
+  @Override
+  public void close() {
+    server.close();
+  }
+
+  @Override
+  public boolean isClosed() {
+    return server.isClosed();
+  }
+  
+  public TCPServer getTCPServer() {
+    return server;
   }
 }

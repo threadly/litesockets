@@ -11,8 +11,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.Client;
-import org.threadly.litesockets.SocketExecuterInterface;
-import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
+import org.threadly.litesockets.SocketExecuter;
+import org.threadly.litesockets.WireProtocol;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.ArgumentVerifier;
@@ -29,7 +29,6 @@ import org.threadly.util.Clock;
  *  on the socket.
  *  
  */
-@SuppressWarnings("deprecation")
 public class UDPClient extends Client {
   public static final int DEFAULT_MAX_BUFFER_SIZE = 64*1024;
   public static final int MIN_READ= 4*1024;
@@ -38,6 +37,7 @@ public class UDPClient extends Client {
 
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
   private final MergedByteBuffers readBuffers = new MergedByteBuffers();
+  protected final AtomicBoolean closed = new AtomicBoolean(false);
   protected final SocketAddress remoteAddress;
   protected final UDPServer udpServer;
 
@@ -46,10 +46,6 @@ public class UDPClient extends Client {
 
   protected volatile Closer closer;
   protected volatile Reader reader;
-  protected volatile Executor executer;
-  protected volatile SocketExecuterInterface sei;
-  protected AtomicBoolean closed = new AtomicBoolean(false);
-
   
   protected UDPClient(SocketAddress sa, UDPServer server) {
     this.remoteAddress = sa;
@@ -73,13 +69,6 @@ public class UDPClient extends Client {
   public int hashCode() {
     return remoteAddress.hashCode() * udpServer.getSelectableChannel().hashCode();
   }
-  
-  @Override
-  protected void setClientsThreadExecutor(Executor executer) {
-    if(executer != null) {
-      this.executer = executer;
-    }
-  }
 
   @Override
   protected SocketChannel getChannel() {
@@ -100,8 +89,8 @@ public class UDPClient extends Client {
   public void close() {
     if(closed.compareAndSet(false, true)) {
       final Closer lcloser = closer;
-      if(lcloser != null && this.sei != null) {
-        executer.execute(new Runnable() {
+      if(lcloser != null) {
+        getClientsThreadExecutor().execute(new Runnable() {
           @Override
           public void run() {
             lcloser.onClose(UDPClient.this);
@@ -119,7 +108,7 @@ public class UDPClient extends Client {
         int start = readBuffers.remaining();
         readBuffers.add(bb);
         if(start == 0){
-          executer.execute(new Runnable() {
+          getClientsThreadExecutor().execute(new Runnable() {
             @Override
             public void run() {
               lreader.onRead(UDPClient.this);
@@ -127,25 +116,6 @@ public class UDPClient extends Client {
         }
       }
     }
-  }
-  
-  @Override
-  public void writeForce(ByteBuffer bb) {
-    write(bb);
-  }
-  
-  @Override
-  public boolean writeTry(ByteBuffer bb) {
-    if(!this.closed.get()) {
-      write(bb);
-      return true;
-    }
-    return false;
-  }
-  
-  @Override
-  public void writeBlocking(ByteBuffer bb) {
-    write(bb);
   }
   
   @Override
@@ -211,19 +181,12 @@ public class UDPClient extends Client {
 
   @Override
   public Executor getClientsThreadExecutor() {
-    return executer;
+    return udpServer.getSocketExecuter().getExecutorFor(this);
   }
 
   @Override
-  public SocketExecuterInterface getClientsSocketExecuter() {
-    return sei;
-  }
-
-  @Override
-  protected void setClientsSocketExecuter(SocketExecuterInterface sei) {
-    if(sei != null) {
-      this.sei = sei;
-    }
+  public SocketExecuter getClientsSocketExecuter() {
+    return udpServer.getSocketExecuter();
   }
 
   @Override
@@ -322,5 +285,10 @@ public class UDPClient extends Client {
       }
     }
     return FutureUtils.immediateResultFuture(true);
+  }
+
+  @Override
+  public void setConnectionTimeout(int timeout) {
+
   }
 }

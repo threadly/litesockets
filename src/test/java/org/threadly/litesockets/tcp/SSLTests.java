@@ -28,7 +28,7 @@ import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server;
 import org.threadly.litesockets.Server.ClientAcceptor;
-import org.threadly.litesockets.SocketExecuterInterface;
+import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.test.concurrent.TestCondition;
@@ -37,7 +37,7 @@ public class SSLTests {
   PriorityScheduler PS;
   int port = Utils.findTCPPort();
   final String GET = "hello";
-  SocketExecuterInterface SE;
+  SocketExecuter SE;
   TrustManager[] myTMs = new TrustManager [] {new SSLUtils.FullTrustManager() };
   KeyStore KS;
   KeyManagerFactory kmf;
@@ -51,6 +51,7 @@ public class SSLTests {
     SE.start();
     port = Utils.findTCPPort();
     KS = KeyStore.getInstance(KeyStore.getDefaultType());
+    System.out.println(ClassLoader.getSystemClassLoader().getResource("keystore.jks"));
     String filename = ClassLoader.getSystemClassLoader().getResource("keystore.jks").getFile();
     FileInputStream ksf = new FileInputStream(filename);
     KS.load(ksf, "password".toCharArray());
@@ -75,17 +76,16 @@ public class SSLTests {
     PS.shutdownNow();
     serverFC = new FakeTCPServerClient(SE);
   }
- 
   
   @Test
-  public void simpleWriteTest() throws IOException, InterruptedException {
+  public void simpleWriteTest() throws Exception {
     long start = System.currentTimeMillis();
     port = Utils.findTCPPort();
-    SSLServer server = new SSLServer("localhost", port, sslCtx, true);
+    SSLServer server = new SSLServer(SE.createTCPServer("localhost", port), sslCtx, true);
     serverFC.addTCPServer(server);
     
-    final SSLClient client = new SSLClient("localhost", port);
-    SE.addClient(client);
+    final SSLClient client = new SSLClient(SE.createTCPClient("localhost", port));
+    client.connect().get(5000, TimeUnit.MILLISECONDS);
     client.doHandShake();
     System.out.println(System.currentTimeMillis()-start);
     
@@ -95,9 +95,10 @@ public class SSLTests {
         return serverFC.clients.size() == 1;
       }
     }.blockTillTrue(5000);
-    SSLClient sclient = (SSLClient) serverFC.clients.get(0);
+    final SSLClient sclient = (SSLClient) serverFC.clients.get(0);
     
     serverFC.addTCPClient(client);
+    
 
     new TestCondition(){
       @Override
@@ -110,7 +111,7 @@ public class SSLTests {
       public boolean get() {
         return client.isEncrypted();
       }
-    }.blockTillTrue(5000);
+    }.blockTillTrue(5000, 10);
     assertTrue(client.isEncrypted());
     assertTrue(sclient.isEncrypted());
     System.out.println("Write");
@@ -129,12 +130,13 @@ public class SSLTests {
 
   @Test
   public void sslClientTimeout() throws IOException, InterruptedException, ExecutionException {
-    TCPServer server = new TCPServer("localhost", port);
+    TCPServer server = SE.createTCPServer("localhost", port);
     serverFC.addTCPServer(server);
     long start = System.currentTimeMillis();
     try {
-      final SSLClient client = new SSLClient("localhost", port, this.sslCtx.createSSLEngine("localhost", port), 200, false);
-      SE.addClient(client);
+      final SSLClient client = new SSLClient(SE.createTCPClient("localhost", port), this.sslCtx.createSSLEngine("localhost", port), false, true);
+      client.setConnectionTimeout(201);
+      client.connect();
       client.doHandShake().get();
       fail();
     } catch(CancellationException e) {
@@ -148,13 +150,12 @@ public class SSLTests {
   @Test
   public void largeWriteTest() throws Exception{
     
-    SSLServer server = new SSLServer("localhost", port, sslCtx, true);
+    SSLServer server = new SSLServer(SE.createTCPServer("localhost", port), sslCtx, true);
     serverFC.addTCPServer(server);
     
-    final SSLClient client = new SSLClient("localhost", port);
-    //client.connect();
+    final SSLClient client = new SSLClient(SE.createTCPClient("localhost", port));
+    client.connect();
     
-    SE.addClient(client);
     client.doHandShake().get(5000, TimeUnit.MILLISECONDS);
     client.write(TCPTests.LARGE_TEXT_BUFFER.duplicate());
     client.write(TCPTests.LARGE_TEXT_BUFFER.duplicate());
@@ -223,21 +224,20 @@ public class SSLTests {
     ServerSocketChannel socket = ServerSocketChannel.open();
     socket.socket().bind(new InetSocketAddress("localhost", port), 100);
     socket.configureBlocking(false);
-    SSLServer server = new SSLServer(socket, sslCtx, true);
+    SSLServer server = new SSLServer(SE.createTCPServer(socket), sslCtx, true);
     serverFC.addTCPServer(server);
     //System.out.println(serverFC);
     
-    final TCPClient tcp_client = new TCPClient("localhost", port);
-    SE.addClient(tcp_client);
+    final TCPClient tcp_client = SE.createTCPClient("localhost", port);
+    tcp_client.connect();
     new TestCondition(){
       @Override
       public boolean get() {
         return tcp_client.connect().isDone();
       }
     }.blockTillTrue(5000);
-    SE.removeClient(tcp_client);
-    final SSLClient client = new SSLClient(tcp_client, this.sslCtx.createSSLEngine("localhost", port), true, true);
-    
+    //SE.removeClient(tcp_client);
+    final SSLClient client = new SSLClient(tcp_client, this.sslCtx.createSSLEngine("localhost", port), false, true);
     //System.out.println(serverFC);
     new TestCondition(){
       @Override
@@ -254,11 +254,9 @@ public class SSLTests {
         return serverFC.clients.size() == 1;
       }
     }.blockTillTrue(5000);
-    //System.out.println("Writting");
     serverFC.addTCPClient(client);
     client.doHandShake().get(5000, TimeUnit.MILLISECONDS);
     sclient.write(TCPTests.SMALL_TEXT_BUFFER.duplicate());
-    //System.out.println("Wrote");
     new TestCondition(){
       @Override
       public boolean get() {
@@ -280,45 +278,45 @@ public class SSLTests {
   }
   
   
-  @Test(expected=IllegalStateException.class)
-  public void useTCPClientPendingReads() throws IOException {
-    TCPServer server = new TCPServer("localhost", port);
-    serverFC.addTCPServer(server);
-    
-    final TCPClient tcp_client = new TCPClient("localhost", port);
-    //serverFC.addTCPClient(tcp_client);
-    SE.addClient(tcp_client);
-    tcp_client.setReader(new Reader() {
-      @Override
-      public void onRead(Client client) {
-        System.out.println("GOT READ");
-        //We do nothing here
-      }});
-    
-    new TestCondition(){
-      @Override
-      public boolean get() {
-        return serverFC.clients.size() == 1;
-      }
-    }.blockTillTrue(5000);
-    TCPClient sclient = (TCPClient) serverFC.clients.get(0);
-
-    sclient.write(TCPTests.SMALL_TEXT_BUFFER.duplicate());
-    
-    new TestCondition(){
-      @Override
-      public boolean get() {
-        return tcp_client.getReadBufferSize() > 0;
-      }
-    }.blockTillTrue(5000);
-    
-    final SSLClient client = new SSLClient(tcp_client, this.sslCtx.createSSLEngine("localhost", port), true, true);
-    client.close();
-  }
+//  @Test(expected=IllegalStateException.class)
+//  public void useTCPClientPendingReads() throws IOException {
+//    TCPServer server = SE.createTCPServer("localhost", port);
+//    serverFC.addTCPServer(server);
+//    
+//    final TCPClient tcp_client = SE.createTCPClient("localhost", port);
+//    //serverFC.addTCPClient(tcp_client);
+//    SE.addClient(tcp_client);
+//    tcp_client.setReader(new Reader() {
+//      @Override
+//      public void onRead(Client client) {
+//        System.out.println("GOT READ");
+//        //We do nothing here
+//      }});
+//    
+//    new TestCondition(){
+//      @Override
+//      public boolean get() {
+//        return serverFC.clients.size() == 1;
+//      }
+//    }.blockTillTrue(5000);
+//    TCPClient sclient = (TCPClient) serverFC.clients.get(0);
+//
+//    sclient.write(TCPTests.SMALL_TEXT_BUFFER.duplicate());
+//    
+//    new TestCondition(){
+//      @Override
+//      public boolean get() {
+//        return tcp_client.getReadBufferSize() > 0;
+//      }
+//    }.blockTillTrue(5000);
+//    
+//    final SSLClient client = new SSLClient(tcp_client, this.sslCtx.createSSLEngine("localhost", port), true, true);
+//    client.close();
+//  }
   
   @Test
-  public void doLateSSLhandshake() throws IOException, InterruptedException {
-    SSLServer server = new SSLServer("localhost", port, sslCtx, false);
+  public void doLateSSLhandshake() throws IOException, InterruptedException, ExecutionException {
+    SSLServer server = new SSLServer(SE.createTCPServer("localhost", port), sslCtx, false);
     final AtomicReference<SSLClient> servers_client = new AtomicReference<SSLClient>();
     final AtomicReference<String> serversEncryptedString = new AtomicReference<String>();
     final AtomicReference<String> clientsEncryptedString = new AtomicReference<String>();
@@ -354,11 +352,11 @@ public class SSLTests {
               }
             }
           }});
-        SE.addClient(sslc);
+          //SE.addClient(sslc.getTCPClient());
       }});
-    SE.addServer(server);
+    server.start();
     
-    final SSLClient sslclient = new SSLClient("localhost", port, this.sslCtx.createSSLEngine("localhost", port), SSLClient.DEFAULT_SOCKET_TIMEOUT, false);
+    final SSLClient sslclient = new SSLClient(SE.createTCPClient("localhost", port), this.sslCtx.createSSLEngine("localhost", port), false, true);
     sslclient.setReader(new Reader() {
       MergedByteBuffers mbb = new MergedByteBuffers();
       boolean didSSL = false;
@@ -386,17 +384,25 @@ public class SSLTests {
         }
       }});
     System.out.println(sslclient);
-    SE.addClient(sslclient);
+    try {
+      sslclient.connect().get();
+    } catch (ExecutionException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
     //System.out.println("WRITE!!");
-    sslclient.write(ByteBuffer.wrap("DO_SSL".getBytes()));
+    sslclient.write(ByteBuffer.wrap("DO_SSL".getBytes())).get();
     
     
     new TestCondition(){
       @Override
       public boolean get() {
+        if(servers_client.get() != null) {
+          System.out.println(servers_client.get().getReadBufferSize());
+        }
         return clientsEncryptedString.get() != null && serversEncryptedString.get() != null;
       }
-    }.blockTillTrue(10000);
+    }.blockTillTrue(5000, 100);
     assertEquals(clientsEncryptedString.get(), serversEncryptedString.get());
   }
 }

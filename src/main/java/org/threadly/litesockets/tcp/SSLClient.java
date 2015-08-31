@@ -5,10 +5,13 @@ import static javax.net.ssl.SSLEngineResult.HandshakeStatus.NEED_TASK;
 import static javax.net.ssl.SSLEngineResult.HandshakeStatus.NEED_WRAP;
 
 import java.io.IOException;
+import java.net.Socket;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.net.ssl.SSLEngine;
@@ -23,8 +26,11 @@ import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
-import org.threadly.litesockets.SocketExecuterInterface;
+import org.threadly.litesockets.SocketExecuter;
+import org.threadly.litesockets.ThreadedSocketExecuter;
+import org.threadly.litesockets.WireProtocol;
 import org.threadly.litesockets.utils.MergedByteBuffers;
+import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.ExceptionUtils;
 
 /**
@@ -33,20 +39,23 @@ import org.threadly.util.ExceptionUtils;
  * 
  * @author lwahlmeier
  */
-public class SSLClient extends TCPClient {
+public class SSLClient extends Client {
   public static final int EXTRA_BUFFER_AMOUNT = 50;
   public static final int PREALLOCATE_BUFFER_MULTIPLIER = 3;
   
+  private final TCPClient client;
   private final AtomicBoolean finishedHandshake = new AtomicBoolean(false);
   private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
   private final boolean connectHandshake;
   private final MergedByteBuffers decryptedReadList = new MergedByteBuffers();
-  private final Reader classReader = new SSLReader();
+  private final Reader tcpReader = new SSLReader();
+  private final Closer tcpCloser = new SSLCloser();
   private final SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>(false);
   private final SSLEngine ssle;
   private final ByteBuffer encryptedReadBuffer;
 
   private volatile Reader sslReader;
+  protected volatile Closer sslCloser;
   private ByteBuffer writeBuffer;
   
   private ByteBuffer decryptedReadBuffer;
@@ -61,38 +70,38 @@ public class SSLClient extends TCPClient {
    * @param host The host or IP to connect to.
    * @param port The port on the host to connect to.
    */
-  public SSLClient(String host, int port) {
-    this(host, port, SSLUtils.OPEN_SSL_CTX.createSSLEngine(host, port));
+  public SSLClient(TCPClient client) {
+    this(client, SSLUtils.OPEN_SSL_CTX.createSSLEngine(client.host, client.port));
   }
 
   /**
    * <p>This simple SSLConstructor.  It allows you to specify the SSLEngine to use to allow you to
    * validate the servers certs with the parameters you decide.</p>
    * 
-   * <p>Because we are making the connection this is always a "ClientSide" connection.</p>
+   * <p>Because we are making the connection this way is always a "ClientSide" connection.</p>
    *  
    * @param host The host or IP to connect to.
    * @param port The port on the host to connect to.
    * @param ssle The SSLEngine to use for the connection.
    */
-  public SSLClient(String host, int port, SSLEngine ssle) {
-    this(host, port, ssle, TCPClient.DEFAULT_SOCKET_TIMEOUT);
+  public SSLClient(TCPClient client, SSLEngine ssle) {
+    this(client, ssle, true, true);
   }
+  
 
   /**
-   * <p>This constructor allows you to specify the SSLEngine to use to
-   * validate the server certs with the parameters you decide.  
-   * It also allows you to set the timeout values.</p>
+   * <p>This constructor is for already existing connections. It also allows you to specify the SSLEngine 
+   * to use to allow you to validate the servers certs with the parameters you decide.</p>
    * 
    * <p>Because we are making the connection this is always a "ClientSide" connection.</p>
    *  
-   * @param host The host or IP to connect to.
-   * @param port The port on the host to connect to.
+   * @param client The SocketChannel to use for the SSLClient.
    * @param ssle The SSLEngine to use for the connection.
-   * @param timeout This is the connection timeout.  It is used for the actual connection timeout and separately for the SSLHandshake.
+   * @param clientSSL Set this to true if this is a client side connection, false if its server side.
+   * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
    */
-  public SSLClient(String host, int port, SSLEngine ssle, int timeout){
-    this(host, port, ssle, TCPClient.DEFAULT_SOCKET_TIMEOUT, true);
+  public SSLClient(SocketExecuter sei, SocketChannel channel, SSLEngine ssle, boolean doHandshake, boolean clientMode) throws IOException {
+    this(new TCPClient(sei, channel), ssle, doHandshake, clientMode);
   }
 
   /**
@@ -107,94 +116,21 @@ public class SSLClient extends TCPClient {
    * @param timeout This is the connection timeout.  It is used for the actual connection timeout and separately for the SSLHandshake.
    * @param doHandshake This allows you to delay the handshake till a later negotiated time.
    */
-  public SSLClient(String host, int port, SSLEngine ssle, int timeout, boolean doHandshake){
-    super(host, port, timeout);
+  public SSLClient(TCPClient client, SSLEngine ssle, boolean doHandshake, boolean clientMode){
+    this.client = client;
     this.ssle = ssle;
-    ssle.setUseClientMode(true);
+    ssle.setUseClientMode(clientMode);
+    if(client.getReader() != null) {
+      this.setReader(client.getReader());
+    }
+    if(client.getCloser() != null) {
+      this.setCloser(client.getCloser());
+    }
+    
     connectHandshake = doHandshake;
-    super.setReader(classReader);
-    encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+EXTRA_BUFFER_AMOUNT);
-  }
-
-  /**
-   * <p>This constructor is for already existing connections. It also allows you to specify the SSLEngine 
-   * to use to allow you to validate the servers certs with the parameters you decide.</p>
-   * 
-   * <p>Because we are making the connection this is always a "ClientSide" connection.</p>
-   *  
-   * @param client The SocketChannel to use for the SSLClient.
-   * @param ssle The SSLEngine to use for the connection.
-   * @param clientSSL Set this to true if this is a client side connection, false if its server side.
-   * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
-   */
-  public SSLClient(SocketChannel client, SSLEngine ssle, boolean clientSSL) throws IOException {
-    this(client, ssle, clientSSL, true);
-  }
-
-  /**
-   * <p>This constructor is for already existing connections. It also allows you to specify the SSLEngine 
-   * to use to allow you to validate the servers certs with the parameters you decide.</p>
-   * 
-   * <p>Because we are making the connection this is always a "ClientSide" connection.</p>
-   *  
-   * @param client The SocketChannel to use for the SSLClient.
-   * @param ssle The SSLEngine to use for the connection.
-   * @param clientSSL Set this to true if this is a client side connection, false if its server side.
-   * @param doHandshake This allows you to delay the handshake till a later negotiated time.
-   * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
-   */
-  public SSLClient(SocketChannel client, SSLEngine ssle, boolean clientSSL, boolean doHandshake) throws IOException {
-    super(client);
-    this.ssle = ssle;
-    this.connectHandshake = doHandshake;
-    ssle.setUseClientMode(clientSSL);
-    if(doHandshake) {
-      doHandShake();
-    }
-    super.setReader(classReader);
-    encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+EXTRA_BUFFER_AMOUNT);
-  }
-
-  /**
-   * <p>This constructor is for already existing connections. It also allows you to specify the SSLEngine 
-   * to use to allow you to validate the servers certs with the parameters you decide.</p>
-   * 
-   * <p>Because we are making the connection this is always a "ClientSide" connection.</p>
-   *  
-   * @param client The TCPClient to use for the SSLClient.
-   * @param ssle The SSLEngine to use for the connection.
-   * @param clientSSL Set this to true if this is a client side connection, false if its server side.
-   * @param doHandshake This allows you to delay the handshake till a later negotiated time.
-   * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
-   */
-  public SSLClient(TCPClient client, SSLEngine ssle, boolean clientSSL, boolean doHandshake) throws IOException {
-    super(client.getChannel());
-    if(client.getReadBufferSize() > 0 || client.getWriteBufferSize() > 0) {
-      throw new IllegalStateException("Can not add a TCPClient with pending Reads or Writes!");
-    }
-    if(client.isClosed()) {
-      throw new IllegalStateException("Can not add closed TCPClient to sslConstructor");
-    }
-    startedConnection.set(true);
-    client.markClosed();
-    setCloser(client.getCloser());
-    setReader(client.getReader());
-    this.ssle = ssle;
-    ssle.setUseClientMode(clientSSL);
-    this.connectHandshake = doHandshake;
-    if(doHandshake) {
-      doHandShake();
-    }
-    super.setReader(classReader);
-    encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+EXTRA_BUFFER_AMOUNT);
-  }
-  
-  @Override
-  public ListenableFuture<Boolean> connect(){
-    super.connect();
     if(connectHandshake) {
       doHandShake();
-      connectionFuture.addCallback(new FutureCallback<Boolean>() {
+      client.connectionFuture.addCallback(new FutureCallback<Boolean>() {
         @Override
         public void handleResult(Boolean result) {
         }
@@ -203,7 +139,15 @@ public class SSLClient extends TCPClient {
           handshakeFuture.setFailure(t);
         }});
     }
-    return connectionFuture;
+    client.setReader(tcpReader);
+    client.setCloser(tcpCloser);
+    encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+EXTRA_BUFFER_AMOUNT);
+  }
+
+  
+  @Override
+  public ListenableFuture<Boolean> connect(){
+    return client.connect();
   }
 
   private ByteBuffer getDecryptedByteBuffer() {
@@ -242,19 +186,9 @@ public class SSLClient extends TCPClient {
       if(ssle.getHandshakeStatus() == NEED_WRAP) {
         write(ByteBuffer.allocate(0));
       }
-      if(this.seb != null) {
-        seb.watchFuture(handshakeFuture, maxConnectionTime);
-      }
+      client.getClientsSocketExecuter().watchFuture(handshakeFuture, client.getTimeout());
     }
     return handshakeFuture;
-  }
-
-  @Override
-  protected void setClientsSocketExecuter(SocketExecuterInterface sei) {
-    super.setClientsSocketExecuter(sei);
-    if(startedHandshake.get() && !handshakeFuture.isDone()) {
-      seb.watchFuture(handshakeFuture, maxConnectionTime);
-    }
   }
 
   private void runTasks() {
@@ -275,13 +209,13 @@ public class SSLClient extends TCPClient {
   
   @Override
   public int getWriteBufferSize() {
-    return super.getWriteBufferSize();
+    return client.getWriteBufferSize();
   }
 
   @Override
   public ListenableFuture<?> write(ByteBuffer buffer) {
     if(!isClosed() && !startedHandshake.get()){
-      return super.write(buffer);
+      return client.write(buffer);
     } else if(!isClosed() && startedHandshake.get() && !finishedHandshake.get() && buffer.hasRemaining()) {
       throw new IllegalStateException("Can not write until handshake is finished!");
     }
@@ -306,7 +240,7 @@ public class SSLClient extends TCPClient {
           }
           if(tmpBB.hasRemaining()) {
             tmpBB.limit(newBB.position());
-            ListenableFuture<?> lf = super.write(tmpBB);
+            ListenableFuture<?> lf = client.write(tmpBB);
             fl.add(lf);
           }
         } catch(Exception e) {
@@ -336,12 +270,33 @@ public class SSLClient extends TCPClient {
   }
 
   @Override
-  public void setReader(Reader reader) {
-    this.sslReader = reader;
+  public void setReader(final Reader reader) {
+    if(!client.isClosed()) {
+      this.sslReader = reader;
+      synchronized(decryptedReadList) {
+        if(this.decryptedReadList.remaining() > 0) {
+          client.getClientsThreadExecutor().execute(new Runnable() {
+            @Override
+            public void run() {
+              reader.onRead(SSLClient.this);
+            }});
+        }
+      }
+    }
+  }
+  
+  @Override
+  public void setCloser(Closer closer) {
+    this.sslCloser = closer;
+  }
+  
+  @Override
+  public Closer getCloser() {
+    return sslCloser;
   }
 
   private void doRead() {
-    MergedByteBuffers clientBuffer = super.getRead();
+    MergedByteBuffers clientBuffer = client.getRead();
     if(this.startedHandshake.get()) {
       try {
         while(clientBuffer.remaining() > 0) {
@@ -366,10 +321,11 @@ public class SSLClient extends TCPClient {
             newBB.limit(dbb.position());
             encryptedReadBuffer.compact();
             if(newBB.hasRemaining()) {
+              int size = decryptedReadList.remaining();
               Reader lreader = sslReader;
-              if(lreader != null) {
+              decryptedReadList.add(newBB);
+              if( size == 0 && lreader != null) {
                 //Sync not needed here, this is only accessed by ReadThread.
-                decryptedReadList.add(newBB);
                 lreader.onRead(this);
               }
             } else if (res.getStatus() == Status.BUFFER_UNDERFLOW || encryptedReadBuffer.remaining() == 0){
@@ -384,7 +340,9 @@ public class SSLClient extends TCPClient {
       }
     } else {
       decryptedReadList.add(clientBuffer);
-      sslReader.onRead(this);
+      if(sslReader != null) {
+        sslReader.onRead(this);
+      }
     }
   }
 
@@ -410,6 +368,126 @@ public class SSLClient extends TCPClient {
 
     }
   }
+
+
+  @Override
+  protected boolean canRead() {
+    return client.canRead();
+  }
+
+  @Override
+  protected boolean canWrite() {
+    return client.canWrite();
+  }
+
+  @Override
+  public boolean hasConnectionTimedOut() {
+    return client.hasConnectionTimedOut();
+  }
+
+  @Override
+  protected void setConnectionStatus(Throwable t) {
+    client.setConnectionStatus(t);
+  }
+
+  @Override
+  public int getTimeout() {
+    return client.getTimeout();
+  }
+
+  @Override
+  protected ByteBuffer provideReadByteBuffer() {
+    return client.provideReadByteBuffer();
+  }
+
+  @Override
+  public int getReadBufferSize() {
+    return client.getReadBufferSize() + this.decryptedReadList.remaining();
+  }
+
+  @Override
+  public int getMaxBufferSize() {
+    return client.getMaxBufferSize();
+  }
+
+  @Override
+  public Executor getClientsThreadExecutor() {
+    return client.getClientsThreadExecutor();
+  }
+
+  @Override
+  public SocketExecuter getClientsSocketExecuter() {
+    return client.getClientsSocketExecuter();
+  }
+
+  @Override
+  public Reader getReader() {
+    return sslReader;
+  }
+
+  @Override
+  public void setMaxBufferSize(int size) {
+    client.setMaxBufferSize(size);
+  }
+
+  @Override
+  protected void addReadBuffer(ByteBuffer bb) {
+
+  }
+
+  @Override
+  protected ByteBuffer getWriteBuffer() {
+    return ByteBuffer.allocate(0);
+  }
+
+  @Override
+  protected void reduceWrite(int size) {
+  }
+
+  @Override
+  protected SocketChannel getChannel() {
+    return client.getChannel();
+  }
+
+  @Override
+  public WireProtocol getProtocol() {
+    return WireProtocol.FAKE;
+  }
+
+  @Override
+  protected Socket getSocket() {
+    return client.getSocket();
+  }
+
+  @Override
+  public boolean isClosed() {
+    return client.isClosed();
+  }
+
+  @Override
+  public void close() {
+    client.close();
+  }
+
+  @Override
+  public SocketAddress getRemoteSocketAddress() {
+    return client.getRemoteSocketAddress();
+  }
+
+  @Override
+  public SocketAddress getLocalSocketAddress() {
+    return client.getLocalSocketAddress();
+  }
+
+  @Override
+  public SimpleByteStats getStats() {
+    return client.getStats();
+  }
+  
+  public TCPClient getTCPClient() {
+    return client;
+  }
+  
   
   /**
    * Reader for SSLClient.  This is used to read from the TCPClient into the SSLClient. 
@@ -419,6 +497,23 @@ public class SSLClient extends TCPClient {
     public void onRead(Client client) {
       doRead();
     }
+  }
+  
+  /**
+   * Reader for SSLClient.  This is used to read from the TCPClient into the SSLClient. 
+   */
+  private class SSLCloser implements Closer {
+    @Override
+    public void onClose(Client client) {
+      if(sslCloser != null) {
+        sslCloser.onClose(SSLClient.this);
+      }
+    }
+  }
+
+  @Override
+  public void setConnectionTimeout(int timeout) {
+    client.setConnectionTimeout(timeout);
   }
     
 }

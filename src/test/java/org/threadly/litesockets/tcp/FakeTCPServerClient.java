@@ -9,16 +9,16 @@ import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server;
 import org.threadly.litesockets.Server.ClientAcceptor;
 import org.threadly.litesockets.Server.ServerCloser;
-import org.threadly.litesockets.SocketExecuterInterface;
+import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 
 public class FakeTCPServerClient implements Reader, Closer, ClientAcceptor, ServerCloser{
-  public SocketExecuterInterface se;
+  public SocketExecuter se;
   public ConcurrentHashMap<Client, MergedByteBuffers> map = new ConcurrentHashMap<Client, MergedByteBuffers>();
   public ArrayList<Client> clients = new ArrayList<Client>();
   public ArrayList<Server> servers = new ArrayList<Server>();
 
-  public FakeTCPServerClient(SocketExecuterInterface se) {
+  public FakeTCPServerClient(SocketExecuter se) {
     this.se = se;
   }
 
@@ -43,29 +43,30 @@ public class FakeTCPServerClient implements Reader, Closer, ClientAcceptor, Serv
 
   @Override
   public void accept(Client sc) {
-    TCPClient client;
-    client = (TCPClient)sc;
-    if(sc instanceof SSLClient) {
-      SSLClient sslc = (SSLClient)sc;
-      sslc.doHandShake();
-    }
-    addTCPClient(client);
+
+    addTCPClient(sc);
   }
   
-  public void addTCPServer(TCPServer server) {
+  public void addTCPServer(Server server) {
     servers.add(server);
     server.setCloser(this);
     server.setClientAcceptor(this);
-    se.addServer(server);
+    server.start();
   }
   
-  public void addTCPClient(TCPClient client) {
+  public void addTCPClient(Client client) {
     MergedByteBuffers mbb = map.putIfAbsent(client, new MergedByteBuffers());
     clients.add(client);
     System.out.println("Accepted new Client!:"+map.size()+":"+client+":"+mbb);
     client.setReader(this);
     client.setCloser(this);
-    se.addClient(client);
+    if(client instanceof SSLClient) {
+      SSLClient sslc = (SSLClient)client;
+      sslc.doHandShake();
+      sslc.getTCPClient().connect();
+    } else {
+      client.connect();      
+    }
   }
 
 }

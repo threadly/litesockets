@@ -37,7 +37,5 @@ public class NoThreadSocketExecuterTests {
     assertTrue(sts.isShutdown());
     ntse.stop();
     assertFalse(ntse.isRunning());
-    //woot branch
-    ntse.wakeup();
   }
 }

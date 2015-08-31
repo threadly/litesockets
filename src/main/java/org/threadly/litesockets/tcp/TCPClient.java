@@ -9,15 +9,14 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
-import org.threadly.litesockets.SocketExecuterInterface;
-import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
+import org.threadly.litesockets.SocketExecuter;
+import org.threadly.litesockets.WireProtocol;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.ArgumentVerifier;
@@ -28,7 +27,6 @@ import org.threadly.util.Clock;
  * from a client from a {@link TCPServer}, and both function the same way.
  *   
  */
-@SuppressWarnings("deprecation")
 public class TCPClient extends Client {
   /**
    * The default SocketConnection time out (10 seconds).
@@ -57,19 +55,19 @@ public class TCPClient extends Client {
   protected final String host;
   protected final int port;
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
-  protected final int maxConnectionTime;
   protected final AtomicBoolean startedConnection = new AtomicBoolean(false);
   protected final SettableListenableFuture<Boolean> connectionFuture = new SettableListenableFuture<Boolean>(false);
+  protected final SocketExecuter sei;
+  protected final Executor cexec;
+  protected final SocketChannel channel;
 
-  protected volatile SocketChannel channel;
+  protected volatile int maxConnectionTime = DEFAULT_SOCKET_TIMEOUT;
   protected volatile int maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;
   protected volatile int minAllowedReadBuffer = MIN_READ_BUFFER_SIZE;
   protected volatile int newReadBuffer = NEW_READ_BUFFER_SIZE;
   
   protected volatile Closer closer;
   protected volatile Reader reader;
-  protected volatile Executor cexec;
-  protected volatile SocketExecuterInterface seb;
   protected volatile long connectExpiresAt = -1;
   protected ClientByteStats stats = new ClientByteStats();
   protected AtomicBoolean closed = new AtomicBoolean(false);
@@ -80,28 +78,21 @@ public class TCPClient extends Client {
 
 
   /**
-   * This creates a connection to the specified port and IP.
-   * 
-   * @param host hostname or ip address to connect too.
-   * @param port port on that host to try and connect too.
-   */
-  public TCPClient(String host, int port){
-    this(host, port, DEFAULT_SOCKET_TIMEOUT);
-  }
-
-  /**
    * This creates TCPClient with a connection to the specified port and IP.  This connection is not is not
-   * yet made {@link #connect()} must be called, or the client can be added to a {@link SocketExecuterInterface} with 
-   * {@link SocketExecuterInterface#addClient(Client)} which will do the connect.
+   * yet made {@link #connect()} must be called, or the client can be added to a {@link SocketExecuter} with 
+   * {@link SocketExecuter#addClient(Client)} which will do the connect.
    * 
    * @param host hostname or ip address to connect too.
    * @param port port on that host to try and connect too.
-   * @param timeout this is the max amount of time we will wait for a connection to be made.  The default is 10000 milliseconds (10 seconds).
+   * @throws IOException 
    */
-  public TCPClient(String host, int port, int timeout) {
-    maxConnectionTime = timeout;
+  public TCPClient(SocketExecuter sei, String host, int port) throws IOException {
+    this.sei = sei;
     this.host = host;
     this.port = port;
+    this.channel = SocketChannel.open();
+    channel.configureBlocking(false);
+    cexec = sei.getExecutorFor(this);
     remoteAddress = new InetSocketAddress(host, port);
   }
 
@@ -112,8 +103,9 @@ public class TCPClient extends Client {
    * @param channel the {@link SocketChannel} to use for this client.
    * @throws IOException if there is anything wrong with the {@link SocketChannel} this will be thrown.
    */
-  public TCPClient(SocketChannel channel) throws IOException {
-    maxConnectionTime = DEFAULT_SOCKET_TIMEOUT;
+  public TCPClient(SocketExecuter sei, SocketChannel channel) throws IOException {
+    this.sei = sei;
+    cexec = sei.getExecutorFor(this);
     if(! channel.isOpen()) {
       throw new ClosedChannelException();
     }
@@ -128,26 +120,20 @@ public class TCPClient extends Client {
     startedConnection.set(true);
   }
   
-  /**
-   * This is used by {@link org.threadly.litesockets.tcp.SSLClient} to close the TCPClient object w/o closing its backing {@link SocketChannel}.
-   * This will make this {@link TCPClient} unusable.
-   */
-  protected void markClosed() {
-    if(closed.compareAndSet(false, true)) {
-      if(seb != null) {
-        seb.removeClient(this);
-      }
-    }
+  @Override
+  public void setConnectionTimeout(int timeout) {
+    ArgumentVerifier.assertNotNegative(timeout, "Timeout");
+    this.maxConnectionTime = timeout;
   }
   
   @Override
   public ListenableFuture<Boolean> connect(){
     if(startedConnection.compareAndSet(false, true)) {
       try {
-        channel = SocketChannel.open();
-        channel.configureBlocking(false);
         channel.connect(new InetSocketAddress(host, port));
         connectExpiresAt = maxConnectionTime + Clock.lastKnownForwardProgressingMillis();
+        sei.setClientOperations(this);
+        sei.watchFuture(connectionFuture, maxConnectionTime);
       } catch (Exception e) {
         connectionFuture.setFailure(e);
         close();
@@ -201,6 +187,7 @@ public class TCPClient extends Client {
   @Override
   public void close() {
     if(closed.compareAndSet(false, true)) {
+      sei.setClientOperations(this);
       for(Pair p: this.writeFutures) {
         p.slf.setFailure(new ClosedChannelException());
       }
@@ -209,9 +196,6 @@ public class TCPClient extends Client {
         writeBuffers.discard(this.writeBuffers.remaining());
       }
       try {
-        if(seb != null) {
-          seb.removeClient(this);
-        }
         channel.close();
       } catch (IOException e) {
         //we dont care
@@ -229,9 +213,18 @@ public class TCPClient extends Client {
   }
 
   @Override
-  public void setReader(Reader reader) {
+  public void setReader(final Reader reader) {
     if(! closed.get()) {
       this.reader = reader;
+      synchronized(readBuffers) {
+        if(this.readBuffers.remaining() > 0) {
+          cexec.execute(new Runnable() {
+            @Override
+            public void run() {
+              reader.onRead(TCPClient.this);
+            }});
+        }
+      }
     }
   }
 
@@ -241,9 +234,15 @@ public class TCPClient extends Client {
   }
 
   @Override
-  public void setCloser(Closer closer) {
+  public void setCloser(final Closer closer) {
     if(! closed.get()) {
       this.closer = closer;
+    } else {
+      cexec.execute(new Runnable() {
+        @Override
+        public void run() {
+          closer.onClose(TCPClient.this);
+        }});
     }
   }
 
@@ -272,7 +271,7 @@ public class TCPClient extends Client {
 
   @Override
   protected boolean canWrite() {
-    return writeBuffers.remaining() > 0;
+    return writeBuffers.remaining() > 0 ;
   }
 
   @Override
@@ -302,32 +301,18 @@ public class TCPClient extends Client {
   public Executor getClientsThreadExecutor() {
     return this.cexec;
   }
-  
-  @Override
-  protected void setClientsThreadExecutor(Executor cte) {
-    if(cte != null) {
-      this.cexec = cte;
-    }
-  }
 
   @Override
-  public SocketExecuterInterface getClientsSocketExecuter() {
-    return seb;
-  }
-  
-  @Override
-  protected void setClientsSocketExecuter(SocketExecuterInterface seb) {
-    if(seb != null) {
-      this.seb = seb;
-    }
+  public SocketExecuter getClientsSocketExecuter() {
+    return sei;
   }
 
   @Override
   public void setMaxBufferSize(int size) {
     ArgumentVerifier.assertNotNegative(size, "size");
     maxBufferSize = size;
-    if(this.seb != null) {
-      this.seb.flagNewRead(this);
+    if(channel.isConnected()) {
+      this.sei.setClientOperations(this);
       synchronized (writeBuffers) {
         writeBuffers.notifyAll();
       }
@@ -344,7 +329,7 @@ public class TCPClient extends Client {
       mbb = readBuffers.duplicateAndClean();
     }
     if(mbb.remaining() >= maxBufferSize) {
-      seb.flagNewRead(this);
+      sei.setClientOperations(this);
     }
     return mbb;
   }
@@ -352,18 +337,16 @@ public class TCPClient extends Client {
   @Override
   protected void addReadBuffer(ByteBuffer bb) {
     stats.addRead(bb.remaining());
-    final Reader lreader = reader;
-    if(lreader != null) {
-      synchronized(readBuffers) {
-        int start = readBuffers.remaining();
-        readBuffers.add(bb);
-        if(start == 0){
-          cexec.execute(new Runnable() {
-            @Override
-            public void run() {
-              lreader.onRead(TCPClient.this);
-            }});
-        }
+    synchronized(readBuffers) {
+      int start = readBuffers.remaining();
+      final Reader lreader = reader;
+      readBuffers.add(bb);
+      if(start == 0 && lreader != null){
+        cexec.execute(new Runnable() {
+          @Override
+          public void run() {
+            lreader.onRead(TCPClient.this);
+          }});
       }
     }
   }
@@ -378,34 +361,11 @@ public class TCPClient extends Client {
       SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>();
       writeBuffers.add(bb);
       this.writeFutures.add(new Pair(writeBuffers.getTotalConsumedBytes()+writeBuffers.remaining(), slf));
-      if(needNotify && seb != null && channel.isConnected()) {
-        seb.flagNewWrite(this);
+      if(needNotify && sei != null && channel.isConnected()) {
+        sei.setClientOperations(this);
       }
       return slf;
     }
-  }
-  
-  @Override
-  public boolean writeTry(ByteBuffer bb) {
-    if(writeBuffers.remaining() > this.maxBufferSize) {
-      return false;
-    }
-    write(bb);
-    return true;
-  }
-
-  @Override
-  public void writeBlocking(ByteBuffer bb) throws InterruptedException {
-    try {
-      write(bb).get();
-    } catch (ExecutionException e) {
-
-    }
-  }
-
-  @Override
-  public void writeForce(ByteBuffer bb) {
-    write(bb);
   }
 
   @Override
@@ -434,7 +394,6 @@ public class TCPClient extends Client {
     synchronized(writeBuffers) {
       stats.addWrite(size);
       if(currentWriteBuffer.remaining() == 0) {
-        System.out.println(writeFutures.peekFirst().size+":"+writeBuffers.getTotalConsumedBytes());
         while(this.writeFutures.peekFirst() != null && writeFutures.peekFirst().size <= writeBuffers.getTotalConsumedBytes()) {
           Pair p = writeFutures.pollFirst();
           p.slf.setResult(p.size);

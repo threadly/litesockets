@@ -12,7 +12,7 @@ import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.Closer;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server.ClientAcceptor;
-import org.threadly.litesockets.SocketExecuterInterface;
+import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.tcp.TCPServer;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.util.AbstractService;
@@ -68,7 +68,7 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
   }
 
   private final SimpleSchedulerInterface scheduler;
-  private final SocketExecuterInterface socketEx;
+  private final SocketExecuter socketEx;
   private final ConcurrentHashMap<Client, MergedByteBuffers> clients = new ConcurrentHashMap<Client, MergedByteBuffers>();
   private final Profiler profiler;
   private final String host;
@@ -84,7 +84,8 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
    * @param port the port to use.
    * @param frequency the frequency of the profiler in ms. 
    */
-  public ProfileServer(SocketExecuterInterface socketEx, String host, int port, int frequency) {
+  public ProfileServer(SocketExecuter socketEx, String host, int port, int frequency) {
+    socketEx.startIfNotStarted();
     scheduler = socketEx.getThreadScheduler();
     this.socketEx = socketEx;
     profiler = new Profiler(frequency);
@@ -146,7 +147,7 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
       clients.put(client, new MergedByteBuffers());
       client.setReader(this);
       client.setCloser(this);
-      socketEx.addClient(client);
+      //socketEx.addClient(client);
     } catch (Exception e) {
       ExceptionUtils.handleException(e);
     }
@@ -192,10 +193,9 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
   @Override
   protected void startupService() {
     try {
-      server = new TCPServer(host, port);
+      server = socketEx.createTCPServer(host, port);
       server.setClientAcceptor(this);
-      socketEx.startIfNotStarted();
-      socketEx.addServer(server);
+      server.start();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -204,7 +204,6 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
 
   @Override
   protected void shutdownService() {
-    socketEx.removeServer(server);
     profiler.stop();
     profiler.reset();
     server.close();

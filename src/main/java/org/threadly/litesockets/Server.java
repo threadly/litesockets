@@ -3,8 +3,6 @@ package org.threadly.litesockets;
 import java.nio.channels.SelectableChannel;
 import java.util.concurrent.Executor;
 
-import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
-
 /**
  * This is the main Server Interface for litesockets.  
  * 
@@ -18,28 +16,14 @@ import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
  */
 public abstract class Server {
   
-  /**
-   * <p>Sets the Thread {@link Executor} that this Server uses.  This is set by the {@link SocketExecuterInterface} but can be overridden with 
-   * little concern.</p>
-   * 
-   * @param executor A thread {@link Executor} that will be used by this Server object.
-   */
-  protected abstract void setThreadExecutor(Executor executor);
+  public abstract void start();
   
   /**
-   * <p>Sets the current {@link SocketExecuterInterface} for this Server to use.  This is set by {@link SocketExecuterInterface#addServer(Server)}
-   * and should probably not be changed.</p>
+   * <p>Gets the Current {@link SocketExecuter} this Server is assigned to.</p>
    * 
-   * @param se {@link SocketExecuterInterface} to set.
+   * @return the current {@link SocketExecuter} for this Server.
    */
-  protected abstract void setSocketExecuter(SocketExecuterInterface se);
-  
-  /**
-   * <p>Gets the Current {@link SocketExecuterInterface} this Server is assigned to.</p>
-   * 
-   * @return the current {@link SocketExecuterInterface} for this Server.
-   */
-  public abstract SocketExecuterInterface getSocketExecuter();
+  public abstract SocketExecuter getSocketExecuter();
   
   /**
    * <p>Get the current ServerCloser callback assigned to this Server.</p>
@@ -65,7 +49,7 @@ public abstract class Server {
   protected abstract void acceptChannel(SelectableChannel c);
   
   /**
-   * <p>This is used by the {@link SocketExecuterInterface} to know how to handle this Server 
+   * <p>This is used by the {@link SocketExecuter} to know how to handle this Server 
    * when its added to it.  Currently only UDP or TCP.</p>
    * 
    * @return returns the type of protocol this socket uses.
@@ -87,7 +71,7 @@ public abstract class Server {
   public abstract ClientAcceptor getClientAcceptor();
   
   /**
-   * <p>Set the {@link ClientAcceptor} for this Server.  This should be set before the Server is added to the {@link SocketExecuterInterface}.
+   * <p>Set the {@link ClientAcceptor} for this Server.  This should be set before the Server is added to the {@link SocketExecuter}.
    * If its not you could miss pending client connections.</p>
    *   
    * @param clientAcceptor Sets the {@link ClientAcceptor} callback for this server.
@@ -98,6 +82,8 @@ public abstract class Server {
    * <p>Close this servers Socket.  Once closed you must construct a new Server to open it again.</p>
    */
   public abstract void close();
+  
+  public abstract boolean isClosed();
   
   /**
    * <p>This is the ClientAcceptor callback for the {@link Server}.  This is called when a new {@link Client} is 

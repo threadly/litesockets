@@ -9,8 +9,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.litesockets.Server;
-import org.threadly.litesockets.SocketExecuterInterface;
-import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
+import org.threadly.litesockets.SocketExecuter;
+import org.threadly.litesockets.WireProtocol;
 
 /**
  * This is a {@link Server} implementation of a TCP Server.  {@link org.threadly.litesockets.Server.ClientAcceptor} calls by this server will
@@ -19,11 +19,12 @@ import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
  */
 public class TCPServer extends Server {
   private final ServerSocketChannel socket;
+  protected final Executor executor;
+  protected final SocketExecuter sei;
+  protected final AtomicBoolean closed = new AtomicBoolean(false);
+  
   private volatile ClientAcceptor clientAcceptor;
   private volatile ServerCloser closer;
-  protected volatile Executor sei;
-  protected volatile SocketExecuterInterface se;
-  protected AtomicBoolean closed = new AtomicBoolean(false);
 
   /**
    * Creates a new TCP Listen socket on the passed host/port.  This is Listen port is created
@@ -33,7 +34,9 @@ public class TCPServer extends Server {
    * @param port The port to use for the listen port.
    * @throws IOException This is throw if for any reason we can't create the listen port.
    */
-  public TCPServer(String host, int port) throws IOException {
+  public TCPServer(SocketExecuter se, String host, int port) throws IOException {
+    this.sei = se;
+    executor = se.getExecutorFor(this);
     socket = ServerSocketChannel.open();
     socket.socket().bind(new InetSocketAddress(host, port), 100);
     socket.configureBlocking(false);
@@ -45,24 +48,16 @@ public class TCPServer extends Server {
    * @param server The {@link ServerSocketChannel} to be used by this TCPServer. 
    * @throws IOException  If anything is wrong with the provided {@link ServerSocketChannel} this will be thrown.
    */
-  public TCPServer(ServerSocketChannel server) throws IOException{
+  public TCPServer(SocketExecuter se, ServerSocketChannel server) throws IOException{
+    this.sei = se;
+    executor = se.getExecutorFor(this);
     server.configureBlocking(false);
     socket = server;
   }
 
   @Override
-  public void setThreadExecutor(Executor sei) {
-    this.sei = sei;
-  }
-
-  @Override
-  public void setSocketExecuter(SocketExecuterInterface se) {
-    this.se = se;
-  }
-
-  @Override
-  public SocketExecuterInterface getSocketExecuter() {
-    return this.se;
+  public SocketExecuter getSocketExecuter() {
+    return this.sei;
   }
 
   @Override
@@ -83,6 +78,7 @@ public class TCPServer extends Server {
   @Override
   public void close() {
     if(closed.compareAndSet(false, true)) {
+      sei.stopListening(this);
       try {
         socket.close();
       } catch (IOException e) {
@@ -110,11 +106,11 @@ public class TCPServer extends Server {
 
   @Override
   public void acceptChannel(final SelectableChannel c) {
-    if(sei != null ) {
-      sei.execute(new Runnable() {
+    if(executor != null ) {
+      executor.execute(new Runnable() {
         public void run() {
           try {
-            TCPClient client = new TCPClient((SocketChannel)c);
+            TCPClient client = sei.createTCPClient((SocketChannel)c);
             if(clientAcceptor != null) {
               clientAcceptor.accept(client);
             }
@@ -127,12 +123,22 @@ public class TCPServer extends Server {
   }
 
   protected void callCloser() {
-    if(sei != null && closer != null) {
-      sei.execute(new Runnable() {
+    if(executor != null && closer != null) {
+      executor.execute(new Runnable() {
         @Override
         public void run() {
           getCloser().onClose(TCPServer.this);
         }});
     }
+  }
+
+  @Override
+  public void start() {
+    sei.startListening(this);
+  }
+
+  @Override
+  public boolean isClosed() {
+    return closed.get();
   }
 }

@@ -5,6 +5,7 @@ import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
 import org.threadly.concurrent.ConfigurableThreadFactory;
@@ -15,10 +16,10 @@ import org.threadly.concurrent.SingleThreadScheduler;
 import org.threadly.util.ArgumentVerifier;
 
 /**
- * <p>This is a mutliThreaded implementation of a {@link SocketExecuterInterface}.  It uses separate threads to perform Accepts, Reads and Writes.  
+ * <p>This is a mutliThreaded implementation of a {@link SocketExecuter}.  It uses separate threads to perform Accepts, Reads and Writes.  
  * Constructing this will create 3 additional threads.  Generally only one of these will ever be needed in a process.</p>
  * 
- * <p>This is generally the {@link SocketExecuterInterface} implementation you want to use for servers, especially if they have to deal with more
+ * <p>This is generally the {@link SocketExecuter} implementation you want to use for servers, especially if they have to deal with more
  * then just a few connections.  See {@link NoThreadSocketExecuter} for a more efficient implementation when not dealing with many connections.</p>
  * 
  * @author lwahlmeier
@@ -32,9 +33,9 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
 
   protected volatile long readThreadID = 0;
 
-  private AcceptRunner acceptor;
-  private ReadRunner reader;
-  private WriteRunner writer;
+  private final AcceptRunner acceptor = new AcceptRunner();
+  private final ReadRunner reader = new ReadRunner();
+  private final WriteRunner writer = new WriteRunner();
 
 
   /**
@@ -58,7 +59,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   }
 
   /**
-   * <p>Here you can provide a {@link ScheduledExecutorService} for this {@link SocketExecuterInterface}.  This will be used
+   * <p>Here you can provide a {@link ScheduledExecutorService} for this {@link SocketExecuter}.  This will be used
    * on accept, read, and close callback events.</p>
    * 
    * @param exec the {@link ScheduledExecutorService} to be used for client/server callbacks.
@@ -75,18 +76,10 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   }
 
   @Override
-  protected void addThreadExecutorToClient(Client client) {
-    client.setClientsThreadExecutor(clientDistributer.getSubmitterForKey(client));
-  }
-
-  @Override
   protected void startupService() {
     acceptSelector = openSelector();
     readSelector = openSelector();
     writeSelector = openSelector();
-    acceptor = new AcceptRunner();
-    reader = new ReadRunner();
-    writer = new WriteRunner();
     acceptScheduler.execute(acceptor);
     readScheduler.execute(reader);
     writeScheduler.execute(writer);
@@ -94,31 +87,41 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
 
   @Override
   protected void shutdownService() {
-    localAcceptScheduler.shutdownNow();
-    localReadScheduler.shutdownNow();
-    localWriteScheduler.shutdownNow();
-    closeSelector(acceptSelector);
-    closeSelector(readSelector);
-    closeSelector(writeSelector);
-    clients.clear();
-    servers.clear();
-  }
-
-  @Override
-  public void flagNewWrite(Client client) {
-    ArgumentVerifier.assertNotNull(client, "Client");
-    if(isRunning() && clients.containsKey(client.getChannel()) && client.canWrite()) {
-      writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
-      writeSelector.wakeup();
+    for(Client client: clients.values()) {
+      client.close();
     }
-  }
-
+    for(Server server: servers.values()) {
+      server.close();
+    }
+    closeSelector(localAcceptScheduler, acceptSelector);
+    closeSelector(localReadScheduler, readSelector);
+    closeSelector(localWriteScheduler, writeSelector);
+  }  
+  
   @Override
-  public void flagNewRead(Client client) {
+  public void setClientOperations(Client client) {
     ArgumentVerifier.assertNotNull(client, "Client");
-    if(isRunning() && clients.containsKey(client.getChannel()) && client.canRead()) {
-      readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
+    if(clients.containsKey(client.getChannel()) && !client.isClosed() && isRunning()) {
+      if(!client.getChannel().isConnected() && client.getChannel().isConnectionPending()) {
+        readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_CONNECT));
+        writeScheduler.execute(new AddToSelector(client, writeSelector, 0));
+      } else if(client.canWrite() && client.canRead()) {
+        writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
+        readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
+      } else if (client.canRead()){
+        readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
+        writeScheduler.execute(new AddToSelector(client, writeSelector, 0));
+      } else if (client.canWrite()){
+        writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
+        readScheduler.execute(new AddToSelector(client, readSelector, 0));
+      } else {
+        writeScheduler.execute(new AddToSelector(client, writeSelector, 0));
+        readScheduler.execute(new AddToSelector(client, readSelector, 0));
+      }
       readSelector.wakeup();
+      writeSelector.wakeup();
+    } else if (client.isClosed()) {
+      clients.remove(client.getChannel());
     }
   }
 
@@ -175,8 +178,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
               Client client = clients.get(sk.channel());
               if(sk.isConnectable()) {
                 doClientConnect(client, readSelector);
-                flagNewRead(client);
-                flagNewWrite(client);
+                setClientOperations(client);
               } else {
                 stats.addRead(doClientRead(client, readSelector));
               }
@@ -218,5 +220,10 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
         }
       }
     }
+  }
+
+  @Override
+  public Executor getExecutorFor(Object obj) {
+    return clientDistributer.getSubmitterForKey(obj);
   }
 }

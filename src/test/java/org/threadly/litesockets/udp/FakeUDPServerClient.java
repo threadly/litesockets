@@ -12,16 +12,16 @@ import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server;
 import org.threadly.litesockets.Server.ClientAcceptor;
 import org.threadly.litesockets.Server.ServerCloser;
-import org.threadly.litesockets.SocketExecuterInterface;
+import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 
 public class FakeUDPServerClient implements Closer, Reader, ClientAcceptor, ServerCloser {
-  SocketExecuterInterface SE;
+  SocketExecuter SE;
   Set<UDPServer> servers = new HashSet<UDPServer>();
   ConcurrentHashMap<UDPClient, MergedByteBuffers> clients = new ConcurrentHashMap<UDPClient, MergedByteBuffers>();
   List<UDPClient> clientList = new ArrayList<UDPClient>();
   
-  public FakeUDPServerClient(SocketExecuterInterface se) {
+  public FakeUDPServerClient(SocketExecuter se) {
     SE = se;
   }
   
@@ -29,7 +29,7 @@ public class FakeUDPServerClient implements Closer, Reader, ClientAcceptor, Serv
     servers.add(userver);
     userver.setClientAcceptor(this);
     userver.setCloser(this);
-    SE.addServer(userver);
+    userver.start();
   }
 
   @Override

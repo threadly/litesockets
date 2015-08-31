@@ -15,22 +15,21 @@ import java.util.ArrayList;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.Reader;
-import org.threadly.litesockets.SocketExecuterInterface;
+import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.test.concurrent.TestCondition;
 import org.threadly.test.concurrent.TestUtils;
-import org.threadly.util.Clock;
 
 
 public class TCPTests {
@@ -49,7 +48,7 @@ public class TCPTests {
   PriorityScheduler PS;
   int port = Utils.findTCPPort();
   final String GET = "hello";
-  SocketExecuterInterface SE;
+  SocketExecuter SE;
   TCPServer server;
   FakeTCPServerClient serverFC;
   
@@ -60,11 +59,10 @@ public class TCPTests {
     SE = new ThreadedSocketExecuter(PS);
     SE.start();
     serverFC = new FakeTCPServerClient(SE);
-    server = new TCPServer("localhost", port);
+    server = SE.createTCPServer("localhost", port);
     server.setClientAcceptor(serverFC);
     server.setCloser(serverFC);
-    SE.addServer(server);
-
+    server.start();
   }
   
   @After
@@ -75,12 +73,11 @@ public class TCPTests {
 
   @Test
   public void simpleWriteTest() throws IOException, InterruptedException {
-    final TCPClient client = new TCPClient("localhost", port);
+    final TCPClient client = SE.createTCPClient("localhost", port);
     final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
     client.setReader(clientFC);
     client.setCloser(clientFC);
-    SE.addClient(client);
-
+    client.connect();
     new TestCondition(){
       @Override
       public boolean get() {
@@ -90,7 +87,7 @@ public class TCPTests {
 
     final TCPClient sclient = (TCPClient) serverFC.map.keys().nextElement();
     client.write(SMALL_TEXT_BUFFER.duplicate());
-
+    //System.out.println("1");
     new TestCondition(){
       @Override
       public boolean get() {
@@ -127,11 +124,11 @@ public class TCPTests {
     server.close();
     ServerSocketChannel socket = ServerSocketChannel.open();
     socket.socket().bind(new InetSocketAddress("localhost", port), 100);
-    server = new TCPServer(socket);
+    server = SE.createTCPServer(socket);
     serverFC = new FakeTCPServerClient(SE);
     server.setClientAcceptor(serverFC);
-    SE.addServer(server);
-    TCPClient client = new TCPClient("localhost", port);
+    server.start();
+    TCPClient client = SE.createTCPClient("localhost", port);
     client.connect();
     new TestCondition(){
       @Override
@@ -146,7 +143,7 @@ public class TCPTests {
   @Test
   public void clientBlockingWriter() throws Exception {
     final ByteBuffer bb = ByteBuffer.wrap("TEST111".getBytes());
-    final TCPClient client = new TCPClient("localhost", port);
+    final TCPClient client = SE.createTCPClient("localhost", port);
     client.setMaxBufferSize(2);
     serverFC.addTCPClient(client);
     new TestCondition(){
@@ -186,7 +183,7 @@ public class TCPTests {
       sb.append(text);
     }
     ByteBuffer bb = ByteBuffer.wrap(text.toString().getBytes());
-    final TCPClient client = new TCPClient("localhost", port);
+    final TCPClient client = SE.createTCPClient("localhost", port);
     client.setMaxBufferSize(2);
     client.setReader(new Reader() {
 
@@ -194,7 +191,7 @@ public class TCPTests {
       public void onRead(Client client) {
 
       }});
-    SE.addClient(client);
+    client.connect();
     new TestCondition(){
       @Override
       public boolean get() {
@@ -225,7 +222,7 @@ public class TCPTests {
   public void clientBadSocket1() throws IOException, InterruptedException {
     SocketChannel cs = SocketChannel.open(new InetSocketAddress("localhost", port));
     cs.close();
-    TCPClient client = new TCPClient(cs);
+    TCPClient client = SE.createTCPClient(cs);
     server.close();
     client.close();
   }  
@@ -234,7 +231,7 @@ public class TCPTests {
   public void clientAddSocket() throws IOException, InterruptedException {
     SocketChannel cs = SocketChannel.open(new InetSocketAddress("localhost", port));
     cs.configureBlocking(true);
-    TCPClient client = new TCPClient(cs);
+    TCPClient client = SE.createTCPClient(cs);
     server.close();
     client.close();
   }
@@ -243,51 +240,62 @@ public class TCPTests {
   public void clientDoubleAdd() throws IOException, InterruptedException, ExecutionException {
     SocketChannel cs = SocketChannel.open(new InetSocketAddress("localhost", port));
     cs.configureBlocking(true);
-    TCPClient client = new TCPClient(cs);
-    SE.addClient(client);
-    SE.addClient(client);
-    SE.removeClient(client);
-    SE.addClient(client);
+    TCPClient client = SE.createTCPClient(cs);
+    client.connect();
+    SE.setClientOperations(client);
+    SE.setClientOperations(client);
+    SE.setClientOperations(client);
+    SE.setClientOperations(client);
     new TestCondition(){
       @Override
       public boolean get() {
-        //System.out.println(SE.getClientCount());
+        System.out.println(SE.getClientCount());
         return SE.getClientCount() == 2;
       }
-    }.blockTillTrue(5000);    
+    }.blockTillTrue(5000, 100);    
     
     client.close();
     server.close();
   }
   
-  @Test
+  //@Ignore
+  @Test//(expected=IllegalStateException.class)
   public void clientAddToStopedSE() throws IOException, InterruptedException {
     SocketChannel cs = SocketChannel.open(new InetSocketAddress("localhost", port));
     cs.configureBlocking(true);
-    TCPClient client = new TCPClient(cs);
-    SE.addClient(client);
+    TCPClient client = SE.createTCPClient(cs);
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return SE.getClientCount() == 2;
+      }
+    }.blockTillTrue(5000, 100);
+    //SE.addClient(client);
     SE.stop();
-    assertEquals(0, SE.getClientCount());
-    SE.addClient(client);
-    SE.removeClient(client);
-    SE.addClient(client);
-    assertEquals(0, SE.getClientCount());
-    client.close();
-    server.close();
+    SE.setClientOperations(client);
   }
   
   @Test
   public void clientAddClosed() throws IOException, InterruptedException {
     SocketChannel cs = SocketChannel.open(new InetSocketAddress("localhost", port));
     cs.configureBlocking(true);
-    TCPClient client = new TCPClient(cs);
+    TCPClient client = SE.createTCPClient(cs);
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return SE.getClientCount() == 2;
+      }
+    }.blockTillTrue(5000, 100);
     client.close();
-    SE.addClient(client);
-    SE.stop();
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return SE.getClientCount() == 0;
+      }
+    }.blockTillTrue(5000, 100);
     assertEquals(0, SE.getClientCount());
-    SE.addClient(client);
-    SE.removeClient(client);
-    SE.addClient(client);
+    SE.setClientOperations(client);
+    SE.setClientOperations(client);
     assertEquals(0, SE.getClientCount());
     client.close();
     server.close();
@@ -295,12 +303,12 @@ public class TCPTests {
   
   @Test
   public void clientStartingWrite() throws IOException, InterruptedException {
-    TCPClient client = new TCPClient("localhost", port);
+    TCPClient client = SE.createTCPClient("localhost", port);
     final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
     client.write(SMALL_TEXT_BUFFER.duplicate());
     clientFC.addTCPClient(client);
-    
-    SE.addClient(client);
+    client.connect();
+
     new TestCondition(){
       @Override
       public boolean get() {
@@ -327,12 +335,13 @@ public class TCPTests {
   
   @Test
   public void clientLateReadStart() throws IOException, InterruptedException {
-    final TCPClient client = new TCPClient("localhost", port);
+    final TCPClient client = SE.createTCPClient("localhost", port);
+    for(int i=0; i<50000; i++) {
+      client.write(SMALL_TEXT_BUFFER.duplicate());  
+    }
     final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
-    
     clientFC.addTCPClient(client);
-    
-    SE.addClient(client);
+    client.connect();
     new TestCondition(){
       @Override
       public boolean get() {
@@ -341,14 +350,11 @@ public class TCPTests {
     }.blockTillTrue(5000, 100);
     
     final TCPClient c2 = (TCPClient)serverFC.clients.get(0);
-    SE.removeClient(c2);
-    SE.removeClient(client);
+    //SE.removeClient(c2);
+    //SE.removeClient(client);
     
-    for(int i=0; i<50000; i++) {
-      client.write(SMALL_TEXT_BUFFER.duplicate());  
-    }
-    SE.addClient(client);
-    SE.addClient(c2);
+    client.connect();
+    c2.connect();
     new TestCondition(){
       @Override
       public boolean get() {
@@ -360,14 +366,14 @@ public class TCPTests {
   
   @Test
   public void bigWrite() throws IOException, InterruptedException {
-    final TCPClient client = new TCPClient("localhost", port);
+    final TCPClient client = SE.createTCPClient("localhost", port);
     final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
     client.write(LARGE_TEXT_BUFFER.duplicate());
     clientFC.addTCPClient(client);
     client.write(LARGE_TEXT_BUFFER.duplicate());
     client.write(LARGE_TEXT_BUFFER.duplicate());
     client.write(LARGE_TEXT_BUFFER.duplicate());
-    SE.addClient(client);
+    client.connect();
     new TestCondition(){
       @Override
       public boolean get() {
@@ -409,19 +415,19 @@ public class TCPTests {
   
   @Test(expected=ExecutionException.class)
   public void tcpBadAddress() throws IOException, InterruptedException, ExecutionException {
-    TCPClient client = new TCPClient("2.0.0.256", port, 1000);
-    final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
-    SE.addClient(client);
-    client.connectionFuture.get();
+    TCPClient client = SE.createTCPClient("2.0.0.256", port);
+    client.setConnectionTimeout(1000);
+    client.connect().get();
   }
   
   @Test
   public void tcpTimeout() throws Throwable {
-    TCPClient client = new TCPClient("2.0.0.2", port, 10);
+    TCPClient client = SE.createTCPClient("2.0.0.2", port);
+    client.setConnectionTimeout(10);
     assertTrue(!client.hasConnectionTimedOut());
-    SE.addClient(client);
+    //SE.addClient(client);
     try {
-      client.connectionFuture.get();
+      client.connect().get(5000, TimeUnit.MILLISECONDS);
       fail();
     } catch(CancellationException e) {
       TestUtils.blockTillClockAdvances();
@@ -432,12 +438,11 @@ public class TCPTests {
   @Test(expected=ConnectException.class)
   public void tcpConnectionRefused() throws Throwable {
     server.close();
-    TCPClient client = new TCPClient("localhost", port);
+    TCPClient client = SE.createTCPClient("localhost", port);
     assertTrue(!client.hasConnectionTimedOut());
     //final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
-    SE.addClient(client);
     try {
-      client.connectionFuture.get();
+      client.connect().get(5000, TimeUnit.MILLISECONDS);
       fail();
     } catch(ExecutionException e) {
       assertTrue(!client.hasConnectionTimedOut());
