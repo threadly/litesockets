@@ -2,7 +2,6 @@ package org.threadly.litesockets.tcp;
 
 import java.io.IOException;
 import java.nio.channels.SelectableChannel;
-import java.util.concurrent.Executor;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;

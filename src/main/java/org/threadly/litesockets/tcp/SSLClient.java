@@ -27,7 +27,6 @@ import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.SocketExecuter;
-import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.WireProtocol;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
@@ -44,7 +43,7 @@ public class SSLClient extends Client {
   public static final int PREALLOCATE_BUFFER_MULTIPLIER = 3;
   
   private final TCPClient client;
-  private final AtomicBoolean finishedHandshake = new AtomicBoolean(false);
+  private final AtomicBoolean finishedHandshake = new AtomicBoolean(false); 
   private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
   private final boolean connectHandshake;
   private final MergedByteBuffers decryptedReadList = new MergedByteBuffers();

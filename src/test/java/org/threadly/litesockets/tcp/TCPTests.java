@@ -18,7 +18,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.concurrent.future.FutureUtils;
@@ -449,6 +448,28 @@ public class TCPTests {
       assertEquals(0, SE.getClientCount());
       throw e.getCause();
     }
+  }
+  
+  @Test
+  public void manualCreateTCPClient() throws Exception {
+    TCPClient tc = new TCPClient(SE, "localhost", port);
+    assertEquals(0, SE.getClientCount());
+    tc.connect().get(5000, TimeUnit.MILLISECONDS);
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.map.size() == 1;
+      }
+    }.blockTillTrue(5000);
+    assertEquals(2, SE.getClientCount());
+    tc.close();
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.map.size() == 0;
+      }
+    }.blockTillTrue(5000);
+    assertEquals(0, SE.getClientCount());
   }
   
 }

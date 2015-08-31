@@ -69,8 +69,6 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   public TCPClient createTCPClient(String host, int port) throws IOException {
     checkRunning();
     TCPClient tc = new TCPClient(this, host, port);
-    Client c = tc;
-    clients.put(c.getChannel(), c);
     return tc;
   }
   
@@ -79,8 +77,6 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   public TCPClient createTCPClient(SocketChannel sc) throws IOException {
     checkRunning();
     TCPClient tc = new TCPClient(this, sc);
-    Client c = tc;
-    clients.put(c.getChannel(), c);
     this.setClientOperations(tc);
     return tc;
   }
@@ -89,7 +85,6 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   public TCPServer createTCPServer(String host, int port) throws IOException {
     checkRunning();
     TCPServer server = new TCPServer(this, host, port);
-    servers.put(server.getSelectableChannel(), server);
     return server;
   }
   
@@ -97,7 +92,6 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   public TCPServer createTCPServer(ServerSocketChannel ssc) throws IOException {
     checkRunning();
     TCPServer server = new TCPServer(this, ssc);
-    servers.put(server.getSelectableChannel(), server);
     return server;
   }
   
@@ -105,12 +99,16 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   public UDPServer createUDPServer(String host, int port) throws IOException {
     checkRunning();
     UDPServer server = new UDPServer(this, host, port);
-    servers.put(server.getSelectableChannel(), server);
     return server;
   }
   
   @Override
   public void startListening(Server server) {
+    if(isRunning() && !servers.containsKey(server.getSelectableChannel())) {
+      if(!server.isClosed() && server.getSocketExecuter() == this) {
+        servers.put(server.getSelectableChannel(), server);
+      }
+    }
     if(servers.containsValue(server) && !server.isClosed() && isRunning()) {
       if(server.getServerType() == WireProtocol.TCP) {
         acceptScheduler.execute(new AddToSelector(server, acceptSelector, SelectionKey.OP_ACCEPT));

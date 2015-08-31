@@ -76,7 +76,6 @@ public class TCPClient extends Client {
   private volatile ByteBuffer currentWriteBuffer = ByteBuffer.allocate(0);;
   private ByteBuffer readByteBuffer = ByteBuffer.allocate(NEW_READ_BUFFER_SIZE);
 
-
   /**
    * This creates TCPClient with a connection to the specified port and IP.  This connection is not is not
    * yet made {@link #connect()} must be called, or the client can be added to a {@link SocketExecuter} with 
