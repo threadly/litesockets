@@ -145,6 +145,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
               Client tmpClient = clients.get(key.channel());
               if(key.isConnectable() && tmpClient != null) {
                   doClientConnect(tmpClient, commonSelector);
+                  key.cancel(); //Stupid windows bug here.
                   this.updateClientOps(tmpClient);
               } else if(key.isReadable()) {
                 stats.addRead(doClientRead(tmpClient, commonSelector));
@@ -160,6 +161,9 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
             //Key could be cancelled at any point, we dont really care about it.
           }
         }
+        //Also for windows bug, canceled keys are not removed till we select again.
+        //So we just have to at the end of the loop.
+        commonSelector.selectNow(); 
       } catch (IOException e) {
         //There is really nothing to do here but try again, usually this is because of shutdown.
       } catch(ClosedSelectorException e) {
