@@ -21,6 +21,7 @@ import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.Clock;
+import org.threadly.util.Pair;
 
 /**
  * This is a generic Client for TCP connections.  This client can be either from the "client" side or
@@ -51,7 +52,7 @@ public class TCPClient extends Client {
 
   private final MergedByteBuffers readBuffers = new MergedByteBuffers();
   private final MergedByteBuffers writeBuffers = new MergedByteBuffers();
-  private final Deque<Pair> writeFutures = new ArrayDeque<Pair>();
+  private final Deque<Pair<Long, SettableListenableFuture<Long>>> writeFutures = new ArrayDeque<Pair<Long, SettableListenableFuture<Long>>>();
   protected final String host;
   protected final int port;
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
@@ -76,15 +77,14 @@ public class TCPClient extends Client {
   private volatile ByteBuffer currentWriteBuffer = ByteBuffer.allocate(0);;
   private ByteBuffer readByteBuffer = ByteBuffer.allocate(NEW_READ_BUFFER_SIZE);
 
-
   /**
    * This creates TCPClient with a connection to the specified port and IP.  This connection is not is not
-   * yet made {@link #connect()} must be called, or the client can be added to a {@link SocketExecuter} with 
-   * {@link SocketExecuter#addClient(Client)} which will do the connect.
+   * yet made {@link #connect()} must be called which will do the actual connect.
    * 
-   * @param host hostname or ip address to connect too.
-   * @param port port on that host to try and connect too.
-   * @throws IOException 
+   * @param sei The {@link SocketExecuter} implementation this client will use.
+   * @param host The hostname or IP address to connect this client too.
+   * @param port The port to connect this client too.
+   * @throws IOException - This is thrown if there are any problems making the socket.
    */
   public TCPClient(SocketExecuter sei, String host, int port) throws IOException {
     this.sei = sei;
@@ -100,6 +100,7 @@ public class TCPClient extends Client {
    * <p>This creates a TCPClient based off an already existing {@link SocketChannel}.  
    * This {@link SocketChannel} must already be connected.</p>
    * 
+   * @param sei the {@link SocketExecuter} to use for this client.
    * @param channel the {@link SocketChannel} to use for this client.
    * @throws IOException if there is anything wrong with the {@link SocketChannel} this will be thrown.
    */
@@ -188,8 +189,8 @@ public class TCPClient extends Client {
   public void close() {
     if(closed.compareAndSet(false, true)) {
       sei.setClientOperations(this);
-      for(Pair p: this.writeFutures) {
-        p.slf.setFailure(new ClosedChannelException());
+      for(Pair<Long, SettableListenableFuture<Long>> p: this.writeFutures) {
+        p.getRight().setFailure(new ClosedChannelException());
       }
       synchronized(writeBuffers) {
         writeFutures.clear();
@@ -360,7 +361,7 @@ public class TCPClient extends Client {
       boolean needNotify = ! canWrite();
       SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>();
       writeBuffers.add(bb);
-      this.writeFutures.add(new Pair(writeBuffers.getTotalConsumedBytes()+writeBuffers.remaining(), slf));
+      this.writeFutures.add(new Pair<Long, SettableListenableFuture<Long>>(writeBuffers.getTotalConsumedBytes()+writeBuffers.remaining(), slf));
       if(needNotify && sei != null && channel.isConnected()) {
         sei.setClientOperations(this);
       }
@@ -394,9 +395,11 @@ public class TCPClient extends Client {
     synchronized(writeBuffers) {
       stats.addWrite(size);
       if(currentWriteBuffer.remaining() == 0) {
-        while(this.writeFutures.peekFirst() != null && writeFutures.peekFirst().size <= writeBuffers.getTotalConsumedBytes()) {
-          Pair p = writeFutures.pollFirst();
-          p.slf.setResult(p.size);
+        while(this.writeFutures.peekFirst() != null && writeFutures.peekFirst().getLeft() <= writeBuffers.getTotalConsumedBytes()) {
+          Pair<Long, SettableListenableFuture<Long>> p = writeFutures.pollFirst();
+          if(!p.getRight().isDone()) {
+            p.getRight().setResult(p.getLeft());
+          }
         }
       }
     }
@@ -439,14 +442,5 @@ public class TCPClient extends Client {
   @Override
   public String toString() {
     return "TCPClient:FROM:"+getLocalSocketAddress()+":TO:"+getRemoteSocketAddress();
-  }
-  
-  private static class Pair {
-    private final long size;
-    private final SettableListenableFuture<Long> slf;
-    public Pair(long size, SettableListenableFuture<Long> slf) {
-      this.size = size;
-      this.slf = slf;
-    }
   }
 }

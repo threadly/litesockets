@@ -1,7 +1,6 @@
 package org.threadly.litesockets;
 
 import java.nio.channels.SelectableChannel;
-import java.util.concurrent.Executor;
 
 /**
  * This is the main Server Interface for litesockets.  

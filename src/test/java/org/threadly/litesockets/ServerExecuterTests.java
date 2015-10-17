@@ -105,7 +105,6 @@ public class ServerExecuterTests {
     
   }
   
-  
   @Test
   public void SEStatsTest() throws IOException, InterruptedException {
     final int sendCount = 1000;
@@ -125,7 +124,7 @@ public class ServerExecuterTests {
     new TestCondition(){
       @Override
       public boolean get() {
-        return serverFC.map.size() == 1;
+        return serverFC.clients.size() == 1;
       }
     }.blockTillTrue(5000);
 
@@ -155,7 +154,6 @@ public class ServerExecuterTests {
         } catch(Exception e) {
 
         }
-        System.out.println(clientFC.map.get(client).remaining());
         return test;
       }
     }.blockTillTrue(1000, 100);

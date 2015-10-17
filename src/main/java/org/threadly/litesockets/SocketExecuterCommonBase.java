@@ -11,7 +11,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.threadly.concurrent.SimpleSchedulerInterface;
+import org.threadly.concurrent.SubmitterScheduler;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.WatchdogCache;
 import org.threadly.litesockets.tcp.TCPClient;
@@ -28,10 +28,10 @@ import org.threadly.util.ExceptionUtils;
  */
 abstract class SocketExecuterCommonBase extends AbstractService implements SocketExecuter {
   public static final int WATCHDOG_CLEANUP_TIME = 30000;
-  protected final SimpleSchedulerInterface acceptScheduler;
-  protected final SimpleSchedulerInterface readScheduler;
-  protected final SimpleSchedulerInterface writeScheduler;
-  protected final SimpleSchedulerInterface schedulerPool;
+  protected final SubmitterScheduler acceptScheduler;
+  protected final SubmitterScheduler readScheduler;
+  protected final SubmitterScheduler writeScheduler;
+  protected final SubmitterScheduler schedulerPool;
   protected final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   protected final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
   protected final SocketExecuterByteStats stats = new SocketExecuterByteStats();
@@ -40,14 +40,14 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   protected Selector writeSelector;
   protected Selector acceptSelector;
 
-  SocketExecuterCommonBase(SimpleSchedulerInterface scheduler) {
+  SocketExecuterCommonBase(SubmitterScheduler scheduler) {
     this(scheduler,scheduler,scheduler,scheduler);
   }
 
-  SocketExecuterCommonBase(SimpleSchedulerInterface acceptScheduler, 
-      SimpleSchedulerInterface readScheduler, 
-      SimpleSchedulerInterface writeScheduler, 
-      SimpleSchedulerInterface ssi) {
+  SocketExecuterCommonBase(SubmitterScheduler acceptScheduler, 
+      SubmitterScheduler readScheduler, 
+      SubmitterScheduler writeScheduler, 
+      SubmitterScheduler ssi) {
     ArgumentVerifier.assertNotNull(ssi, "ThreadScheduler");    
     ArgumentVerifier.assertNotNull(acceptScheduler, "Accept Scheduler");
     ArgumentVerifier.assertNotNull(readScheduler, "Read Scheduler");
@@ -149,7 +149,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   }
 
   @Override
-  public SimpleSchedulerInterface getThreadScheduler() {
+  public SubmitterScheduler getThreadScheduler() {
     return schedulerPool;
   }
 
@@ -171,7 +171,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     }
   }
 
-  protected static void closeSelector(SimpleSchedulerInterface scheduler, final Selector selector) {
+  protected static void closeSelector(SubmitterScheduler scheduler, final Selector selector) {
     scheduler.execute(new Runnable() {
       @Override
       public void run() {
@@ -341,7 +341,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     public void run() {
       if(localSelector.isOpen()) {
         try {
-          if(localClient != null) {
+          if(localClient != null && !localClient.isClosed()) {
             localClient.getChannel().register(localSelector, registerType);
           } else if (localServer != null) {
             localServer.getSelectableChannel().register(localSelector, registerType);

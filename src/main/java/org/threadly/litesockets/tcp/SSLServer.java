@@ -2,7 +2,6 @@ package org.threadly.litesockets.tcp;
 
 import java.io.IOException;
 import java.nio.channels.SelectableChannel;
-import java.util.concurrent.Executor;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -28,8 +27,7 @@ public class SSLServer extends Server {
   /**
    * Constructs an SSL server.
    * 
-   * @param host the host address to bind to.
-   * @param port the port number to bind to.
+   * @param server A TCPServer to wrap and apply the provided {@link SSLContext} too.
    * @param sslctx the {@link SSLContext} to apply to the clients that connect.
    * @param completeHandshake if {@code true} the SSL handshake will be completed on connection. If {@code false} the client will not 
    * complete the handshake and will require that you call {@link SSLClient#doHandShake()} once the handshake needs to be done.
@@ -42,21 +40,6 @@ public class SSLServer extends Server {
     localAcceptor = server.getClientAcceptor();
     server.setClientAcceptor(this.tcpClientAcceptor);
     server.start();
-  }
-  
-  public class SSLAcceptor implements ClientAcceptor{
-
-    @Override
-    public void accept(Client client) {
-      TCPClient tc = (TCPClient) client;
-      ClientAcceptor ca = getClientAcceptor();
-      if(ca != null) {
-        final SSLEngine ssle = sctx.createSSLEngine(tc.getSocket().getRemoteSocketAddress().toString(), tc.getSocket().getPort());
-        final SSLClient sslClient = new SSLClient(tc, ssle, completeHandshake, false);
-        getClientAcceptor().accept(sslClient);
-      }
-    }
-    
   }
 
   @Override
@@ -116,5 +99,24 @@ public class SSLServer extends Server {
   
   public TCPServer getTCPServer() {
     return server;
+  }
+  
+  /**
+   * An internal {@link ClientAcceptor} that is used against the TCPServer.
+   * 
+   * @author lwahlmeier
+   *
+   */
+  private class SSLAcceptor implements ClientAcceptor{
+    @Override
+    public void accept(Client client) {
+      TCPClient tc = (TCPClient) client;
+      ClientAcceptor ca = getClientAcceptor();
+      if(ca != null) {
+        final SSLEngine ssle = sctx.createSSLEngine(tc.getSocket().getRemoteSocketAddress().toString(), tc.getSocket().getPort());
+        final SSLClient sslClient = new SSLClient(tc, ssle, completeHandshake, false);
+        getClientAcceptor().accept(sslClient);
+      }
+    }
   }
 }

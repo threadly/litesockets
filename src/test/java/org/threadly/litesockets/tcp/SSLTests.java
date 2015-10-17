@@ -86,6 +86,7 @@ public class SSLTests {
     
     final SSLClient client = new SSLClient(SE.createTCPClient("localhost", port));
     client.connect().get(5000, TimeUnit.MILLISECONDS);
+
     client.doHandShake();
     System.out.println(System.currentTimeMillis()-start);
     
@@ -96,8 +97,8 @@ public class SSLTests {
       }
     }.blockTillTrue(5000);
     final SSLClient sclient = (SSLClient) serverFC.clients.get(0);
+    serverFC.addTCPClient(client);    
     
-    serverFC.addTCPClient(client);
     
 
     new TestCondition(){
@@ -111,7 +112,7 @@ public class SSLTests {
       public boolean get() {
         return client.isEncrypted();
       }
-    }.blockTillTrue(5000, 10);
+    }.blockTillTrue(5000);
     assertTrue(client.isEncrypted());
     assertTrue(sclient.isEncrypted());
     System.out.println("Write");
@@ -213,13 +214,13 @@ public class SSLTests {
   //@Test
   public void loop() throws IOException, InterruptedException, ExecutionException, TimeoutException {
     for(int i=0; i<100; i++) {
-      useTCPClient();
+      auseTCPClient();
       serverFC = new FakeTCPServerClient(SE);
     }
   }
   
   @Test
-  public void useTCPClient() throws IOException, InterruptedException, ExecutionException, TimeoutException {
+  public void auseTCPClient() throws IOException, InterruptedException, ExecutionException, TimeoutException {
     port = Utils.findTCPPort();
     ServerSocketChannel socket = ServerSocketChannel.open();
     socket.socket().bind(new InetSocketAddress("localhost", port), 100);

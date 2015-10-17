@@ -24,9 +24,6 @@ import org.threadly.util.ArgumentVerifier;
  * 
  * <p>It should also be noted that all client read/close callbacks happen on the thread that calls select().</p>
  * 
- * <p>The functions like {@link #addClient(Client)}, {@link #removeClient(Client)}, {@link #addServer(Server)}, and 
- * {@link #removeServer(Server)} can be called from other threads safely.</p>
- * 
  * @author lwahlmeier
  */
 public class NoThreadSocketExecuter extends SocketExecuterCommonBase {

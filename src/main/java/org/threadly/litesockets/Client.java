@@ -63,8 +63,7 @@ public abstract class Client {
    * 
    * <p>Called to connect this client to a host.  This is done non-blocking, and can be called before adding the client 
    * to the {@link SocketExecuter}, but the client must be on the {@link SocketExecuter} 
-   * in order to finish connecting.  If not called {@link SocketExecuter#addClient(Client)}
-   * will automatically call this.</p>
+   * in order to finish connecting.</p>
    * 
    * <p>If there is an error connecting {@link #close()} will also be called on the client.</p>
    * 
@@ -94,7 +93,7 @@ public abstract class Client {
    * In general this should only be used by the ReadThread in the {@link SocketExecuter} and it should be noted 
    * that it is not threadsafe.</p>
    * 
-   * @return A ByteBuffer for the ReadThread to use during its read operations.
+   * @return A {@link ByteBuffer} to use during this clients read operations.
    */
   protected abstract ByteBuffer provideReadByteBuffer();
   

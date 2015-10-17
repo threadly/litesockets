@@ -5,17 +5,23 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.Executor;
 
-import org.threadly.concurrent.SimpleSchedulerInterface;
+import org.threadly.concurrent.SubmitterScheduler;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.tcp.TCPClient;
 import org.threadly.litesockets.tcp.TCPServer;
 import org.threadly.litesockets.udp.UDPServer;
 import org.threadly.litesockets.utils.SimpleByteStats;
-import org.threadly.util.ServiceInterface;
+import org.threadly.util.Service;
 
 
-
-public interface SocketExecuter extends ServiceInterface {
+/**
+ * Basic SocketExecuter interface.  Different Implementations have different ways of operating, but
+ * they must all implement this for clients/servers to operate against them.
+ * 
+ * @author lwahlmeier
+ *
+ */
+public interface SocketExecuter extends Service {
   
   /**
    * This will create a UDPServer on the specified {@link SocketExecuter}.
@@ -110,13 +116,13 @@ public interface SocketExecuter extends ServiceInterface {
   public int getServerCount();
   
   /**
-   * <p>This returns the current {@link SimpleSchedulerInterface} for this SocketExecuter.
-   * Every SocketExecuter must have some kind of a {@link SimpleSchedulerInterface} for it to 
+   * <p>This returns the current {@link SubmitterScheduler} for this SocketExecuter.
+   * Every SocketExecuter must have some kind of a {@link SubmitterScheduler} for it to 
    * execute client/server operations on.</p>
    * 
-   * @return returns the {@link SimpleSchedulerInterface} the SocketExecuter is using.
+   * @return returns the {@link SubmitterScheduler} the SocketExecuter is using.
    */
-  public SimpleSchedulerInterface getThreadScheduler();
+  public SubmitterScheduler getThreadScheduler();
   
   /**
    * <p>This will give you read and write stats for the SocketExecuter.  This will tell you information about

@@ -55,8 +55,8 @@ public class NoThreadSSLTests extends SSLTests {
   }
   
   @Override
-  public void simpleWriteTest() throws Exception {
-    super.simpleWriteTest();
+  public void largeWriteTest() throws Exception {
+    super.largeWriteTest();
   }
   
   @Override

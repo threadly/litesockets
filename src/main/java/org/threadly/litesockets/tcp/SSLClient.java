@@ -27,7 +27,6 @@ import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.SocketExecuter;
-import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.WireProtocol;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
@@ -65,10 +64,9 @@ public class SSLClient extends Client {
    * <p>This is a simple SSLConstructor.  It uses the default socket timeout, and very insecure cert
    * checking.  This setup to generally connect to any server, and does not validate anything.</p>
    * 
-   * <p>Because we are making the connection this is always a "ClientSide" connection.</p>
+   * <p>This is always seen as a clientside connection</p>
    *  
-   * @param host The host or IP to connect to.
-   * @param port The port on the host to connect to.
+   * @param client the {@link TCPClient} to wrap to do ssl/tls on.
    */
   public SSLClient(TCPClient client) {
     this(client, SSLUtils.OPEN_SSL_CTX.createSSLEngine(client.host, client.port));
@@ -77,12 +75,11 @@ public class SSLClient extends Client {
   /**
    * <p>This simple SSLConstructor.  It allows you to specify the SSLEngine to use to allow you to
    * validate the servers certs with the parameters you decide.</p>
-   * 
-   * <p>Because we are making the connection this way is always a "ClientSide" connection.</p>
+   *
+   * <p>This is always seen as a clientside connection</p>
    *  
-   * @param host The host or IP to connect to.
-   * @param port The port on the host to connect to.
-   * @param ssle The SSLEngine to use for the connection.
+   * @param client the {@link TCPClient} to wrap to do ssl/tls on.
+   * @param ssle The {@link SSLEngine} to use for the connection.
    */
   public SSLClient(TCPClient client, SSLEngine ssle) {
     this(client, ssle, true, true);
@@ -90,15 +87,15 @@ public class SSLClient extends Client {
   
 
   /**
-   * <p>This constructor is for already existing connections. It also allows you to specify the SSLEngine 
+   * <p>This constructor is for already existing connections. It also allows you to specify the {@link SSLEngine} 
    * to use to allow you to validate the servers certs with the parameters you decide.</p>
-   * 
-   * <p>Because we are making the connection this is always a "ClientSide" connection.</p>
    *  
-   * @param client The SocketChannel to use for the SSLClient.
-   * @param ssle The SSLEngine to use for the connection.
-   * @param clientSSL Set this to true if this is a client side connection, false if its server side.
-   * @throws IOException An IOException is thrown if there is a failure to connect for any reason.
+   * @param sei The {@link SocketExecuter} implementation this client will use.
+   * @param channel The {@link SocketChannel} to use for this sslClient.
+   * @param ssle The {@link SSLEngine} to use for the connection.
+   * @param doHandshake This allows you to delay the handshake till a later negotiated time.
+   * @param clientMode Set this to true if this is a client side connection, false if its server side.
+   * @throws IOException This is thrown if there is a failure to use the provided {@link SocketChannel}. 
    */
   public SSLClient(SocketExecuter sei, SocketChannel channel, SSLEngine ssle, boolean doHandshake, boolean clientMode) throws IOException {
     this(new TCPClient(sei, channel), ssle, doHandshake, clientMode);
@@ -107,26 +104,26 @@ public class SSLClient extends Client {
   /**
    * <p>This constructor allows you to specify the SSLEngine to use to allow you to
    * validate the servers certs with the parameters you decide.</p>
-   * 
-   * <p>Because we are making the connection this is always a "ClientSide" connection.</p>
    *  
-   * @param host The host or IP to connect to.
-   * @param port The port on the host to connect to.
+   * @param client The {@link TCPClient} to wrap.
    * @param ssle The SSLEngine to use for the connection.
-   * @param timeout This is the connection timeout.  It is used for the actual connection timeout and separately for the SSLHandshake.
    * @param doHandshake This allows you to delay the handshake till a later negotiated time.
+   * @param clientMode Set this to true if this is a client side connection, false if its server side.
    */
   public SSLClient(TCPClient client, SSLEngine ssle, boolean doHandshake, boolean clientMode){
     this.client = client;
     this.ssle = ssle;
     ssle.setUseClientMode(clientMode);
+    encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+EXTRA_BUFFER_AMOUNT);
     if(client.getReader() != null) {
       this.setReader(client.getReader());
+      client.setReader(null);
     }
+
     if(client.getCloser() != null) {
       this.setCloser(client.getCloser());
+      client.setCloser(null);
     }
-    
     connectHandshake = doHandshake;
     if(connectHandshake) {
       doHandShake();
@@ -139,9 +136,9 @@ public class SSLClient extends Client {
           handshakeFuture.setFailure(t);
         }});
     }
+    //These have to be set "after" we set handshake or encrypted data "might" slip through.
     client.setReader(tcpReader);
     client.setCloser(tcpCloser);
-    encryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+EXTRA_BUFFER_AMOUNT);
   }
 
   

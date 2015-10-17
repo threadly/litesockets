@@ -105,9 +105,10 @@ public class ProfileServerTest {
     new TestCondition(){
       @Override
       public boolean get() {
+        //System.out.println(clientHandler.map.get(client).remaining() );
         return clientHandler.map.get(client).remaining() == ProfileServer.STARTED_RESPONSE.remaining();
       }
-    }.blockTillTrue(5000);
+    }.blockTillTrue(5000, 100);
     assertEquals(getMessageAsString(ProfileServer.STARTED_RESPONSE),clientHandler.map.get(client).getAsString(clientHandler.map.get(client).remaining()));
     Thread.sleep(100);
     client.write(ByteBuffer.wrap("dump\n".getBytes()));
