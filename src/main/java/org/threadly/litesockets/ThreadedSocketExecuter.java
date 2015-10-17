@@ -11,6 +11,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import org.threadly.concurrent.ConfigurableThreadFactory;
 import org.threadly.concurrent.KeyDistributedExecutor;
 import org.threadly.concurrent.ScheduledExecutorServiceWrapper;
+import org.threadly.concurrent.SubmitterScheduler;
 import org.threadly.concurrent.SingleThreadScheduler;
 import org.threadly.concurrent.SubmitterScheduler;
 import org.threadly.util.ArgumentVerifier;
@@ -101,6 +102,11 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   @Override
   public void setClientOperations(Client client) {
     ArgumentVerifier.assertNotNull(client, "Client");
+    if(isRunning() && !clients.containsKey(client.getChannel())) {
+      if(!client.isClosed() && client.getClientsSocketExecuter() == this) {
+        clients.put(client.getChannel(), client);
+      }
+    }
     if(clients.containsKey(client.getChannel()) && !client.isClosed() && isRunning()) {
       if(!client.getChannel().isConnected() && client.getChannel().isConnectionPending()) {
         readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_CONNECT));

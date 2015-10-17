@@ -43,7 +43,7 @@ public class SSLClient extends Client {
   public static final int PREALLOCATE_BUFFER_MULTIPLIER = 3;
   
   private final TCPClient client;
-  private final AtomicBoolean finishedHandshake = new AtomicBoolean(false);
+  private final AtomicBoolean finishedHandshake = new AtomicBoolean(false); 
   private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
   private final boolean connectHandshake;
   private final MergedByteBuffers decryptedReadList = new MergedByteBuffers();
