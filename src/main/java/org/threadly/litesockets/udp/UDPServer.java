@@ -25,13 +25,14 @@ import org.threadly.litesockets.WireProtocol;
  * that server sends data back from that same port/ip pair it will show up as a read in the created client.
  */
 public class UDPServer extends Server {
+  public static final int DEFAULT_FRAME_SIZE = 1500;
   
   private final ConcurrentHashMap<SocketAddress, UDPClient> clients = new ConcurrentHashMap<SocketAddress, UDPClient>();
   protected final DatagramChannel channel;
   protected final AtomicBoolean closed = new AtomicBoolean(false);
   protected final Executor localExecutor;
   protected final SocketExecuter sei;
-  
+  private volatile int frameSize = DEFAULT_FRAME_SIZE;
   private volatile ClientAcceptor clientAcceptor;
   private volatile ServerCloser closer;
   
@@ -41,6 +42,10 @@ public class UDPServer extends Server {
     channel = DatagramChannel.open();
     channel.socket().bind(new InetSocketAddress(host, port));
     channel.configureBlocking(false);
+  }
+  
+  protected void setFrameSize(int size) {
+    frameSize = size;
   }
 
   @Override
@@ -61,7 +66,7 @@ public class UDPServer extends Server {
   @Override
   public void acceptChannel(SelectableChannel c) {
     if(c == channel) {
-      final ByteBuffer bb = ByteBuffer.allocate(1500);
+      final ByteBuffer bb = ByteBuffer.allocate(frameSize);
       try {
         final SocketAddress sa = channel.receive(bb);
         bb.flip();

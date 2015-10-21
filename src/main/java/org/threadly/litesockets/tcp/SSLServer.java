@@ -30,7 +30,7 @@ public class SSLServer extends Server {
    * @param server A TCPServer to wrap and apply the provided {@link SSLContext} too.
    * @param sslctx the {@link SSLContext} to apply to the clients that connect.
    * @param completeHandshake if {@code true} the SSL handshake will be completed on connection. If {@code false} the client will not 
-   * complete the handshake and will require that you call {@link SSLClient#doHandShake()} once the handshake needs to be done.
+   * complete the handshake and will require that you call {@link SSLProcessor#doHandShake()} once the handshake needs to be done.
    * @throws IOException is thrown if there are any problems binding to the network socket.
    */
   public SSLServer(TCPServer server, SSLContext sslctx, boolean completeHandshake) throws IOException {
@@ -114,8 +114,12 @@ public class SSLServer extends Server {
       ClientAcceptor ca = getClientAcceptor();
       if(ca != null) {
         final SSLEngine ssle = sctx.createSSLEngine(tc.getSocket().getRemoteSocketAddress().toString(), tc.getSocket().getPort());
-        final SSLClient sslClient = new SSLClient(tc, ssle, completeHandshake, false);
-        getClientAcceptor().accept(sslClient);
+        ssle.setUseClientMode(false);
+        tc.setSSLEngine(ssle);
+        if(completeHandshake) {
+          tc.startSSL();
+        }
+        getClientAcceptor().accept(tc);
       }
     }
   }

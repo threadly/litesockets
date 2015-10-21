@@ -245,7 +245,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
           ByteBuffer resultBuffer = readByteBuffer.slice();
           readByteBuffer.position(origPos+read);
           resultBuffer.limit(read);
-          client.addReadBuffer(resultBuffer.asReadOnlyBuffer());
+          client.addReadBuffer(resultBuffer);
           SelectionKey sk = client.getChannel().keyFor(selector);
           if(! client.canRead() && (sk.interestOps() & SelectionKey.OP_READ) == SelectionKey.OP_READ) {
             client.getChannel().register(selector, sk.interestOps() - SelectionKey.OP_READ);

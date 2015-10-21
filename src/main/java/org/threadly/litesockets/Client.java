@@ -31,6 +31,16 @@ import org.threadly.litesockets.utils.SimpleByteStats;
 public abstract class Client {
   
   /**
+   * SocketOptions that can be set set on Clients.
+   * 
+   * @author lwahlmeier
+   *
+   */
+  public static enum SocketOption {
+    TCP_NODELAY, SEND_BUFFER_SIZE, RECV_BUFFER_SIZE, UDP_FRAME_SIZE
+  }
+  
+  /**
    * Returns true if this client can have reads added to it or false if its read buffers are full.
    * 
    * This is mainly to inform the SocketExecuter if the client should be allowed to select onReads.
@@ -58,6 +68,15 @@ public abstract class Client {
    * @return false if the client has been connected, true if it has not connected and the timeout limit has been reached.
    */
   public abstract boolean hasConnectionTimedOut();
+  
+  /**
+   * <p>This lets you set lowerlevel socket options for this client.  Mainly Buffer sizes and nodelay options.</p>
+   * 
+   * @param so The {@link SocketOption} to set for the client.
+   * @param value The value for the socket option (1 for on, 0 for off).
+   * @return True if the option was set, false if not.
+   */
+  public abstract boolean setSocketOption(SocketOption so, int value);
   
   /**
    * 

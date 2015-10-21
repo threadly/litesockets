@@ -37,7 +37,7 @@ public class MergedByteBuffers {
    */
   public void add(ByteBuffer buffer) {
     if(buffer.hasRemaining()) {
-      availableBuffers.add(buffer.duplicate().asReadOnlyBuffer());
+      availableBuffers.add(buffer.duplicate());
       currentSize+=buffer.remaining();
     } 
   }
@@ -45,7 +45,7 @@ public class MergedByteBuffers {
   public MergedByteBuffers copy() {
     MergedByteBuffers mbb  = new MergedByteBuffers();
     for(ByteBuffer bb: this.availableBuffers) {
-      mbb.add(bb.duplicate().asReadOnlyBuffer());
+      mbb.add(bb.duplicate());
     }
     return mbb;
   }

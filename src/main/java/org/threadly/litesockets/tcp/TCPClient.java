@@ -3,7 +3,7 @@ package org.threadly.litesockets.tcp;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.net.SocketAddress;
+import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
@@ -11,6 +11,9 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLSession;
 
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
@@ -72,10 +75,10 @@ public class TCPClient extends Client {
   protected volatile long connectExpiresAt = -1;
   protected ClientByteStats stats = new ClientByteStats();
   protected AtomicBoolean closed = new AtomicBoolean(false);
-  protected final SocketAddress remoteAddress;
-
-  private volatile ByteBuffer currentWriteBuffer = ByteBuffer.allocate(0);;
+  protected final InetSocketAddress remoteAddress;
+  private volatile ByteBuffer currentWriteBuffer = ByteBuffer.allocate(0);
   private ByteBuffer readByteBuffer = ByteBuffer.allocate(NEW_READ_BUFFER_SIZE);
+  private volatile SSLProcessor sslProcessor;
 
   /**
    * This creates TCPClient with a connection to the specified port and IP.  This connection is not is not
@@ -117,7 +120,7 @@ public class TCPClient extends Client {
       channel.configureBlocking(false);
     }
     this.channel = channel;
-    remoteAddress = channel.socket().getRemoteSocketAddress();
+    remoteAddress = (InetSocketAddress) channel.socket().getRemoteSocketAddress();
     startedConnection.set(true);
   }
   
@@ -328,6 +331,9 @@ public class TCPClient extends Client {
         return null;
       }
       mbb = readBuffers.duplicateAndClean();
+      if(sslProcessor != null && sslProcessor.handShakeStarted()) {
+        mbb = sslProcessor.doRead(mbb);
+      }
     }
     if(mbb.remaining() >= maxBufferSize) {
       sei.setClientOperations(this);
@@ -342,7 +348,7 @@ public class TCPClient extends Client {
       int start = readBuffers.remaining();
       final Reader lreader = reader;
       readBuffers.add(bb);
-      if(start == 0 && lreader != null){
+      if(readBuffers.remaining() > 0 && start == 0 && lreader != null){
         cexec.execute(new Runnable() {
           @Override
           public void run() {
@@ -360,11 +366,16 @@ public class TCPClient extends Client {
     synchronized(writeBuffers) {
       boolean needNotify = ! canWrite();
       SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>();
-      writeBuffers.add(bb);
+      if(sslProcessor != null && sslProcessor.handShakeStarted()) {
+        writeBuffers.add(sslProcessor.write(bb));
+      } else {
+        writeBuffers.add(bb);
+      }
       this.writeFutures.add(new Pair<Long, SettableListenableFuture<Long>>(writeBuffers.getTotalConsumedBytes()+writeBuffers.remaining(), slf));
       if(needNotify && sei != null && channel.isConnected()) {
         sei.setClientOperations(this);
       }
+      
       return slf;
     }
   }
@@ -427,14 +438,14 @@ public class TCPClient extends Client {
   }
 
   @Override
-  public SocketAddress getRemoteSocketAddress() {
+  public InetSocketAddress getRemoteSocketAddress() {
     return remoteAddress;
   }
 
   @Override
-  public SocketAddress getLocalSocketAddress() {
+  public InetSocketAddress getLocalSocketAddress() {
     if(this.channel != null) {
-      return channel.socket().getLocalSocketAddress();
+      return (InetSocketAddress) channel.socket().getLocalSocketAddress();
     }
     return null;
   }
@@ -442,5 +453,49 @@ public class TCPClient extends Client {
   @Override
   public String toString() {
     return "TCPClient:FROM:"+getLocalSocketAddress()+":TO:"+getRemoteSocketAddress();
+  }
+
+  @Override
+  public boolean setSocketOption(SocketOption so, int value) {
+    try{
+      switch(so) {
+      case TCP_NODELAY: {
+          this.channel.setOption(StandardSocketOptions.TCP_NODELAY, value==1);
+          return true;
+      }
+      case SEND_BUFFER_SIZE: {
+        this.channel.setOption(StandardSocketOptions.SO_SNDBUF, value);
+        return true;
+      }
+      case RECV_BUFFER_SIZE: {
+        this.channel.setOption(StandardSocketOptions.SO_RCVBUF, value);
+        return true;
+      }
+      default:
+        return false;
+      }
+    } catch(Exception e) {
+
+    }
+    return false;
+  }
+  
+  public void setSSLEngine(SSLEngine ssle) {
+    sslProcessor = new SSLProcessor(this, ssle);
+  }
+  
+  public boolean isEncrypted() {
+    if(sslProcessor == null) {
+      return false;
+    }
+    return sslProcessor.isEncrypted();
+  }
+  
+  public ListenableFuture<SSLSession> startSSL() {
+    if(sslProcessor != null) {
+      ListenableFuture<SSLSession> lf = sslProcessor.doHandShake();
+      return lf;
+    }
+    throw new IllegalStateException("Must Set the SSLEngine before starting Encryption!");
   }
 }

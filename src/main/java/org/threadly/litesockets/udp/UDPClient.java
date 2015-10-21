@@ -291,4 +291,21 @@ public class UDPClient extends Client {
   public void setConnectionTimeout(int timeout) {
 
   }
+
+  @Override
+  public boolean setSocketOption(SocketOption so, int value) {
+    try{
+      switch(so) {
+      case UDP_FRAME_SIZE: {
+        this.udpServer.setFrameSize(value);
+        return true;
+      }
+      default:
+        return false;
+      }
+    } catch(Exception e) {
+      
+    }
+    return false;
+  }
 }

@@ -60,13 +60,14 @@ public class FakeTCPServerClient implements Reader, Closer, ClientAcceptor, Serv
     System.out.println("Accepted new Client!:"+map.size()+":"+client+":"+mbb);
     client.setReader(this);
     client.setCloser(this);
-    if(client instanceof SSLClient) {
-      SSLClient sslc = (SSLClient)client;
-      sslc.doHandShake();
-      sslc.getTCPClient().connect();
-    } else {
-      client.connect();      
-    }
+    client.connect();
+//    if(client instanceof SSLProcessor) {
+//      SSLProcessor sslc = (SSLProcessor)client;
+//      sslc.doHandShake();
+//      sslc.getTCPClient().connect();
+//    } else {
+//      
+//    }
   }
 
 }
