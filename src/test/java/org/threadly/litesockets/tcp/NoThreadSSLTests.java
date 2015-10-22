@@ -4,6 +4,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.security.KeyStore;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -60,7 +61,7 @@ public class NoThreadSSLTests extends SSLTests {
   }
   
   @Override
-  public void doLateSSLhandshake() throws IOException, InterruptedException, ExecutionException {
+  public void doLateSSLhandshake() throws IOException, InterruptedException, ExecutionException, TimeoutException {
     super.doLateSSLhandshake();
   }
   

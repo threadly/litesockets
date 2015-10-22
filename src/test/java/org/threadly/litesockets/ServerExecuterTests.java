@@ -100,8 +100,15 @@ public class ServerExecuterTests {
     server.setClientAcceptor(serverFC);
     server.setCloser(serverFC);
     server.start();
-    
-    SE.acceptSelector.close();
+    SE.acceptScheduler.equals(new Runnable() {
+      @Override
+      public void run() {
+        try {
+          SE.acceptSelector.close();
+        } catch (IOException e) {
+        }        
+      }});
+
     
   }
   

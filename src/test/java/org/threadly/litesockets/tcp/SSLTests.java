@@ -11,6 +11,7 @@ import java.security.KeyStore;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -256,8 +257,17 @@ public class SSLTests {
 //    client.close();
 //  }
   
+//  @Test
+//  public void loop() throws Exception {
+//    for(int i=0; i<100; i++) {
+//      this.doLateSSLhandshake();
+//      stop();
+//      start();
+//    }
+//  }
+  
   @Test
-  public void doLateSSLhandshake() throws IOException, InterruptedException, ExecutionException {
+  public void doLateSSLhandshake() throws IOException, InterruptedException, ExecutionException, TimeoutException {
     TCPServer server = SE.createTCPServer("localhost", port);
     server.setSSLContext(sslCtx);
     server.setSSLHostName("localhost");
@@ -335,21 +345,26 @@ public class SSLTests {
       }});
     System.out.println(sslclient);
     try {
-      sslclient.connect().get();
+      sslclient.connect().get(5000, TimeUnit.MILLISECONDS);
     } catch (ExecutionException e) {
       // TODO Auto-generated catch block
       e.printStackTrace();
     }
-    //System.out.println("WRITE!!");
-    sslclient.write(ByteBuffer.wrap("DO_SSL".getBytes())).get();
-    
+    System.out.println("WRITE!!");
+    try {
+      sslclient.write(ByteBuffer.wrap("DO_SSL".getBytes())).get(5000, TimeUnit.MILLISECONDS);
+    } catch (TimeoutException e) {
+      System.out.println("WRITE ERROR!! "+sslclient.getWriteBufferSize());
+      throw e;
+    }
+    System.out.println("WRITE DONE!!");
     
     new TestCondition(){
       @Override
       public boolean get() {
-        if(servers_client.get() != null) {
-          System.out.println(servers_client.get().getReadBufferSize());
-        }
+//        if(servers_client.get() != null) {
+//          System.out.println(servers_client.get().getReadBufferSize());
+//        }
         return clientsEncryptedString.get() != null && serversEncryptedString.get() != null;
       }
     }.blockTillTrue(5000, 100);

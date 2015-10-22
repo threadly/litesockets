@@ -107,21 +107,23 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
       }
     }
     if(clients.containsKey(client.getChannel()) && !client.isClosed() && isRunning()) {
-      if(!client.getChannel().isConnected() && client.getChannel().isConnectionPending()) {
-        readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_CONNECT));
-        writeScheduler.execute(new AddToSelector(client, writeSelector, 0));
-      } else if(client.canWrite() && client.canRead()) {
-        writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
-        readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
-      } else if (client.canRead()){
-        readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
-        writeScheduler.execute(new AddToSelector(client, writeSelector, 0));
-      } else if (client.canWrite()){
-        writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
-        readScheduler.execute(new AddToSelector(client, readSelector, 0));
-      } else {
-        writeScheduler.execute(new AddToSelector(client, writeSelector, 0));
-        readScheduler.execute(new AddToSelector(client, readSelector, 0));
+      synchronized(client) {
+        if(!client.getChannel().isConnected() && client.getChannel().isConnectionPending()) {
+          readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_CONNECT));
+          writeScheduler.execute(new AddToSelector(client, writeSelector, 0));
+        } else if(client.canWrite() && client.canRead()) {
+          writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
+          readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
+        } else if (client.canRead()){
+          readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
+          writeScheduler.execute(new AddToSelector(client, writeSelector, 0));
+        } else if (client.canWrite()){
+          writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
+          readScheduler.execute(new AddToSelector(client, readSelector, 0));
+        } else {
+          writeScheduler.execute(new AddToSelector(client, writeSelector, 0));
+          readScheduler.execute(new AddToSelector(client, readSelector, 0));
+        }
       }
       readSelector.wakeup();
       writeSelector.wakeup();
