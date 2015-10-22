@@ -3,7 +3,6 @@ package org.threadly.litesockets.tcp;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
@@ -460,15 +459,15 @@ public class TCPClient extends Client {
     try{
       switch(so) {
       case TCP_NODELAY: {
-          this.channel.setOption(StandardSocketOptions.TCP_NODELAY, value==1);
+          this.channel.socket().setTcpNoDelay(value == 1);
           return true;
       }
       case SEND_BUFFER_SIZE: {
-        this.channel.setOption(StandardSocketOptions.SO_SNDBUF, value);
+        this.channel.socket().setSendBufferSize(value);
         return true;
       }
       case RECV_BUFFER_SIZE: {
-        this.channel.setOption(StandardSocketOptions.SO_RCVBUF, value);
+        this.channel.socket().setReceiveBufferSize(value);
         return true;
       }
       default:

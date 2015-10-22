@@ -38,6 +38,7 @@ public class TCPServer extends Server {
     this.sei = se;
     executor = se.getExecutorFor(this);
     socket = ServerSocketChannel.open();
+    socket.socket().setReuseAddress(true);
     socket.socket().bind(new InetSocketAddress(host, port), 100);
     socket.configureBlocking(false);
   }
