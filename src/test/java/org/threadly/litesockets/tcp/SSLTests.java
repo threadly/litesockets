@@ -79,7 +79,9 @@ public class SSLTests {
   public void simpleWriteTest() throws Exception {
     long start = System.currentTimeMillis();
     port = Utils.findTCPPort();
-    SSLServer server = new SSLServer(SE.createTCPServer("localhost", port), sslCtx, true);
+    TCPServer server = SE.createTCPServer("localhost", port);
+    server.setSSLContext(sslCtx);
+    server.setDoHandshake(true);    
     serverFC.addTCPServer(server);
     
     final TCPClient client = SE.createTCPClient("localhost", port);
@@ -153,7 +155,10 @@ public class SSLTests {
   @Test
   public void largeWriteTest() throws Exception{
     
-    SSLServer server = new SSLServer(SE.createTCPServer("localhost", port), sslCtx, true);
+    TCPServer server = SE.createTCPServer("localhost", port);
+    server.setSSLContext(sslCtx);
+    server.setSSLHostName("localhost");
+    server.setDoHandshake(true);
     serverFC.addTCPServer(server);
     
     final TCPClient client = SE.createTCPClient("localhost", port);
@@ -253,7 +258,11 @@ public class SSLTests {
   
   @Test
   public void doLateSSLhandshake() throws IOException, InterruptedException, ExecutionException {
-    SSLServer server = new SSLServer(SE.createTCPServer("localhost", port), sslCtx, false);
+    TCPServer server = SE.createTCPServer("localhost", port);
+    server.setSSLContext(sslCtx);
+    server.setSSLHostName("localhost");
+    server.setDoHandshake(false);
+
     final AtomicReference<TCPClient> servers_client = new AtomicReference<TCPClient>();
     final AtomicReference<String> serversEncryptedString = new AtomicReference<String>();
     final AtomicReference<String> clientsEncryptedString = new AtomicReference<String>();

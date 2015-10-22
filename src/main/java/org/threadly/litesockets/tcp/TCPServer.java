@@ -8,6 +8,9 @@ import java.nio.channels.SocketChannel;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+
 import org.threadly.litesockets.Server;
 import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.WireProtocol;
@@ -22,6 +25,9 @@ public class TCPServer extends Server {
   protected final Executor executor;
   protected final SocketExecuter sei;
   protected final AtomicBoolean closed = new AtomicBoolean(false);
+  private volatile SSLContext sslCtx = null;
+  private volatile String hostName = null;
+  private volatile boolean doHandshake = false;
   
   private volatile ClientAcceptor clientAcceptor;
   private volatile ServerCloser closer;
@@ -112,6 +118,19 @@ public class TCPServer extends Server {
         public void run() {
           try {
             TCPClient client = sei.createTCPClient((SocketChannel)c);
+            if(sslCtx != null) {
+              SSLEngine ssle;
+              if(hostName != null) {
+                ssle = sslCtx.createSSLEngine(hostName, client.getLocalSocketAddress().getPort());
+              } else {
+                ssle = sslCtx.createSSLEngine(client.getLocalSocketAddress().getHostName(), client.getLocalSocketAddress().getPort());
+              }
+              ssle.setUseClientMode(false);
+              client.setSSLEngine(ssle);
+              if(doHandshake) {
+                client.startSSL();
+              }
+            }
             if(clientAcceptor != null) {
               clientAcceptor.accept(client);
             }
@@ -131,6 +150,18 @@ public class TCPServer extends Server {
           getCloser().onClose(TCPServer.this);
         }});
     }
+  }
+  
+  public void setSSLContext(SSLContext sslctx) {
+    this.sslCtx = sslctx;
+  }
+  
+  public void setSSLHostName(String name) {
+    this.hostName = name;
+  }
+  
+  public void setDoHandshake(boolean hs) {
+    this.doHandshake = hs;
   }
 
   @Override
