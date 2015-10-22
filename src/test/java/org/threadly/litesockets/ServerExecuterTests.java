@@ -3,6 +3,7 @@ package org.threadly.litesockets;
 import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
+import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 
 import org.junit.After;
@@ -33,6 +34,13 @@ public class ServerExecuterTests {
   public void stop() {
     SE.stopIfRunning();
     PS.shutdownNow();
+  }
+  
+
+  @Test(expected=IllegalStateException.class)
+  public void clientFromStoppedSE() throws IOException, InterruptedException {
+    SE.stop();
+    SE.createTCPClient("localhost", port);
   }
   
   @Test

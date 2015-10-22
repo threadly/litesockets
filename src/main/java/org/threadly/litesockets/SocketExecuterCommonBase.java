@@ -263,14 +263,6 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     }
   }
 
-  protected static void flushSelector(Selector selector) {
-    try {
-      selector.selectNow();
-    } catch (IOException e) {
-      ExceptionUtils.handleException(e);
-    }
-  }
-
   /**
    * This exception in thrown when we have problems doing common operations during startup.
    * This is usually around opening selectors.
@@ -282,33 +274,6 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
       super(t);
     }
 
-  }
-
-
-  /**
-   * This class is a helper runnable to generically remove SelectableChannels from a selector.
-   * 
-   *
-   */
-  protected static class RemoveFromSelector implements Runnable {
-    SelectableChannel localChannel;
-    Selector localSelector;
-
-    public RemoveFromSelector(SelectableChannel channel, Selector selector) {
-      localChannel = channel;
-      localSelector = selector;
-    }
-
-    @Override
-    public void run() {
-      if(localSelector.isOpen()) {
-        SelectionKey sk = localChannel.keyFor(localSelector);
-        if(sk != null) {
-          sk.cancel();
-          flushSelector(localSelector);
-        }
-      }
-    }
   }
 
   /**

@@ -1,6 +1,7 @@
 package org.threadly.litesockets.tcp;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -15,6 +16,7 @@ import java.util.ArrayList;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.After;
 import org.junit.Before;
@@ -66,10 +68,75 @@ public class TCPTests {
   
   @After
   public void stop() {    
+    SE.stopListening(server);
     SE.stopIfRunning();
     PS.shutdown();
   }
 
+  @Test(expected=IllegalStateException.class)
+  public void writeClosedSocket() throws IOException, InterruptedException, ExecutionException, TimeoutException {
+    final TCPClient client = SE.createTCPClient("localhost", port);
+    client.connect().get(5000, TimeUnit.MILLISECONDS);
+    client.close();
+    client.write(SMALL_TEXT_BUFFER.duplicate());
+  }
+  
+  
+  @Test
+  public void setClientOptions() throws IOException, InterruptedException {
+    final TCPClient client = SE.createTCPClient("localhost", port);
+    assertTrue(client.setSocketOption(Client.SocketOption.TCP_NODELAY, 1));
+    assertFalse(client.setSocketOption(Client.SocketOption.SEND_BUFFER_SIZE, 0));
+    assertFalse(client.setSocketOption(Client.SocketOption.RECV_BUFFER_SIZE, 0));
+    assertTrue(client.setSocketOption(Client.SocketOption.SEND_BUFFER_SIZE, 1));
+    assertTrue(client.setSocketOption(Client.SocketOption.RECV_BUFFER_SIZE, 1));
+    assertFalse(client.setSocketOption(Client.SocketOption.UDP_FRAME_SIZE, 1));
+    assertFalse(client.isEncrypted());
+    final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
+    client.setReader(clientFC);
+    client.setCloser(clientFC);
+    client.connect();
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.map.size() == 1;
+      }
+    }.blockTillTrue(5000);
+
+    final TCPClient sclient = (TCPClient) serverFC.map.keys().nextElement();
+    client.write(SMALL_TEXT_BUFFER.duplicate());
+    //System.out.println("1");
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.map.get(sclient).remaining() == SMALL_TEXT_BUFFER.remaining();
+      }
+    }.blockTillTrue(5000);
+
+    sclient.write(SMALL_TEXT_BUFFER.duplicate());
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        boolean test = false;
+        try {
+          test =clientFC.map.get(client).remaining() == SMALL_TEXT_BUFFER.remaining();
+        } catch(Exception e) {
+
+        }
+        return test;
+      }
+    }.blockTillTrue(1000);
+
+    client.close();
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return sclient.isClosed() && client.isClosed();
+      }
+    }.blockTillTrue(5000);
+    server.close();
+  }
+  
   @Test
   public void simpleWriteTest() throws IOException, InterruptedException {
     final TCPClient client = SE.createTCPClient("localhost", port);

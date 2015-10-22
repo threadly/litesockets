@@ -345,7 +345,7 @@ public class TCPClient extends Client {
     stats.addRead(bb.remaining());
     synchronized(readBuffers) {
       int start = readBuffers.remaining();
-      final Reader lreader = reader;
+      final Reader lreader = getReader();
       readBuffers.add(bb);
       if(readBuffers.remaining() > 0 && start == 0 && lreader != null){
         cexec.execute(new Runnable() {
@@ -474,7 +474,6 @@ public class TCPClient extends Client {
         return false;
       }
     } catch(Exception e) {
-
     }
     return false;
   }

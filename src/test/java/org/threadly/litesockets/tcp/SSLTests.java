@@ -76,6 +76,19 @@ public class SSLTests {
     serverFC = new FakeTCPServerClient(SE);
   }
   
+  @Test(expected=IllegalStateException.class)
+  public void badSSLStart() throws Exception {
+    port = Utils.findTCPPort();
+    TCPServer server = SE.createTCPServer("localhost", port);
+    server.setSSLContext(sslCtx);
+    server.setDoHandshake(true);    
+    serverFC.addTCPServer(server);
+    
+    final TCPClient client = SE.createTCPClient("localhost", port);
+    
+    client.startSSL();
+  }
+  
   @Test
   public void simpleWriteTest() throws Exception {
     long start = System.currentTimeMillis();

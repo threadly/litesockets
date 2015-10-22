@@ -37,7 +37,7 @@ public class UDPTest {
   
   @After
   public void stop() {
-    server.close();
+    SE.stopListening(server);
     SE.stop();
     PS.shutdownNow();
   }
