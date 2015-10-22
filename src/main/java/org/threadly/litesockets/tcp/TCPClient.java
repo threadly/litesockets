@@ -191,10 +191,10 @@ public class TCPClient extends Client {
   public void close() {
     if(closed.compareAndSet(false, true)) {
       sei.setClientOperations(this);
-      for(Pair<Long, SettableListenableFuture<Long>> p: this.writeFutures) {
-        p.getRight().setFailure(new ClosedChannelException());
-      }
       synchronized(writeBuffers) {
+        for(Pair<Long, SettableListenableFuture<Long>> p: this.writeFutures) {
+          p.getRight().setFailure(new ClosedChannelException());
+        }
         writeFutures.clear();
         writeBuffers.discard(this.writeBuffers.remaining());
       }
