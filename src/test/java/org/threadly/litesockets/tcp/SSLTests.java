@@ -145,7 +145,7 @@ public class SSLTests {
   }
 
   @Test
-  public void sslClientTimeout() throws IOException, InterruptedException, ExecutionException {
+  public void sslClientTimeout() throws IOException, InterruptedException, ExecutionException, TimeoutException {
     TCPServer server = SE.createTCPServer("localhost", port);
     serverFC.addTCPServer(server);
     long start = System.currentTimeMillis();
@@ -156,7 +156,7 @@ public class SSLTests {
       client.setSSLEngine(ssle);
       client.setConnectionTimeout(201);
       client.connect();
-      client.startSSL().get();
+      client.startSSL().get(5000, TimeUnit.MILLISECONDS);
       fail();
     } catch(CancellationException e) {
       e.printStackTrace();

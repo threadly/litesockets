@@ -89,8 +89,10 @@ public class ServerExecuterTests {
     }.blockTillTrue(20 * 1000, 100);
     assertEquals(clientCount*2, SE.getClientCount());
     assertEquals(clientCount+1, SE.getServerCount());
-    for(TCPClient c: clients) {
-      c.close();
+    synchronized(clients) {
+      for(TCPClient c: clients) {
+        c.close();
+      }
     }
     new TestCondition(){
       @Override

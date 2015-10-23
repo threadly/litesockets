@@ -166,13 +166,12 @@ public class ProfileServerTest {
     pServer.start();
     final TCPClient client = SE.createTCPClient("localhost", port);
     clientHandler.addTCPClient(client);
+    StringBuilder sb = new StringBuilder(); 
     for(int i=0; i<10000; i++) {
-      try {
-        client.write(ByteBuffer.wrap("crap".getBytes()));
-      } catch(Exception e) {
-        
-      }
+      sb.append("crap");
     }
+    client.write(ByteBuffer.wrap(sb.toString().getBytes()));
+    
     new TestCondition(){
       @Override
       public boolean get() {

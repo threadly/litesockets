@@ -199,6 +199,7 @@ public class TCPClient extends Client {
         writeBuffers.discard(this.writeBuffers.remaining());
       }
       try {
+        channel.socket().close();
         channel.close();
       } catch (IOException e) {
         //we dont care
@@ -219,13 +220,15 @@ public class TCPClient extends Client {
   public void setReader(final Reader reader) {
     if(! closed.get()) {
       this.reader = reader;
-      synchronized(readBuffers) {
-        if(this.readBuffers.remaining() > 0) {
-          cexec.execute(new Runnable() {
-            @Override
-            public void run() {
-              reader.onRead(TCPClient.this);
-            }});
+      if(reader != null) {
+        synchronized(readBuffers) {
+          if(this.readBuffers.remaining() > 0) {
+            cexec.execute(new Runnable() {
+              @Override
+              public void run() {
+                reader.onRead(TCPClient.this);
+              }});
+          }
         }
       }
     }
