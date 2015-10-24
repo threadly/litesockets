@@ -43,7 +43,7 @@ writes are ByteBuffers only which means they are byte arrays or chunks of data. 
 ```java
 
     final String GET = "GET / HTTP/1.1\r\nUser-Agent: litesockets/3.3.0\r\nHost: www.google.com\r\nAccept: */*\r\n\r\n";
-
+    final SettableListenableFuture<Object> onReadFuture = new SettableListenableFuture<Object>();
     //This is the SocketExecuter this runs the selector and adds reads/writes to the clients
     //as well as runs the call backs 
     final ThreadedSocketExecuter TSE = new ThreadedSocketExecuter();
@@ -54,41 +54,44 @@ writes are ByteBuffers only which means they are byte arrays or chunks of data. 
     final MergedByteBuffers mbb = new MergedByteBuffers();
     
     //This makes a connection to the specified host/port
-    //As the connection is made at this point no reads or writes will be 
-    //pulled off the socket yet.
-    final TCPClient client = new TCPClient("www.google.com", 80);
+    //The connection is not yet actually made, connect() must be called to do that.
+    final TCPClient client = TSE.createTCPClient("www.google.com", 80);
     
     //Here we set the Reader call back.  Everytime the client gets a read
     //This will be executed.  This will happen in a single threaded way per client.
-    //Because it returns the client this is for you could have 1 Reader for many clients
+    //Because it returns the client that the read happened on you can have 1 Reader for many clients
     //assuming you are watching threading between then on your own.
     client.setReader(new Reader() {
         @Override
         public void onRead(Client returnedClient) {
             mbb.add(returnedClient.getRead());
             System.out.println(mbb.getAsString(mbb.remaining()));
+            if(!onReadFuture.isDone()){
+              onReadFuture.setResult("");
+            }
         }
     });
     
-    //Add the client to the SocketExecuter.  At this point Reads and Writes will start
-    //going to and from the client object.  As long as a Reader has been set you could
-    //start getting callbacks at this point.
-    TSE.addClient(client);
+    ListenableFuture<?> lf = client.connect();
+    lf.get();
     
     //We tell the client to write data to the socket.  Since this is to an http server we send
     //a simple GET request once the server gets that it will send us the response.
-    client.writeBlocking(ByteBuffer.wrap(GET.getBytes()));
+    ListenableFuture<?> wlf = client.write(ByteBuffer.wrap(GET.getBytes()));
+    //Every write returns a future that will be completed once the write has been handed off to the OS.
     
-    //A real app would not need to sleep here but would need to be kept from exiting some how
-    Thread.sleep(5000);
+    //Wait till we get a response back then continue;
+    onReadFuture.get();
 
 ```
 
-##Simple Server Example
+##Echo Server Example
 
 ```java
-    final String hello = "hello";
-
+    final String hello = "hello\n";
+    final String echo = "ECHO: ";
+    final SettableListenableFuture<Object> exitSent = new SettableListenableFuture<Object> (); 
+    
     //We use a concurrentMap since the Servers Accept callback can happen on any thread in the threadpool
     final ConcurrentHashMap<Client, MergedByteBuffers> clients = new ConcurrentHashMap<Client, MergedByteBuffers>();
 
@@ -99,58 +102,64 @@ writes are ByteBuffers only which means they are byte arrays or chunks of data. 
     TSE.start();
 
     //We create a listen socket here.  The socket is opened but nothing can be accepted
-    //Untill we add it to the SocketExecuter.
-    TCPServer server = new TCPServer("localhost", 5555);
+    //Untill we run start on it.
+    TCPServer server = TSE.createTCPServer("localhost", 5555);
 
     //Here we set the ClientAcceptor callback.  This is what is called when a new client connects to the server.
     server.setClientAcceptor(new ClientAcceptor() {
       @Override
       public void accept(final Client newClient) {
-        //Here we set the new clients Reader which adds new Reads to a MergedByteBuffer
-        //This callback for the client will happen in a single threaded manor.
         final TCPClient tc = (TCPClient)newClient;
+        
+        //Add the client to the map with a queue
+        clients.put(newClient, new MergedByteBuffers());
+        
+        //Set the clients reader, any data sent before it added will be called as soon as we add the reader.        
         tc.setReader(new Reader() {
           @Override
           public void onRead(Client client) {
-            clients.get(client).add(client.getRead());
+            MergedByteBuffers mbb = client.getRead();
+            if(mbb.indexOf("exit") > -1) {
+              if(!exitSent.isDone()) {
+                exitSent.setResult("");
+              }
+            } else {
+              //We just assume everything is a string 
+              String str = mbb.getAsString(mbb.remaining());
+              clients.get(client).add(ByteBuffer.wrap(str.getBytes()));
+              client.write(ByteBuffer.wrap((echo+str).getBytes()));
+            }
           }});
         //Here we set the closer for the client.  This will be called only once when the socket is closed.
         //This also happens in a single threaded manor and should be after all the reads are processed for the client.
         tc.setCloser(new Closer() {
           @Override
           public void onClose(Client client) {
-            MergedByteBuffers mbb = clients.remove(client);
+            //Normally you would want to clean up client state here, but we save everything for this servers exit.
+            //MergedByteBuffers mbb = clients.remove(client);
             if(mbb.remaining() > 0) {
               //If the client sent something write it to stdout once it closed
               System.out.println("Client Wrote:"+mbb.getAsString(mbb.remaining()));
             }
           }});
 
-        //Add the client to the map.  Must do this before we add to the TSE or
-        //We would get NPE when looking it up in the map.
-        clients.put(newClient, new MergedByteBuffers());
-
-        //Add the client to the SocketExecuter (we can get reads at this point.
-        TSE.addClient(newClient);
-
-        //Write hello to the socket.  The forceWrite will finish the write to the client
-        //object w/o caring about buffer size.  The Socket executer will deal with getting it
-        //onto the socket.  This could be used with caution as you could over fill memory if you do this to fast.
-        newClient.writeForce(ByteBuffer.wrap(hello.getBytes()));
-
-        //Once the client is fully setup we schedule a close on the client for 2 seconds out.
-        TSE.getThreadScheduler().schedule(new Runnable() {
-          @Override
-          public void run() {
-            newClient.close();
-          }}, 2000);
+        //Write hello to client.  The Socket executer will deal with getting it
+        //onto the actual socket.
+        newClient.write(ByteBuffer.wrap(hello.getBytes()));
      }});
 
     //Here we add the server. At this point we can accept client connections.
-    TSE.addServer(server);
+    server.start();
 
-    //A real server would not sleep here.
-    Thread.sleep(10000);
+    //Wait for an exit from the client.
+    exitSent.get();
+    
+    //Print out every client connected and what they sent
+    for(Client client: clients.keySet()) {
+     MergedByteBuffers mbb = clients.get(client);
+      System.out.println("Client:"+client+":\n\tsent data:\n"+mbb.getAsString(mbb.remaining()));
+      System.out.println("--------------------");
+    }
 
 ```
 
