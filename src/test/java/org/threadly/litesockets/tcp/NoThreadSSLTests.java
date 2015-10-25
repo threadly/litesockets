@@ -1,10 +1,7 @@
 package org.threadly.litesockets.tcp;
 
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.security.KeyStore;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -54,20 +51,4 @@ public class NoThreadSSLTests extends SSLTests {
     SE.stop();
     PS.shutdownNow();
   }
-  
-  @Override
-  public void largeWriteTest() throws Exception {
-    super.largeWriteTest();
-  }
-  
-  @Override
-  public void doLateSSLhandshake() throws IOException, InterruptedException, ExecutionException, TimeoutException {
-    super.doLateSSLhandshake();
-  }
-  
-//  @Override
-//  public void useTCPClientPendingReads() throws IOException{
-//    super.useTCPClientPendingReads();
-//  }
-
 }

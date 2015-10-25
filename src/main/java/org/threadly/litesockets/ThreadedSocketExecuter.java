@@ -31,7 +31,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   private final SingleThreadScheduler localReadScheduler;
   private final SingleThreadScheduler localWriteScheduler;
 
-  protected volatile long readThreadID = 0;
+  private volatile long readThreadID;
 
   private final AcceptRunner acceptor = new AcceptRunner();
   private final ReadRunner reader = new ReadRunner();
@@ -54,7 +54,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
    * 
    * @param exec The {@link ScheduledExecutorService} to be used for client/server callbacks.
    */
-  public ThreadedSocketExecuter(ScheduledExecutorService exec) {
+  public ThreadedSocketExecuter(final ScheduledExecutorService exec) {
     this(new ScheduledExecutorServiceWrapper(exec));
   }
 
@@ -64,7 +64,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
    * 
    * @param exec the {@link ScheduledExecutorService} to be used for client/server callbacks.
    */
-  public ThreadedSocketExecuter(SubmitterScheduler exec) {
+  public ThreadedSocketExecuter(final SubmitterScheduler exec) {
     super(new SingleThreadScheduler(new ConfigurableThreadFactory("SocketAccept", false, true, Thread.currentThread().getPriority(), null, null)),
         new SingleThreadScheduler(new ConfigurableThreadFactory("SocketReader", false, true, Thread.currentThread().getPriority(), null, null)),
         new SingleThreadScheduler(new ConfigurableThreadFactory("SocketWriter", false, true, Thread.currentThread().getPriority(), null, null)),
@@ -87,10 +87,10 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
 
   @Override
   protected void shutdownService() {
-    for(Client client: clients.values()) {
+    for(final Client client: clients.values()) {
       client.close();
     }
-    for(Server server: servers.values()) {
+    for(final Server server: servers.values()) {
       server.close();
     }
     closeSelector(localAcceptScheduler, acceptSelector);
@@ -99,12 +99,10 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   }  
   
   @Override
-  public void setClientOperations(Client client) {
+  public void setClientOperations(final Client client) {
     ArgumentVerifier.assertNotNull(client, "Client");
-    if(isRunning() && !clients.containsKey(client.getChannel())) {
-      if(!client.isClosed() && client.getClientsSocketExecuter() == this) {
-        clients.put(client.getChannel(), client);
-      }
+    if(isRunning() && !clients.containsKey(client.getChannel()) && !client.isClosed() && client.getClientsSocketExecuter() == this) {
+      clients.putIfAbsent(client.getChannel(), client);
     }
     if(clients.containsKey(client.getChannel()) && !client.isClosed() && isRunning()) {
       synchronized(client) {
@@ -143,12 +141,12 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
           acceptSelector.selectedKeys().clear();
           acceptSelector.select();
           if(isRunning()) {
-            for(SelectionKey sk: acceptSelector.selectedKeys()) {
+            for(final SelectionKey sk: acceptSelector.selectedKeys()) {
               if(sk.isAcceptable()) {
-                ServerSocketChannel server = (ServerSocketChannel) sk.channel();
+                final ServerSocketChannel server = (ServerSocketChannel) sk.channel();
                 doServerAccept(servers.get(server));
               } else if(sk.isReadable()) {
-                DatagramChannel server = (DatagramChannel) sk.channel();
+                final DatagramChannel server = (DatagramChannel) sk.channel();
                 final Server udpServer = servers.get(server);
                 udpServer.acceptChannel(server);
               }
@@ -181,8 +179,8 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
           readSelector.selectedKeys().clear();
           readSelector.select();
           if(isRunning() && ! readSelector.selectedKeys().isEmpty()) {
-            for(SelectionKey sk: readSelector.selectedKeys()) {
-              Client client = clients.get(sk.channel());
+            for(final SelectionKey sk: readSelector.selectedKeys()) {
+              final Client client = clients.get(sk.channel());
               if(sk.isConnectable()) {
                 doClientConnect(client, readSelector);
                 setClientOperations(client);
@@ -213,7 +211,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
           writeSelector.selectedKeys().clear();
           writeSelector.select();
           if(isRunning() && ! writeSelector.selectedKeys().isEmpty()) {
-            for(SelectionKey sk: writeSelector.selectedKeys()) {
+            for(final SelectionKey sk: writeSelector.selectedKeys()) {
               final Client client = clients.get(sk.channel());
               stats.addWrite(doClientWrite(client, writeSelector));
             }
@@ -230,7 +228,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   }
 
   @Override
-  public Executor getExecutorFor(Object obj) {
+  public Executor getExecutorFor(final Object obj) {
     return clientDistributer.getSubmitterForKey(obj);
   }
 }

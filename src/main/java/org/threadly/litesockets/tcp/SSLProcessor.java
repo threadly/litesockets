@@ -27,7 +27,17 @@ import org.threadly.litesockets.utils.TransactionalByteBuffers;
  * @author lwahlmeier
  */
 class SSLProcessor {
+  //Not sure why but android needs this extra buffer
+  //as the getApp/Packet buffers are not right.
   public static final int EXTRA_BUFFER_AMOUNT = 50;
+  
+  /**
+   * This is how much extra buffer we allocate for read events so we do quite
+   * as much allocating.  We always have to have at least 1 buffer the size SSLEngine says
+   * we need, but might use very little of it.  This way we can allocate once and get multiple
+   * read events with it before we have to throw away allocated bytes an allocate more. 
+   * 
+   */
   public static final int PREALLOCATE_BUFFER_MULTIPLIER = 3;
 
   private final AtomicBoolean finishedHandshake = new AtomicBoolean(false); 
@@ -39,7 +49,7 @@ class SSLProcessor {
   private ByteBuffer writeBuffer;
   private ByteBuffer decryptedReadBuffer;
 
-  public SSLProcessor(Client client, SSLEngine ssle) {
+  public SSLProcessor(final Client client, final SSLEngine ssle) {
     this.client = client;
     this.ssle = ssle;
   }
@@ -53,10 +63,7 @@ class SSLProcessor {
    * @return true if the connection is encrypted false if not.
    */
   public boolean isEncrypted() {
-    if(startedHandshake.get() && ssle.getSession().getProtocol().equals("NONE")) {
-      return false;
-    }
-    return true;
+    return (startedHandshake.get() && !ssle.getSession().getProtocol().equals("NONE"));
   }
 
   /**
@@ -85,7 +92,7 @@ class SSLProcessor {
   private void runTasks() {
     SSLEngineResult.HandshakeStatus hs = ssle.getHandshakeStatus();
     while(hs == NEED_TASK) {
-      Runnable task = ssle.getDelegatedTask();
+      final Runnable task = ssle.getDelegatedTask();
       task.run();
       hs = ssle.getHandshakeStatus();
     }
@@ -105,13 +112,13 @@ class SSLProcessor {
     return decryptedReadBuffer;
   }
 
-  public MergedByteBuffers write(ByteBuffer buffer) {
-    MergedByteBuffers mbb = new MergedByteBuffers();
+  public MergedByteBuffers write(final ByteBuffer buffer) {
+    final MergedByteBuffers mbb = new MergedByteBuffers();
     if(!startedHandshake.get()){
       mbb.add(buffer);
       return mbb;
     }
-    ByteBuffer oldBB = buffer.duplicate();
+    final ByteBuffer oldBB = buffer.duplicate();
     ByteBuffer newBB; 
     ByteBuffer tmpBB;
     boolean gotFinished = false;
@@ -119,7 +126,7 @@ class SSLProcessor {
       newBB = getAppWriteBuffer();
       tmpBB = newBB.duplicate();
       try {
-        SSLEngineResult res = ssle.wrap(oldBB, newBB);
+        final SSLEngineResult res = ssle.wrap(oldBB, newBB);
         if(res.getHandshakeStatus() == FINISHED) {
           gotFinished = true;
         } else {
@@ -135,30 +142,28 @@ class SSLProcessor {
         mbb.add(tmpBB);
       }
     }
-    if(gotFinished) {
-      if(finishedHandshake.compareAndSet(false, true)) {
-        handshakeFuture.setResult(ssle.getSession());
-        client.write(ByteBuffer.allocate(0));
-      }
+    if(gotFinished && finishedHandshake.compareAndSet(false, true)) {
+      handshakeFuture.setResult(ssle.getSession());
+      client.write(ByteBuffer.allocate(0));
     }
     return mbb;
   }
 
-  public MergedByteBuffers doRead(MergedByteBuffers bb) {
-    MergedByteBuffers mbb = new MergedByteBuffers();
+  public MergedByteBuffers doRead(final MergedByteBuffers bb) {
+    final MergedByteBuffers mbb = new MergedByteBuffers();
     if(!this.startedHandshake.get()) {
       mbb.add(bb);
       return mbb;
     }
     encryptedReadBuffers.add(bb);
-    ByteBuffer encBB = encryptedReadBuffers.pull(encryptedReadBuffers.remaining());
+    final ByteBuffer encBB = encryptedReadBuffers.pull(encryptedReadBuffers.remaining());
 //    ByteBuffer enc2bb = ByteBuffer.allocate(encBB.remaining());
 //    enc2bb.put(encBB);
 //    enc2bb.flip();
 //    encBB = enc2bb;
     while(encBB.remaining() > 0) {
-      ByteBuffer dbb = getDecryptedByteBuffer();
-      ByteBuffer newBB = dbb.duplicate();
+      final ByteBuffer dbb = getDecryptedByteBuffer();
+      final ByteBuffer newBB = dbb.duplicate();
       SSLEngineResult res;
       try {
         res = ssle.unwrap(encBB, dbb);
@@ -184,7 +189,7 @@ class SSLProcessor {
 
   }
 
-  private void processHandshake(HandshakeStatus status) throws SSLException {
+  private void processHandshake(final HandshakeStatus status) throws SSLException {
     switch(status) {
     case FINISHED: {
       if(this.finishedHandshake.compareAndSet(false, true)){
@@ -216,7 +221,7 @@ class SSLProcessor {
   public static class EncryptionException extends RuntimeException {
 
     private static final long serialVersionUID = -2713992763314654069L;
-    public EncryptionException(Throwable t) {
+    public EncryptionException(final Throwable t) {
       super(t);
     }
   }

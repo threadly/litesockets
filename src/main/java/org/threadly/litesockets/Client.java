@@ -5,10 +5,14 @@ import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.threadly.concurrent.event.ListenerHelper;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
+import org.threadly.util.ArgumentVerifier;
+import org.threadly.util.Clock;
 
 
 /**
@@ -41,13 +45,52 @@ public abstract class Client {
   }
   
   /**
+   * Default max buffer size (64k).  Read and write buffers are independent of each other.
+   */
+  public static final int DEFAULT_MAX_BUFFER_SIZE = 65536;
+  /**
+   * When we hit the minimum read buffer size we will create a new one of this size (64k).
+   */
+  public static final int NEW_READ_BUFFER_SIZE = 65536;
+  /**
+   * Minimum allowed readBuffer (4k).  If the readBuffer is lower then this we will create a new one.
+   */
+  public static final int MIN_READ_BUFFER_SIZE = 4096;
+  
+  private final MergedByteBuffers readBuffers = new MergedByteBuffers();
+  protected final SocketExecuter se;
+  protected final long startTime = Clock.lastKnownForwardProgressingMillis();
+  protected final Object readerLock = new Object();
+  protected final Object writerLock = new Object();
+  protected final ClientByteStats stats = new ClientByteStats();
+  protected final AtomicBoolean closed = new AtomicBoolean(false);
+  protected final ListenerHelper<Reader> readerListener = ListenerHelper.build(Reader.class);
+  protected final ListenerHelper<CloseListener> closerListener = ListenerHelper.build(CloseListener.class);
+  protected volatile int maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;
+  private ByteBuffer readByteBuffer = ByteBuffer.allocate(NEW_READ_BUFFER_SIZE);
+  
+  public Client(final SocketExecuter se) {
+    this.se = se;
+  }
+  
+  protected void addReadStats(final int size) {
+    stats.addRead(size);
+  }
+  
+  protected void addWriteStats(final int size) {
+    stats.addWrite(size);
+  }
+  
+  /**
    * Returns true if this client can have reads added to it or false if its read buffers are full.
    * 
    * This is mainly to inform the SocketExecuter if the client should be allowed to select onReads.
    * 
    * @return true if more reads can be added, false if not.
    */
-  protected abstract boolean canRead();
+  public boolean canRead() {
+    return readBuffers.remaining() < maxBufferSize;
+  }
 
   /**
    * Returns true if this client has data pending in its write buffers.  False if there is no data pending write.
@@ -100,6 +143,7 @@ public abstract class Client {
   
   
   public abstract void setConnectionTimeout(int timeout);
+  
   /**
    * <p>Used to get this clients connection timeout information.</p>
    * 
@@ -114,14 +158,21 @@ public abstract class Client {
    * 
    * @return A {@link ByteBuffer} to use during this clients read operations.
    */
-  protected abstract ByteBuffer provideReadByteBuffer();
+  protected ByteBuffer provideReadByteBuffer() {
+    if(readByteBuffer.remaining() < MIN_READ_BUFFER_SIZE) {
+      readByteBuffer = ByteBuffer.allocate(DEFAULT_MAX_BUFFER_SIZE);
+    }
+    return readByteBuffer;
+  }
   
   /**
    * <p>This is used to get the current size of the readBuffers pending reads.</p>
    * 
    * @return the current size of the ReadBuffer.
    */
-  public abstract int getReadBufferSize();
+  public int getReadBufferSize() {
+    return readBuffers.remaining();
+  }
   
   /**
    * <p>This is used to get the current size of the unWriten writeBuffer.</p>
@@ -135,7 +186,9 @@ public abstract class Client {
    * 
    * @return the current MaxBuffer size allowed.  The read and write buffer use this independently.
    */
-  public abstract int getMaxBufferSize();
+  public int getMaxBufferSize() {
+    return this.maxBufferSize;
+  }
   
   /**
    * <p> This returns this clients {@link Executor}.  The client must have been added to the {@link SocketExecuter} or 
@@ -146,36 +199,54 @@ public abstract class Client {
    * 
    * @return The {@link Executor} for the client.
    */
-  public abstract Executor getClientsThreadExecutor();
+  public Executor getClientsThreadExecutor() {
+    return se.getExecutorFor(this);
+  }
   
   /**
    * <p>This is used to get the clients currently assigned {@link SocketExecuter}.</p>
    * 
    * @return the {@link SocketExecuter} set for this client. if none, null is returned.
    */
-  public abstract SocketExecuter getClientsSocketExecuter();
+  public SocketExecuter getClientsSocketExecuter() {
+    return se;
+  }
   
   /**
    * <p>This is used to get the currently set {@link Closer} for this client.</p>
    * 
    * @return the current {@link Closer} interface for this client.
    */
-  public abstract Closer getCloser();
+  protected void callClosers() {
+    this.closerListener.call().onClose(this);
+  }
 
   /**
-   * <p>This sets the {@link Closer} interface for this client.  Once set the client will call .onClose 
+   * <p>This sets the {@link CloseListener} interface for this client.  Once set the client will call .onClose 
    * on it once it a socket close is detected.</p> 
    * 
-   * @param closer sets this clients {@link Closer} callback.
+   * @param closer sets this clients {@link CloseListener} callback.
    */
-  public abstract void setCloser(Closer closer);
+  public void addCloseListener(final CloseListener closer) {
+    if(closed.get()) {
+      getClientsThreadExecutor().execute(new Runnable() {
+        @Override
+        public void run() {
+          closer.onClose(Client.this);
+        }});      
+    } else {
+      closerListener.addListener(closer, this.getClientsThreadExecutor());
+    }
+  }
   
   /**
    * <p>Returns the currently set Reader callback. </p>
    * 
    * @return the current {@link Reader} callback for this client.
    */
-  public abstract Reader getReader();
+  protected void callReader() {
+    this.readerListener.call().onRead(this);
+  }
 
   /**
    * <p>This sets the Reader for the client.This should be set before adding the Client to the {@link SocketExecuter}, 
@@ -184,7 +255,20 @@ public abstract class Client {
    * 
    * @param reader the {@link Reader} callback to set for this client.
    */
-  public abstract void setReader(Reader reader);
+  public void setReader(final Reader reader) {
+    if(! closed.get()) {
+      readerListener.clearListeners();
+      if(reader != null) {
+        readerListener.addListener(reader, this.getClientsThreadExecutor());
+        synchronized(readerLock) {
+          if(this.getReadBufferSize() > 0) {
+            readerListener.call().onRead(this);
+          }
+        }
+      }
+    }
+  }
+
 
   /**
    * <p>This allows you to set/change the max buffer size for this client object.
@@ -198,7 +282,10 @@ public abstract class Client {
    * 
    * @param size max buffer size in bytes.
    */
-  public abstract void setMaxBufferSize(int size);
+  public void setMaxBufferSize(final int size) {
+    ArgumentVerifier.assertNotNegative(size, "size");
+    maxBufferSize = size;
+  }
   
   /**
    * <p>Whenever a the {@link Reader} Interfaces {@link Reader#onRead(Client)} is called the
@@ -206,7 +293,17 @@ public abstract class Client {
    * 
    * @return a {@link MergedByteBuffers} of the current read data for this client.
    */
-  public abstract MergedByteBuffers getRead();
+  public MergedByteBuffers getRead() {
+    MergedByteBuffers mbb = null;
+    synchronized(readerLock) {
+      mbb = readBuffers.duplicateAndClean();
+    }
+    if(mbb.remaining() >= maxBufferSize) {
+      se.setClientOperations(this);
+    }
+    return mbb;
+  }
+
   
   /**
    * 
@@ -217,7 +314,16 @@ public abstract class Client {
    * 
    * @param bb the {@link ByteBuffer} to add to the clients readBuffer.
    */
-  protected abstract void addReadBuffer(ByteBuffer bb);
+  protected void addReadBuffer(final ByteBuffer bb) {
+    addReadStats(bb.remaining());
+    synchronized(readerLock) {
+      final int start = readBuffers.remaining();
+      readBuffers.add(bb);
+      if(readBuffers.remaining() > 0 && start == 0){
+        readerListener.call().onRead(this);
+      }
+    }
+  }
   
   
   public abstract ListenableFuture<?> write(ByteBuffer bb);
@@ -276,13 +382,19 @@ public abstract class Client {
    * 
    * @return true if the client is closed, false if the client has not yet been closed.
    */
-  public abstract boolean isClosed();
+  public boolean isClosed() {
+    return this.closed.get();
+  }
   
   /**
-   * <p>Closes this client.  Reads can still occur after this it called.  {@link Closer#onClose(Client)} will still be
+   * <p>Closes this client.  Reads can still occur after this it called.  {@link CloseListener#onClose(Client)} will still be
    * called (if set) once all reads are done.</p>
    */
   public abstract void close();
+  
+  protected boolean setClose() {
+    return closed.compareAndSet(false, true);
+  }
   
   /**
    * 
@@ -303,7 +415,30 @@ public abstract class Client {
    * 
    * @return the byte stats for this client.
    */
-  public abstract SimpleByteStats getStats();
+  public SimpleByteStats getStats() {
+    return stats;
+  }
+  
+  /**
+   * Implementation of the SimpleByteStats.
+   */
+  private static class ClientByteStats extends SimpleByteStats {
+    public ClientByteStats() {
+      super();
+    }
+
+    @Override
+    protected void addWrite(final int size) {
+      ArgumentVerifier.assertNotNegative(size, "size");
+      super.addWrite(size);
+    }
+    
+    @Override
+    protected void addRead(final int size) {
+      ArgumentVerifier.assertNotNegative(size, "size");
+      super.addRead(size);
+    }
+  }
   
   /**
    * This is the Reader Interface for clients.
@@ -342,14 +477,13 @@ public abstract class Client {
    * as this client object will no longer ever be used.</p>
    * 
    */
-  public interface Closer {
+  public interface CloseListener {
     /**
      * This notifies the callback about the client being closed.
      * 
      * @param client This is the client the close is being called for.
      */
     public void onClose(Client client);
-  }
-  
+  }  
 }
 

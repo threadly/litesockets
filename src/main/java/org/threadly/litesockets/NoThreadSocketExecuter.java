@@ -50,12 +50,10 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   }
 
   @Override
-  public void setClientOperations(Client client) {
+  public void setClientOperations(final Client client) {
     ArgumentVerifier.assertNotNull(client, "Client");
-    if(isRunning() && !clients.containsKey(client.getChannel())) {
-      if(!client.isClosed() && client.getClientsSocketExecuter() == this) {
-        clients.put(client.getChannel(), client);
-      }
+    if(isRunning() && !clients.containsKey(client.getChannel()) && !client.isClosed() && client.getClientsSocketExecuter() == this) {
+      clients.putIfAbsent(client.getChannel(), client);
     }
     if(clients.containsKey(client.getChannel()) && !client.isClosed() && isRunning()) {
       if(client.getChannel().isConnectionPending()) {
@@ -86,8 +84,8 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   @Override
   protected void shutdownService() {
     localNoThreadScheduler.clearTasks();
-    commonSelector.wakeup();
     if(commonSelector != null && commonSelector.isOpen()) {
+      commonSelector.wakeup();
       closeSelector(schedulerPool, commonSelector);
       commonSelector.wakeup();
     }
@@ -115,7 +113,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
    * 
    * @param delay Max time in milliseconds to block for.
    */
-  public void select(int delay) {
+  public void select(final int delay) {
     ArgumentVerifier.assertNotNegative(delay, "delay");
     checkRunning();
     localNoThreadScheduler.tick(null);
@@ -125,12 +123,12 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
       } else {
         commonSelector.select(delay);
       }
-      for(SelectionKey key: commonSelector.selectedKeys()) {
+      for(final SelectionKey key: commonSelector.selectedKeys()) {
         try {
           if(key.isAcceptable()) {
             doServerAccept(servers.get(key.channel()));
           } else {
-            Client tmpClient = clients.get(key.channel());
+            final Client tmpClient = clients.get(key.channel());
             if(key.isConnectable() && tmpClient != null) {
               doClientConnect(tmpClient, commonSelector);
               key.cancel(); //Stupid windows bug here.
@@ -163,7 +161,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   }
 
   @Override
-  public Executor getExecutorFor(Object obj) {
+  public Executor getExecutorFor(final Object obj) {
     return localNoThreadScheduler;
   }
 }

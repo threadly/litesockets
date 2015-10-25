@@ -3,7 +3,6 @@ package org.threadly.litesockets;
 import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
-import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 
 import org.junit.After;
@@ -49,7 +48,7 @@ public class ServerExecuterTests {
     TCPServer server = SE.createTCPServer("localhost", port);
     final FakeTCPServerClient serverFC = new FakeTCPServerClient(SE);
     server.setClientAcceptor(serverFC);
-    server.setCloser(serverFC);
+    server.addCloseListener(serverFC);
     server.start();
     final ArrayList<TCPClient> clients = new  ArrayList<TCPClient>(clientCount);
     final ArrayList<TCPServer> servers = new  ArrayList<TCPServer>(clientCount);
@@ -67,7 +66,7 @@ public class ServerExecuterTests {
 
             client = SE.createTCPClient("localhost", port);
             client.setReader(clientFC);
-            client.setCloser(clientFC);
+            client.addCloseListener(clientFC);
             client.connect();
 
             synchronized(clients) {
@@ -108,7 +107,7 @@ public class ServerExecuterTests {
     TCPServer server = SE.createTCPServer("localhost", port);
     final FakeTCPServerClient serverFC = new FakeTCPServerClient(SE);
     server.setClientAcceptor(serverFC);
-    server.setCloser(serverFC);
+    server.addCloseListener(serverFC);
     server.start();
     SE.acceptScheduler.equals(new Runnable() {
       @Override
@@ -129,13 +128,13 @@ public class ServerExecuterTests {
     final FakeTCPServerClient serverFC = new FakeTCPServerClient(SE);
     final TCPServer server = SE.createTCPServer("localhost", port);
     server.setClientAcceptor(serverFC);
-    server.setCloser(serverFC);
+    server.addCloseListener(serverFC);
     server.start();
 
     final TCPClient client = SE.createTCPClient("localhost", port);
     final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
     client.setReader(clientFC);
-    client.setCloser(clientFC);
+    client.addCloseListener(clientFC);
     client.connect();
 
     new TestCondition(){

@@ -62,7 +62,7 @@ public class TCPTests {
     serverFC = new FakeTCPServerClient(SE);
     server = SE.createTCPServer("localhost", port);
     server.setClientAcceptor(serverFC);
-    server.setCloser(serverFC);
+    server.addCloseListener(serverFC);
     server.start();
   }
   
@@ -94,7 +94,7 @@ public class TCPTests {
     assertFalse(client.isEncrypted());
     final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
     client.setReader(clientFC);
-    client.setCloser(clientFC);
+    client.addCloseListener(clientFC);
     client.connect();
     new TestCondition(){
       @Override
@@ -142,7 +142,7 @@ public class TCPTests {
     final TCPClient client = SE.createTCPClient("localhost", port);
     final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
     client.setReader(clientFC);
-    client.setCloser(clientFC);
+    client.addCloseListener(clientFC);
     client.connect();
     new TestCondition(){
       @Override
@@ -245,42 +245,50 @@ public class TCPTests {
   public void clientRemoveReader() throws IOException, InterruptedException {
     String text = "test";
     StringBuilder sb = new StringBuilder();
-    for(int i=0; i<1000; i++) {
+    for(int i=0; i<10; i++) {
       sb.append(text);
     }
+    System.out.println("1");
     ByteBuffer bb = ByteBuffer.wrap(text.toString().getBytes());
     final TCPClient client = SE.createTCPClient("localhost", port);
     client.setMaxBufferSize(2);
     client.setReader(new Reader() {
-
       @Override
       public void onRead(Client client) {
 
       }});
+    System.out.println("2");
     client.connect();
+    System.out.println("3");
     new TestCondition(){
       @Override
       public boolean get() {
         return serverFC.map.size() == 1;
       }
     }.blockTillTrue(5000, 100);
+    System.out.println("4");
     final TCPClient c2 = (TCPClient) serverFC.clients.get(0);
 //    for(Client c: serverFC.map.keySet()) {
 //      c2 = (TCPClient)c;
 //      break;
 //    }
+    
     c2.setMaxBufferSize(60000);
+    System.out.println("5");
     c2.write(bb.duplicate());
+    System.out.println("6");
     new TestCondition() {
       @Override
       public boolean get() {
         return ! client.canRead();
       }
     }.blockTillTrue(5000, 100);
+    System.out.println("7");
     MergedByteBuffers readBB = client.getRead();
-    while(readBB != null) {
+    while(readBB.remaining() > 0) {
       readBB = client.getRead();
     }
+    System.out.println("8");
     server.close();
   }
   

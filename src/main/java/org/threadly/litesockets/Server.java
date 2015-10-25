@@ -1,6 +1,9 @@
 package org.threadly.litesockets;
 
 import java.nio.channels.SelectableChannel;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.threadly.concurrent.event.ListenerHelper;
 
 /**
  * This is the main Server Interface for litesockets.  
@@ -8,35 +11,85 @@ import java.nio.channels.SelectableChannel;
  * <p>Any type of connection/open port will use this to "Accept" new client connections on. 
  * The Server has an Acceptor callback for new clients and a Closer callback for clean up when the socket is closed.</p>
  * 
- * <p>Both the {@link ClientAcceptor} and {@link ServerCloser} callbacks can happen on multiple threads so use thread safety when dealing
+ * <p>Both the {@link ClientAcceptor} and {@link ServerCloseListener} callbacks can happen on multiple threads so use thread safety when dealing
  * with those callbacks.</p>
  * 
  *
  */
 public abstract class Server {
   
-  public abstract void start();
+  private final SocketExecuter sei;
+  private final AtomicBoolean closed = new AtomicBoolean(false);
+  private volatile ClientAcceptor clientAcceptor;
+  private volatile ListenerHelper<ServerCloseListener> closer = ListenerHelper.build(ServerCloseListener.class);
+  
+  protected Server(final SocketExecuter sei) {
+    this.sei = sei;
+  }
+  
+
+  public void start() {
+    sei.startListening(this);
+  }
   
   /**
    * <p>Gets the Current {@link SocketExecuter} this Server is assigned to.</p>
    * 
    * @return the current {@link SocketExecuter} for this Server.
    */
-  public abstract SocketExecuter getSocketExecuter();
+  public SocketExecuter getSocketExecuter() {
+    return sei;
+  }
   
   /**
    * <p>Get the current ServerCloser callback assigned to this Server.</p>
    * 
    * @return the currently set Closer.
    */
-  public abstract ServerCloser getCloser();
+  protected void callClosers() {
+    this.closer.call().onClose(this);
+  }
   
   /**
-   * <p>Set the {@link ServerCloser} for this Server.</p>
+   * <p>Adds a {@link ServerCloseListener} for this Server.</p>
    * 
-   * @param closer The {@link ServerCloser} to set for this Server. 
+   * @param listener The {@link ServerCloseListener} to set for this Server. 
    */
-  public abstract void setCloser(ServerCloser closer);
+  public void addCloseListener(final ServerCloseListener listener) {
+    this.closer.addListener(listener);
+  }
+  
+  /**
+   * <p>Gets the current {@link ClientAcceptor} Callback for this Server.</p> 
+   * 
+   * @return the currently set {@link ClientAcceptor}.
+   */
+  public ClientAcceptor getClientAcceptor() {
+    return this.clientAcceptor;
+  }
+  
+  /**
+   * <p>Set the {@link ClientAcceptor} for this Server.  This should be set before the Server is added to the {@link SocketExecuter}.
+   * If its not you could miss pending client connections.</p>
+   *   
+   * @param acceptor Sets the {@link ClientAcceptor} callback for this server.
+   */
+  public void setClientAcceptor(final ClientAcceptor acceptor) {
+    clientAcceptor = acceptor;
+  }
+  
+  protected boolean setClosed() {
+    return this.closed.compareAndSet(false, true);
+  }
+  
+  public boolean isClosed() {
+    return closed.get();
+  }
+  
+  /**
+   * <p>Close this servers Socket.  Once closed you must construct a new Server to open it again.</p>
+   */
+  public abstract void close();
   
   /**
    * <p>This is how the extending server receives the {@link SelectableChannel}.
@@ -63,28 +116,6 @@ public abstract class Server {
   protected abstract SelectableChannel getSelectableChannel();
   
   /**
-   * <p>Gets the current {@link ClientAcceptor} Callback for this Server.</p> 
-   * 
-   * @return the currently set {@link ClientAcceptor}.
-   */
-  public abstract ClientAcceptor getClientAcceptor();
-  
-  /**
-   * <p>Set the {@link ClientAcceptor} for this Server.  This should be set before the Server is added to the {@link SocketExecuter}.
-   * If its not you could miss pending client connections.</p>
-   *   
-   * @param clientAcceptor Sets the {@link ClientAcceptor} callback for this server.
-   */
-  public abstract void setClientAcceptor(ClientAcceptor clientAcceptor);
-  
-  /**
-   * <p>Close this servers Socket.  Once closed you must construct a new Server to open it again.</p>
-   */
-  public abstract void close();
-  
-  public abstract boolean isClosed();
-  
-  /**
    * <p>This is the ClientAcceptor callback for the {@link Server}.  This is called when a new {@link Client} is 
    * detected for this server.</p>
    * 
@@ -106,7 +137,7 @@ public abstract class Server {
    * 
    *
    */
-  public interface ServerCloser {
+  public interface ServerCloseListener {
     /**
      * Once a close is detected for this {@link Server} this is called..
      * 

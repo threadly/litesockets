@@ -2,13 +2,10 @@ package org.threadly.litesockets.udp;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectableChannel;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.litesockets.Server;
 import org.threadly.litesockets.SocketExecuter;
@@ -27,65 +24,30 @@ import org.threadly.litesockets.WireProtocol;
 public class UDPServer extends Server {
   public static final int DEFAULT_FRAME_SIZE = 1500;
   
-  private final ConcurrentHashMap<SocketAddress, UDPClient> clients = new ConcurrentHashMap<SocketAddress, UDPClient>();
+  private final ConcurrentHashMap<InetSocketAddress, UDPClient> clients = new ConcurrentHashMap<InetSocketAddress, UDPClient>();
   protected final DatagramChannel channel;
-  protected final AtomicBoolean closed = new AtomicBoolean(false);
-  protected final Executor localExecutor;
-  protected final SocketExecuter sei;
   private volatile int frameSize = DEFAULT_FRAME_SIZE;
   private volatile ClientAcceptor clientAcceptor;
-  private volatile ServerCloser closer;
   
-  public UDPServer(SocketExecuter sei, String host, int port) throws IOException {
-    this.sei = sei;
-    this.localExecutor = sei.getExecutorFor(this);
+  public UDPServer(final SocketExecuter sei, final String host, final int port) throws IOException {
+    super(sei);
     channel = DatagramChannel.open();
     channel.socket().bind(new InetSocketAddress(host, port));
     channel.configureBlocking(false);
   }
   
-  protected void setFrameSize(int size) {
+  protected void setFrameSize(final int size) {
     frameSize = size;
   }
 
   @Override
-  public SocketExecuter getSocketExecuter() {
-    return this.sei;
-  }
-
-  @Override
-  public ServerCloser getCloser() {
-    return closer;
-  }
-
-  @Override
-  public void setCloser(ServerCloser closer) {
-    this.closer = closer;
-  }
-
-  @Override
-  public void acceptChannel(SelectableChannel c) {
-    if(c == channel) {
+  public void acceptChannel(final SelectableChannel c) {
+    if(c.equals(channel)) {
       final ByteBuffer bb = ByteBuffer.allocate(frameSize);
       try {
-        final SocketAddress sa = channel.receive(bb);
+        final InetSocketAddress isa = (InetSocketAddress)channel.receive(bb);
         bb.flip();
-        localExecutor.execute(new Runnable() {
-          @Override
-          public void run() {
-            if(! clients.containsKey(sa)) {
-              UDPClient udpc = new UDPClient(sa, UDPServer.this);
-              udpc = clients.putIfAbsent(sa, udpc);
-              if(udpc == null) {
-                udpc = clients.get(sa);
-                clientAcceptor.accept(udpc);
-              }
-            }
-            UDPClient udpc = clients.get(sa);
-            if(udpc.canRead()) {
-              udpc.addReadBuffer(bb);
-            }
-          }});
+        getSocketExecuter().getThreadScheduler().execute(new NewDataRunnable(isa, bb));
       } catch (IOException e) {
 
       }
@@ -98,7 +60,7 @@ public class UDPServer extends Server {
   }
 
   @Override
-  public SelectableChannel getSelectableChannel() {
+  public DatagramChannel getSelectableChannel() {
     return channel;
   }
 
@@ -108,51 +70,64 @@ public class UDPServer extends Server {
   }
 
   @Override
-  public void setClientAcceptor(ClientAcceptor clientAcceptor) {
+  public void setClientAcceptor(final ClientAcceptor clientAcceptor) {
     this.clientAcceptor = clientAcceptor;
   }
 
   @Override
   public void close() {
-    if(closed.compareAndSet(false, true)) {
+    if(setClosed()) {
       try {
-        sei.stopListening(this);
+        getSocketExecuter().stopListening(this);
         channel.close();
       } catch (IOException e) {
         //Dont Care
       } finally {
-        this.callCloser();
+        this.callClosers();
       }
     }
   }
   
-  protected void callCloser() {
-    if(localExecutor != null && closer != null) {
-      localExecutor.execute(new Runnable() {
-        @Override
-        public void run() {
-          getCloser().onClose(UDPServer.this);
-        }});
-    }
-  }
-  
-  public UDPClient createUDPClient(String host, int port) {
-    InetSocketAddress sa = new InetSocketAddress(host,port);
+  public UDPClient createUDPClient(final String host, final int port) {
+    final InetSocketAddress sa = new InetSocketAddress(host,port);
     if(! clients.containsKey(sa)) {
-      UDPClient c = new UDPClient(new InetSocketAddress(host, port), this);
+      final UDPClient c = new UDPClient(new InetSocketAddress(host, port), this);
       clients.putIfAbsent(sa, c);
     }
     return clients.get(sa);
   }
+  
+  /**
+   * Internal class used to deal with udpData, either creating a client for it or
+   * adding to an existing client.
+   * @author lwahlmeier
+   *
+   */
+  private class NewDataRunnable implements Runnable {
+    private final InetSocketAddress isa;
+    private final ByteBuffer bb;
+    
+    public NewDataRunnable(final InetSocketAddress isa, final ByteBuffer bb) {
+      this.isa = isa;
+      this.bb = bb;
+    }
 
-  @Override
-  public void start() {
-    sei.startListening(this);
-  }
-
-  @Override
-  public boolean isClosed() {
-    return closed.get();
+    @Override
+    public void run() {
+      if(! clients.containsKey(isa)) {
+        UDPClient udpc = new UDPClient(isa, UDPServer.this);
+        udpc = clients.putIfAbsent(isa, udpc);
+        if(udpc == null) {
+          udpc = clients.get(isa);
+          clientAcceptor.accept(udpc);
+        }
+      }
+      final UDPClient udpc = clients.get(isa);
+      if(udpc.canRead()) {
+        udpc.addReadBuffer(bb);
+      }      
+    }
+    
   }
 
 }

@@ -32,7 +32,7 @@ public class NoThreadTCPTests extends TCPTests {
     serverFC = new FakeTCPServerClient(SE);
     server = SE.createTCPServer("localhost", port);
     server.setClientAcceptor(serverFC);
-    server.setCloser(serverFC);
+    server.addCloseListener(serverFC);
     server.start();
   }
   

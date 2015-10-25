@@ -14,20 +14,24 @@ import javax.net.ssl.X509TrustManager;
  * Common utilities for SSL connections. 
  */
 public class SSLUtils {
+  
   public static final String SSL_HANDSHAKE_ERROR = "Problem doing SSL Handshake";
-  public static final TrustManager[] OPEN_TRUST_MANAGER = new TrustManager [] {new SSLUtils.FullTrustManager() };
   public static final SSLContext OPEN_SSL_CTX; 
   
   static {
     try {
       //We dont allow SSL by default connections anymore
       OPEN_SSL_CTX = SSLContext.getInstance("TLS");
-      OPEN_SSL_CTX.init(null, OPEN_TRUST_MANAGER, null);
+      OPEN_SSL_CTX.init(null, getOpenTrustManager(), null);
     } catch (NoSuchAlgorithmException e) {
       throw new RuntimeException(e);
     } catch (KeyManagementException e) {
       throw new RuntimeException(e);
     }
+  }
+  
+  public static TrustManager[] getOpenTrustManager() {
+    return new TrustManager [] {new SSLUtils.FullTrustManager() };
   }
 
   
@@ -57,6 +61,8 @@ public class SSLUtils {
     System.setProperty ("jsse.enableSNIExtension", "true");
   }
   
+  private SSLUtils(){}
+  
   /**
    * This trust manager just trusts everyone and everything.  You probably 
    * should not be using it unless you know what your doing.
@@ -66,13 +72,13 @@ public class SSLUtils {
   public static class FullTrustManager implements X509TrustManager, TrustManager {
 
     @Override
-    public void checkClientTrusted(X509Certificate[] chain, String authType)
+    public void checkClientTrusted(final X509Certificate[] chain, final String authType)
         throws CertificateException {
       //No Exception means we are ok
     }
 
     @Override
-    public void checkServerTrusted(X509Certificate[] chain, String authType)
+    public void checkServerTrusted(final X509Certificate[] chain, final String authType)
         throws CertificateException {
       //No Exception means we are ok
     }

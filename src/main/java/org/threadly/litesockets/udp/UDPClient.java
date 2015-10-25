@@ -1,21 +1,15 @@
 package org.threadly.litesockets.udp;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.Client;
-import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.WireProtocol;
-import org.threadly.litesockets.utils.MergedByteBuffers;
-import org.threadly.litesockets.utils.SimpleByteStats;
-import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.Clock;
 
 /**
@@ -30,41 +24,28 @@ import org.threadly.util.Clock;
  *  
  */
 public class UDPClient extends Client {
-  public static final int DEFAULT_MAX_BUFFER_SIZE = 64*1024;
-  public static final int MIN_READ= 4*1024;
-
-  protected ClientByteStats stats = new ClientByteStats();
 
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
-  private final MergedByteBuffers readBuffers = new MergedByteBuffers();
-  protected final AtomicBoolean closed = new AtomicBoolean(false);
-  protected final SocketAddress remoteAddress;
+  protected final InetSocketAddress remoteAddress;
   protected final UDPServer udpServer;
 
-  protected int maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;
-  protected int minAllowedReadBuffer = MIN_READ;
-
-  protected volatile Closer closer;
-  protected volatile Reader reader;
-  
-  protected UDPClient(SocketAddress sa, UDPServer server) {
+  protected UDPClient(final InetSocketAddress sa, final UDPServer server) {
+    super(server.getSocketExecuter());
     this.remoteAddress = sa;
     udpServer = server;
   }
-  
+
   @Override
-  public boolean equals(Object o) {
-    if(o instanceof UDPClient) {
-      if(hashCode() == o.hashCode()) {
-        UDPClient u = (UDPClient)o;
-        if(u.remoteAddress.equals(this.remoteAddress) && u.udpServer.getSelectableChannel().equals(udpServer.getSelectableChannel())) {
-          return true;
-        }
+  public boolean equals(final Object o) {
+    if(o instanceof UDPClient && hashCode() == o.hashCode()) {
+      final UDPClient u = (UDPClient)o;
+      if(u.remoteAddress.equals(this.remoteAddress) && u.udpServer.getSelectableChannel().equals(udpServer.getSelectableChannel())) {
+        return true;
       }
     }
     return false;
   }
-  
+
   @Override
   public int hashCode() {
     return remoteAddress.hashCode() * udpServer.getSelectableChannel().hashCode();
@@ -87,55 +68,9 @@ public class UDPClient extends Client {
 
   @Override
   public void close() {
-    if(closed.compareAndSet(false, true)) {
-      final Closer lcloser = closer;
-      if(lcloser != null) {
-        getClientsThreadExecutor().execute(new Runnable() {
-          @Override
-          public void run() {
-            lcloser.onClose(UDPClient.this);
-          }});
-      }
+    if(this.setClose()) {
+      callClosers();
     }
-  }
-  
-  @Override
-  protected void addReadBuffer(ByteBuffer bb) {
-    stats.addRead(bb.remaining());
-    final Reader lreader = reader;
-    if(lreader != null) {
-      synchronized(readBuffers) {
-        int start = readBuffers.remaining();
-        readBuffers.add(bb);
-        if(start == 0){
-          getClientsThreadExecutor().execute(new Runnable() {
-            @Override
-            public void run() {
-              lreader.onRead(UDPClient.this);
-            }});
-        }
-      }
-    }
-  }
-  
-  @Override
-  public void setReader(Reader reader) {
-    this.reader = reader;
-  }
-  
-  @Override
-  public Reader getReader() {
-    return reader;
-  }
-  
-  @Override
-  public void setCloser(Closer closer) {
-    this.closer = closer;
-  }
-  
-  @Override
-  public Closer getCloser() {
-    return closer;
   }
 
   @Override
@@ -144,13 +79,8 @@ public class UDPClient extends Client {
   }
 
   @Override
-  public SimpleByteStats getStats() {
-    return stats;
-  }
-
-  @Override
-  protected boolean canRead() {
-    return true;
+  protected void addReadBuffer(final ByteBuffer bb) {
+    super.addReadBuffer(bb);
   }
 
   @Override
@@ -159,52 +89,8 @@ public class UDPClient extends Client {
   }
 
   @Override
-  protected ByteBuffer provideReadByteBuffer() {
-    //All Reads happen on the UDP Server
-    return null;
-  }
-
-  @Override
-  public int getReadBufferSize() {
-    return this.readBuffers.remaining();
-  }
-
-  @Override
   public int getWriteBufferSize() {
     return 0;
-  }
-
-  @Override
-  public int getMaxBufferSize() {
-    return this.maxBufferSize;
-  }
-
-  @Override
-  public Executor getClientsThreadExecutor() {
-    return udpServer.getSocketExecuter().getExecutorFor(this);
-  }
-
-  @Override
-  public SocketExecuter getClientsSocketExecuter() {
-    return udpServer.getSocketExecuter();
-  }
-
-  @Override
-  public void setMaxBufferSize(int size) {
-    ArgumentVerifier.assertNotNegative(size, "size");
-    maxBufferSize = size;
-  }
-
-  @Override
-  public MergedByteBuffers getRead() {
-    MergedByteBuffers mbb = null;
-    synchronized(readBuffers) {
-      if(readBuffers.remaining() == 0) {
-        return null;
-      }
-      mbb = readBuffers.duplicateAndClean();
-    }
-    return mbb;
   }
 
   @Override
@@ -213,7 +99,7 @@ public class UDPClient extends Client {
   }
 
   @Override
-  protected void reduceWrite(int size) {
+  protected void reduceWrite(final int size) {
     //UDPClient does not have pending writes to reduce
   }
 
@@ -233,51 +119,31 @@ public class UDPClient extends Client {
   }
 
   @Override
-  protected void setConnectionStatus(Throwable t) {
+  protected void setConnectionStatus(final Throwable t) {
+    //UDP has no "connection"
   }
-  
+
   @Override
-  public SocketAddress getRemoteSocketAddress() {
+  public InetSocketAddress getRemoteSocketAddress() {
     return remoteAddress;
   }
 
   @Override
-  public SocketAddress getLocalSocketAddress() {
+  public InetSocketAddress getLocalSocketAddress() {
     if(this.udpServer.channel != null) {
-      return udpServer.channel.socket().getLocalSocketAddress();
+      return (InetSocketAddress)udpServer.channel.socket().getLocalSocketAddress();
     }
     return null;
   }
-  
+
   @Override
   public String toString() {
     return "UDPClient:FROM:"+getLocalSocketAddress()+":TO:"+getRemoteSocketAddress();
   }
 
-  /**
-   * Implementation of the SimpleByteStats.
-   */
-  private static class ClientByteStats extends SimpleByteStats {
-    public ClientByteStats() {
-      super();
-    }
-
-    @Override
-    protected void addWrite(int size) {
-      ArgumentVerifier.assertNotNegative(size, "size");
-      super.addWrite(size);
-    }
-    
-    @Override
-    protected void addRead(int size) {
-      ArgumentVerifier.assertNotNegative(size, "size");
-      super.addRead(size);
-    }
-  }
-
   @Override
-  public ListenableFuture<?> write(ByteBuffer bb) {
-    stats.addWrite(bb.remaining());
+  public ListenableFuture<?> write(final ByteBuffer bb) {
+    addWriteStats(bb.remaining());
     if(!closed.get()) {
       try {
         udpServer.channel.send(bb, remoteAddress);
@@ -288,23 +154,19 @@ public class UDPClient extends Client {
   }
 
   @Override
-  public void setConnectionTimeout(int timeout) {
-
+  public void setConnectionTimeout(final int timeout) {
+    //No connection to Timeout
   }
 
   @Override
-  public boolean setSocketOption(SocketOption so, int value) {
+  public boolean setSocketOption(final SocketOption so, final int value) {
     try{
-      switch(so) {
-      case UDP_FRAME_SIZE: {
+      if(so == SocketOption.UDP_FRAME_SIZE) {
         this.udpServer.setFrameSize(value);
-        return true;
-      }
-      default:
-        return false;
+        return true;        
       }
     } catch(Exception e) {
-      
+
     }
     return false;
   }

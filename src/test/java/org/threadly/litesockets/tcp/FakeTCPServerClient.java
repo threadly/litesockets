@@ -4,15 +4,15 @@ import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.threadly.litesockets.Client;
-import org.threadly.litesockets.Client.Closer;
+import org.threadly.litesockets.Client.CloseListener;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server;
 import org.threadly.litesockets.Server.ClientAcceptor;
-import org.threadly.litesockets.Server.ServerCloser;
+import org.threadly.litesockets.Server.ServerCloseListener;
 import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 
-public class FakeTCPServerClient implements Reader, Closer, ClientAcceptor, ServerCloser{
+public class FakeTCPServerClient implements Reader, CloseListener, ClientAcceptor, ServerCloseListener{
   public SocketExecuter se;
   public ConcurrentHashMap<Client, MergedByteBuffers> map = new ConcurrentHashMap<Client, MergedByteBuffers>();
   public ArrayList<Client> clients = new ArrayList<Client>();
@@ -49,7 +49,7 @@ public class FakeTCPServerClient implements Reader, Closer, ClientAcceptor, Serv
   
   public void addTCPServer(Server server) {
     servers.add(server);
-    server.setCloser(this);
+    server.addCloseListener(this);
     server.setClientAcceptor(this);
     server.start();
   }
@@ -59,7 +59,7 @@ public class FakeTCPServerClient implements Reader, Closer, ClientAcceptor, Serv
     clients.add(client);
     System.out.println("Accepted new Client!:"+map.size()+":"+client+":"+mbb);
     client.setReader(this);
-    client.setCloser(this);
+    client.addCloseListener(this);
     client.connect();
 //    if(client instanceof SSLProcessor) {
 //      SSLProcessor sslc = (SSLProcessor)client;
