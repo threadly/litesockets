@@ -8,7 +8,6 @@ import javax.net.ssl.SSLContext;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.NoThreadSocketExecuter;
