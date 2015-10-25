@@ -8,6 +8,7 @@ import javax.net.ssl.SSLContext;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.NoThreadSocketExecuter;
@@ -50,5 +51,22 @@ public class NoThreadSSLTests extends SSLTests {
     }
     SE.stop();
     PS.shutdownNow();
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
+  }
+  
+  //@Test
+  public void loop() throws Exception {
+    for(int i=0; i<100; i++) {
+      this.largeWriteTest();
+      this.stop();
+      this.start();
+    }
+  }
+  
+  @Override
+  public void largeWriteTest() throws Exception{
+    super.largeWriteTest();
   }
 }

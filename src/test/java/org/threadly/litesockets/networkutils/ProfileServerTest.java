@@ -38,6 +38,9 @@ public class ProfileServerTest {
     pServer.stopIfRunning();
     SE.stopIfRunning();
     PS.shutdown();
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
   }
 
   @Test

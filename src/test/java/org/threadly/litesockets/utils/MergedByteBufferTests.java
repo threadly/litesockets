@@ -6,9 +6,17 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.Random;
 
+import org.junit.After;
 import org.junit.Test;
 
 public class MergedByteBufferTests {
+  
+  @After
+  public void stop() {
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
+  }
   
   
   @Test

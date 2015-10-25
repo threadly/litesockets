@@ -71,6 +71,9 @@ public class TCPTests {
     SE.stopListening(server);
     SE.stopIfRunning();
     PS.shutdown();
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
   }
 
   @Test(expected=IllegalStateException.class)

@@ -40,6 +40,9 @@ public class UDPTest {
     SE.stopListening(server);
     SE.stop();
     PS.shutdownNow();
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
   }
   
   @Test

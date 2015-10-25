@@ -32,6 +32,9 @@ public class NoThreadUDPTests extends UDPTest {
     server.close();
     SE.stop();
     PS.shutdownNow();
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
   }
 
 }

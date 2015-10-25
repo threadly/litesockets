@@ -6,12 +6,20 @@ import static org.junit.Assert.assertTrue;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.junit.After;
 import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.test.concurrent.TestCondition;
 
 public class TransactionalByteBuffersTests {
   PriorityScheduler PS = new PriorityScheduler(5);
+  
+  @After
+  public void stop() {
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
+  }
 
   @Test
   public void simpleGetTest() {

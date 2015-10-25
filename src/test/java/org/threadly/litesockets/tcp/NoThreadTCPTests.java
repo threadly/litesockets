@@ -48,5 +48,9 @@ public class NoThreadTCPTests extends TCPTests {
     }
     super.stop();
     STS.shutdownNow();
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
   }
+  
 }

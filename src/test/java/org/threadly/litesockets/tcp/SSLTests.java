@@ -74,6 +74,9 @@ public class SSLTests {
     SE.stop();
     PS.shutdownNow();
     serverFC = new FakeTCPServerClient(SE);
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
   }
   
   @Test(expected=IllegalStateException.class)
@@ -231,7 +234,6 @@ public class SSLTests {
     assertEquals(TCPTests.LARGE_TEXT, st);
     st = serverFC.map.get(client).getAsString(TCPTests.LARGE_TEXT_BUFFER.remaining());
     assertEquals(TCPTests.LARGE_TEXT, st);
-    
   }
     
 //  @Test(expected=IllegalStateException.class)
