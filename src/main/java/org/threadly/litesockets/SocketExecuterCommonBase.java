@@ -97,35 +97,47 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     return new UDPServer(this, host, port);
   }
   
-  @Override
-  public void startListening(final Server server) {
-    if(isRunning() && !servers.containsKey(server.getSelectableChannel()) && !server.isClosed() && server.getSocketExecuter() == this) {
+  private boolean checkAndAddServer(final Server server) {
+    try{
+      checkRunning();
+    } catch(Exception e) {
+      return false;
+    }
+    if(server.isClosed() || server.getSocketExecuter() != this) {
+      servers.remove(server);
+      return false;
+    }else if(!servers.containsKey(server.getSelectableChannel())) {
       servers.putIfAbsent(server.getSelectableChannel(), server);
     }
-    if(servers.containsValue(server) && !server.isClosed() && isRunning()) {
+    return true;
+  }
+  
+  @Override
+  public void startListening(final Server server) {
+    if(!checkAndAddServer(server)) {
+      return;
+    } else {
       if(server.getServerType() == WireProtocol.TCP) {
         acceptScheduler.execute(new AddToSelector(server, acceptSelector, SelectionKey.OP_ACCEPT));
       } else if(server.getServerType() == WireProtocol.UDP) {
         acceptScheduler.execute(new AddToSelector(server, acceptSelector, SelectionKey.OP_READ));
       }
       acceptSelector.wakeup();
-    } else if(server.isClosed()) {
-      servers.remove(server.getSelectableChannel());
     }
   }
   
   
   @Override
   public void stopListening(final Server server) {
-    if(servers.containsValue(server) && !server.isClosed() && isRunning()) {
+    if(!checkAndAddServer(server)) {
+      return;
+    } else {
       if(server.getServerType() == WireProtocol.TCP) {
         acceptScheduler.execute(new AddToSelector(server, acceptSelector, 0));
       } else if(server.getServerType() == WireProtocol.UDP) {
         acceptScheduler.execute(new AddToSelector(server, acceptSelector, 0));
       }
       acceptSelector.wakeup();
-    } else if(server.isClosed()) {
-      servers.remove(server.getSelectableChannel());
     }
   }
   
@@ -191,16 +203,17 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   }
 
   protected static void doClientConnect(final Client client, final Selector selector) {
-    if(client != null) {
-      try {
-        if(client.getChannel().finishConnect()) {
-          client.setConnectionStatus(null);
-        }
-      } catch(IOException e) {
-        client.close();
-        client.setConnectionStatus(e);
-        ExceptionUtils.handleException(e);
+    if(client == null) {
+      return;
+    }
+    try {
+      if(client.getChannel().finishConnect()) {
+        client.setConnectionStatus(null);
       }
+    } catch(IOException e) {
+      client.close();
+      client.setConnectionStatus(e);
+      ExceptionUtils.handleException(e);
     }
   }
 

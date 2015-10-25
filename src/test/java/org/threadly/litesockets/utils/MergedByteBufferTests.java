@@ -99,6 +99,26 @@ public class MergedByteBufferTests {
   }
 
   @Test
+  public void getByteUnsigned() {
+    MergedByteBuffers mbb = new MergedByteBuffers();
+    ByteBuffer bb = ByteBuffer.allocate(1);
+    bb.put((byte)-1);
+    bb.flip();
+    mbb.add(bb);
+    assertEquals(255, mbb.getUnsignedByte());
+  }
+  
+  @Test
+  public void getShortUnsigned() {
+    MergedByteBuffers mbb = new MergedByteBuffers();
+    ByteBuffer bb = ByteBuffer.allocate(2);
+    bb.putShort((short)-1);
+    bb.flip();
+    mbb.add(bb);
+    assertEquals(65535, mbb.getUnsignedShort());
+  }
+  
+  @Test
   public void getBytes() {
     MergedByteBuffers mbb = new MergedByteBuffers();
     ByteBuffer bb = ByteBuffer.allocate(200);

@@ -130,8 +130,8 @@ public class UDPClient extends Client {
 
   @Override
   public InetSocketAddress getLocalSocketAddress() {
-    if(this.udpServer.channel != null) {
-      return (InetSocketAddress)udpServer.channel.socket().getLocalSocketAddress();
+    if(udpServer.getSelectableChannel() != null) {
+      return (InetSocketAddress)udpServer.getSelectableChannel().socket().getLocalSocketAddress();
     }
     return null;
   }
