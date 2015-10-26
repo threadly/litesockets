@@ -43,7 +43,7 @@ writes are ByteBuffers only which means they are byte arrays or chunks of data. 
 ```java
 
     final String GET = "GET / HTTP/1.1\r\nUser-Agent: litesockets/3.3.0\r\nHost: www.google.com\r\nAccept: */*\r\n\r\n";
-    final SettableListenableFuture<Object> onReadFuture = new SettableListenableFuture<Object>();
+    final SettableListenableFuture<Object> onReadFuture = new SettableListenableFuture<Object>(false);
     //This is the SocketExecuter this runs the selector and adds reads/writes to the clients
     //as well as runs the call backs 
     final ThreadedSocketExecuter TSE = new ThreadedSocketExecuter();
@@ -66,9 +66,7 @@ writes are ByteBuffers only which means they are byte arrays or chunks of data. 
         public void onRead(Client returnedClient) {
             mbb.add(returnedClient.getRead());
             System.out.println(mbb.getAsString(mbb.remaining()));
-            if(!onReadFuture.isDone()){
-              onReadFuture.setResult("");
-            }
+            onReadFuture.setResult("");
         }
     });
     
@@ -90,7 +88,7 @@ writes are ByteBuffers only which means they are byte arrays or chunks of data. 
 ```java
     final String hello = "hello\n";
     final String echo = "ECHO: ";
-    final SettableListenableFuture<Object> exitSent = new SettableListenableFuture<Object> (); 
+    final SettableListenableFuture<Object> exitSent = new SettableListenableFuture<Object>(false); 
     
     //We use a concurrentMap since the Servers Accept callback can happen on any thread in the threadpool
     final ConcurrentHashMap<Client, MergedByteBuffers> clients = new ConcurrentHashMap<Client, MergedByteBuffers>();
@@ -120,9 +118,7 @@ writes are ByteBuffers only which means they are byte arrays or chunks of data. 
           public void onRead(Client client) {
             MergedByteBuffers mbb = client.getRead();
             if(mbb.indexOf("exit") > -1) {
-              if(!exitSent.isDone()) {
-                exitSent.setResult("");
-              }
+              exitSent.setResult("");
             } else {
               //We just assume everything is a string 
               String str = mbb.getAsString(mbb.remaining());
