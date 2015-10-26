@@ -64,7 +64,6 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   @Override
   public TCPClient createTCPClient(final String host, final int port) throws IOException {
     checkRunning();
-    System.out.println(isRunning());
     TCPClient tc = new TCPClient(this, host, port);
     clients.put(((Client)tc).getChannel(), tc);
     return tc;
