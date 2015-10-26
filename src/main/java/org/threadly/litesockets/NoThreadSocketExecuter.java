@@ -52,25 +52,22 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   @Override
   public void setClientOperations(final Client client) {
     ArgumentVerifier.assertNotNull(client, "Client");
-    if(isRunning() && !clients.containsKey(client.getChannel()) && !client.isClosed() && client.getClientsSocketExecuter() == this) {
-      clients.putIfAbsent(client.getChannel(), client);
-    }
-    if(clients.containsKey(client.getChannel()) && !client.isClosed() && isRunning()) {
-      if(client.getChannel().isConnectionPending()) {
-        schedulerPool.execute(new AddToSelector(client, commonSelector, SelectionKey.OP_CONNECT));
-      } else if(client.canWrite() && client.canRead()) {
-        schedulerPool.execute(new AddToSelector(client, commonSelector, SelectionKey.OP_WRITE|SelectionKey.OP_READ));
-      } else if (client.canRead()){
-        schedulerPool.execute(new AddToSelector(client, commonSelector, SelectionKey.OP_READ));
-      } else if (client.canWrite()){
-        schedulerPool.execute(new AddToSelector(client, commonSelector, SelectionKey.OP_WRITE));
-      } else {
-        schedulerPool.execute(new AddToSelector(client, commonSelector, 0));
-      }
-      commonSelector.wakeup();
-    } else if(client.isClosed()) {
+    if(!clients.containsKey(client.getChannel()) || client.isClosed()) {
       clients.remove(client.getChannel());
+      return;
     }
+    if(client.getChannel().isConnectionPending()) {
+      schedulerPool.execute(new AddToSelector(client, commonSelector, SelectionKey.OP_CONNECT));
+    } else if(client.canWrite() && client.canRead()) {
+      schedulerPool.execute(new AddToSelector(client, commonSelector, SelectionKey.OP_WRITE|SelectionKey.OP_READ));
+    } else if (client.canRead()){
+      schedulerPool.execute(new AddToSelector(client, commonSelector, SelectionKey.OP_READ));
+    } else if (client.canWrite()){
+      schedulerPool.execute(new AddToSelector(client, commonSelector, SelectionKey.OP_WRITE));
+    } else {
+      schedulerPool.execute(new AddToSelector(client, commonSelector, 0));
+    }
+    commonSelector.wakeup();
   }
 
   @Override
@@ -161,7 +158,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   }
 
   @Override
-  public Executor getExecutorFor(final Object obj) {
+  public Executor getExecutorFor(final Client obj) {
     return localNoThreadScheduler;
   }
 }

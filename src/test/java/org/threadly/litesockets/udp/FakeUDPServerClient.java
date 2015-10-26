@@ -7,6 +7,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.threadly.litesockets.Client;
+import org.threadly.litesockets.UDPClient;
+import org.threadly.litesockets.UDPServer;
 import org.threadly.litesockets.Client.CloseListener;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server;

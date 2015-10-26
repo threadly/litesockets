@@ -28,8 +28,11 @@ import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server;
 import org.threadly.litesockets.Server.ClientAcceptor;
 import org.threadly.litesockets.SocketExecuter;
+import org.threadly.litesockets.TCPClient;
+import org.threadly.litesockets.TCPServer;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.utils.MergedByteBuffers;
+import org.threadly.litesockets.utils.SSLUtils;
 import org.threadly.test.concurrent.TestCondition;
 
 public class SSLTests {
@@ -162,9 +165,7 @@ public class SSLTests {
       client.startSSL().get(5000, TimeUnit.MILLISECONDS);
       fail();
     } catch(CancellationException e) {
-      e.printStackTrace();
       assertTrue(System.currentTimeMillis()-start >= 200);
-      System.out.println(System.currentTimeMillis()-start );
     }
     server.close();
   }

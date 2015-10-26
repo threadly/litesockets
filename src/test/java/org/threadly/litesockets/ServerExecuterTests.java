@@ -10,8 +10,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.tcp.FakeTCPServerClient;
-import org.threadly.litesockets.tcp.TCPClient;
-import org.threadly.litesockets.tcp.TCPServer;
 import org.threadly.litesockets.tcp.TCPTests;
 import org.threadly.litesockets.tcp.Utils;
 import org.threadly.test.concurrent.TestCondition;

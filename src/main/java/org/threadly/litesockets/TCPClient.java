@@ -1,4 +1,4 @@
-package org.threadly.litesockets.tcp;
+package org.threadly.litesockets;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -15,10 +15,8 @@ import javax.net.ssl.SSLSession;
 
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
-import org.threadly.litesockets.Client;
-import org.threadly.litesockets.SocketExecuter;
-import org.threadly.litesockets.WireProtocol;
 import org.threadly.litesockets.utils.MergedByteBuffers;
+import org.threadly.litesockets.utils.SSLProcessor;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.Clock;
 import org.threadly.util.Pair;
@@ -45,11 +43,11 @@ public class TCPClient extends Client {
   protected final SocketChannel channel;
   protected final InetSocketAddress remoteAddress;
 
-  protected volatile int maxConnectionTime = DEFAULT_SOCKET_TIMEOUT;
-  
-  protected volatile long connectExpiresAt = -1;
   private volatile ByteBuffer currentWriteBuffer = ByteBuffer.allocate(0);
   private volatile SSLProcessor sslProcessor;
+  
+  protected volatile int maxConnectionTime = DEFAULT_SOCKET_TIMEOUT;
+  protected volatile long connectExpiresAt = -1;
 
   /**
    * This creates TCPClient with a connection to the specified port and IP.  This connection is not is not
@@ -60,7 +58,7 @@ public class TCPClient extends Client {
    * @param port The port to connect this client too.
    * @throws IOException - This is thrown if there are any problems making the socket.
    */
-  public TCPClient(final SocketExecuter sei, final String host, final int port) throws IOException {
+  protected TCPClient(final SocketExecuter sei, final String host, final int port) throws IOException {
     super(sei);
     remoteAddress = new InetSocketAddress(host, port);
     channel = SocketChannel.open();
@@ -75,7 +73,7 @@ public class TCPClient extends Client {
    * @param channel the {@link SocketChannel} to use for this client.
    * @throws IOException if there is anything wrong with the {@link SocketChannel} this will be thrown.
    */
-  public TCPClient(final SocketExecuter sei, final SocketChannel channel) throws IOException {
+  protected TCPClient(final SocketExecuter sei, final SocketChannel channel) throws IOException {
     super(sei);
     if(! channel.isOpen()) {
       throw new ClosedChannelException();
@@ -91,7 +89,7 @@ public class TCPClient extends Client {
   
   @Override
   public void setConnectionTimeout(final int timeout) {
-    ArgumentVerifier.assertNotNegative(timeout, "Timeout");
+    ArgumentVerifier.assertGreaterThanZero(timeout, "Timeout");
     this.maxConnectionTime = timeout;
   }
   
@@ -174,7 +172,7 @@ public class TCPClient extends Client {
   }
 
   @Override
-  protected boolean canWrite() {
+  public boolean canWrite() {
     return writeBuffers.remaining() > 0 ;
   }
 
@@ -214,7 +212,7 @@ public class TCPClient extends Client {
     }
     synchronized(writerLock) {
       final boolean needNotify = ! canWrite();
-      final SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>();
+      final SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>(false);
       if(sslProcessor != null && sslProcessor.handShakeStarted()) {
         writeBuffers.add(sslProcessor.write(bb));
       } else {
@@ -257,9 +255,7 @@ public class TCPClient extends Client {
       if(currentWriteBuffer.remaining() == 0) {
         while(this.writeFutures.peekFirst() != null && writeFutures.peekFirst().getLeft() <= writeBuffers.getTotalConsumedBytes()) {
           final Pair<Long, SettableListenableFuture<Long>> p = writeFutures.pollFirst();
-          if(!p.getRight().isDone()) {
-            p.getRight().setResult(p.getLeft());
-          }
+          p.getRight().setResult(p.getLeft());
         }
       }
     }

@@ -1,4 +1,4 @@
-package org.threadly.litesockets.tcp;
+package org.threadly.litesockets.utils;
 
 import static javax.net.ssl.SSLEngineResult.HandshakeStatus.FINISHED;
 import static javax.net.ssl.SSLEngineResult.HandshakeStatus.NEED_TASK;
@@ -17,8 +17,7 @@ import javax.net.ssl.SSLSession;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
-import org.threadly.litesockets.utils.MergedByteBuffers;
-import org.threadly.litesockets.utils.TransactionalByteBuffers;
+import org.threadly.util.ExceptionUtils;
 
 /**
  * This is a generic SSLClient that can be used to create an encrypted connection to a server.
@@ -26,7 +25,7 @@ import org.threadly.litesockets.utils.TransactionalByteBuffers;
  * 
  * @author lwahlmeier
  */
-class SSLProcessor {
+public class SSLProcessor {
   //Not sure why but android needs this extra buffer
   //as the getApp/Packet buffers are not right.
   public static final int EXTRA_BUFFER_AMOUNT = 50;
@@ -67,8 +66,8 @@ class SSLProcessor {
   }
 
   /**
-   * <p>If doHandshake was set to false in the constructor you can start the handshake by calling this method.
-   * The client will not start the handshake till its added to a SocketExecuter.  The future allows you to know
+   * <p>You can start the handshake by calling this method.  If connect() has not been called
+   * on the client this will happen as soon as it is.  The future allows you to know
    * when the handshake has finished if if there was an error.  While the handshake is processing all writes to the 
    * socket will queue.</p>
    * 
@@ -93,7 +92,7 @@ class SSLProcessor {
     SSLEngineResult.HandshakeStatus hs = ssle.getHandshakeStatus();
     while(hs == NEED_TASK) {
       final Runnable task = ssle.getDelegatedTask();
-      task.run();
+      ExceptionUtils.runRunnable(task);
       hs = ssle.getHandshakeStatus();
     }
   }

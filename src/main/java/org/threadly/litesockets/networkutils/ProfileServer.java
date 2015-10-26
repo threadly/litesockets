@@ -14,7 +14,7 @@ import org.threadly.litesockets.Client.CloseListener;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server.ClientAcceptor;
 import org.threadly.litesockets.SocketExecuter;
-import org.threadly.litesockets.tcp.TCPServer;
+import org.threadly.litesockets.TCPServer;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.util.AbstractService;
 import org.threadly.util.ExceptionUtils;

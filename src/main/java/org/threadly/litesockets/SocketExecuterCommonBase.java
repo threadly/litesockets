@@ -13,9 +13,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.threadly.concurrent.SubmitterScheduler;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.WatchdogCache;
-import org.threadly.litesockets.tcp.TCPClient;
-import org.threadly.litesockets.tcp.TCPServer;
-import org.threadly.litesockets.udp.UDPServer;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.AbstractService;
 import org.threadly.util.ArgumentVerifier;
@@ -35,7 +32,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   protected final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
   protected final SocketExecuterByteStats stats = new SocketExecuterByteStats();
   protected final WatchdogCache dogCache;
-  public Selector readSelector;
+  protected Selector readSelector;
   protected Selector writeSelector;
   protected Selector acceptSelector;
 
@@ -67,7 +64,10 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   @Override
   public TCPClient createTCPClient(final String host, final int port) throws IOException {
     checkRunning();
-    return new TCPClient(this, host, port);
+    System.out.println(isRunning());
+    TCPClient tc = new TCPClient(this, host, port);
+    clients.put(((Client)tc).getChannel(), tc);
+    return tc;
   }
   
   
@@ -75,6 +75,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   public TCPClient createTCPClient(final SocketChannel sc) throws IOException {
     checkRunning();
     final TCPClient tc = new TCPClient(this, sc);
+    clients.put(((Client)tc).getChannel(), tc);
     this.setClientOperations(tc);
     return tc;
   }
@@ -82,45 +83,51 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   @Override
   public TCPServer createTCPServer(final String host, final int port) throws IOException {
     checkRunning();
-    return new TCPServer(this, host, port);
+    TCPServer ts = new TCPServer(this, host, port);
+    servers.put(ts.getSelectableChannel(), ts);
+    return ts;
   }
   
   @Override
   public TCPServer createTCPServer(final ServerSocketChannel ssc) throws IOException {
     checkRunning();
-    return new TCPServer(this, ssc);
+    TCPServer ts = new TCPServer(this, ssc);
+    servers.put(ts.getSelectableChannel(), ts);
+    return ts;
   }
   
   @Override
   public UDPServer createUDPServer(final String host, final int port) throws IOException {
     checkRunning();
-    return new UDPServer(this, host, port);
+    UDPServer us = new UDPServer(this, host, port);
+    servers.put(us.getSelectableChannel(), us);
+    return us;
   }
   
-  private boolean checkAndAddServer(final Server server) {
+  private boolean checkServer(final Server server) {
     try{
       checkRunning();
     } catch(Exception e) {
       return false;
     }
-    if(server.isClosed() || server.getSocketExecuter() != this) {
-      servers.remove(server);
+    if(server.isClosed() || server.getSocketExecuter() != this || !servers.containsKey(server.getSelectableChannel())) {
+      servers.remove(server.getSelectableChannel());
       return false;
-    }else if(!servers.containsKey(server.getSelectableChannel())) {
-      servers.putIfAbsent(server.getSelectableChannel(), server);
     }
     return true;
   }
   
   @Override
   public void startListening(final Server server) {
-    if(!checkAndAddServer(server)) {
+    if(!checkServer(server)) {
       return;
     } else {
       if(server.getServerType() == WireProtocol.TCP) {
         acceptScheduler.execute(new AddToSelector(server, acceptSelector, SelectionKey.OP_ACCEPT));
       } else if(server.getServerType() == WireProtocol.UDP) {
         acceptScheduler.execute(new AddToSelector(server, acceptSelector, SelectionKey.OP_READ));
+      } else {
+        throw new UnsupportedOperationException("Unknown Server WireProtocol!"+ server.getServerType());
       }
       acceptSelector.wakeup();
     }
@@ -129,13 +136,15 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   
   @Override
   public void stopListening(final Server server) {
-    if(!checkAndAddServer(server)) {
+    if(!checkServer(server)) {
       return;
     } else {
       if(server.getServerType() == WireProtocol.TCP) {
         acceptScheduler.execute(new AddToSelector(server, acceptSelector, 0));
       } else if(server.getServerType() == WireProtocol.UDP) {
         acceptScheduler.execute(new AddToSelector(server, acceptSelector, 0));
+      } else {
+        throw new UnsupportedOperationException("Unknown Server WireProtocol!"+ server.getServerType());
       }
       acceptSelector.wakeup();
     }

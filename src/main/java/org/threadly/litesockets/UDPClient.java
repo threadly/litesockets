@@ -1,4 +1,4 @@
-package org.threadly.litesockets.udp;
+package org.threadly.litesockets;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -8,8 +8,6 @@ import java.nio.channels.SocketChannel;
 
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
-import org.threadly.litesockets.Client;
-import org.threadly.litesockets.WireProtocol;
 import org.threadly.util.Clock;
 
 /**
@@ -24,7 +22,7 @@ import org.threadly.util.Clock;
  *  
  */
 public class UDPClient extends Client {
-
+  protected static final ListenableFuture<?> COMPLETED_FUTURE = FutureUtils.immediateResultFuture(true);
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
   protected final InetSocketAddress remoteAddress;
   protected final UDPServer udpServer;
@@ -84,7 +82,7 @@ public class UDPClient extends Client {
   }
 
   @Override
-  protected boolean canWrite() {
+  public boolean canWrite() {
     return true;
   }
 
@@ -150,7 +148,7 @@ public class UDPClient extends Client {
       } catch (IOException e) {
       }
     }
-    return FutureUtils.immediateResultFuture(true);
+    return COMPLETED_FUTURE;
   }
 
   @Override

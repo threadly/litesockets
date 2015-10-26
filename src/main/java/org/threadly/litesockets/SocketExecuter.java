@@ -7,9 +7,6 @@ import java.util.concurrent.Executor;
 
 import org.threadly.concurrent.SubmitterScheduler;
 import org.threadly.concurrent.future.ListenableFuture;
-import org.threadly.litesockets.tcp.TCPClient;
-import org.threadly.litesockets.tcp.TCPServer;
-import org.threadly.litesockets.udp.UDPServer;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.Service;
 
@@ -77,10 +74,10 @@ public interface SocketExecuter extends Service {
   /**
    * This allows you to get the {@link Executor} for a specified object.
    * 
-   * @param obj The Object whose {@link Executor} you are looking for
+   * @param obj The Client whose {@link Executor} you are looking for
    * @return the {@link Executor} for that object.
    */
-  public Executor getExecutorFor(Object obj);
+  public Executor getExecutorFor(Client obj);
   
   /**
    * This is called when the a clients state needs to be rechecked.  It will cause the SocketExecuter to 

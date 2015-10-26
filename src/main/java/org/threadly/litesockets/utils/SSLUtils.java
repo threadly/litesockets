@@ -1,4 +1,4 @@
-package org.threadly.litesockets.tcp;
+package org.threadly.litesockets.utils;
 
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;

@@ -1,4 +1,4 @@
-package org.threadly.litesockets.udp;
+package org.threadly.litesockets;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -6,10 +6,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectableChannel;
 import java.util.concurrent.ConcurrentHashMap;
-
-import org.threadly.litesockets.Server;
-import org.threadly.litesockets.SocketExecuter;
-import org.threadly.litesockets.WireProtocol;
 
 
 /**
@@ -29,7 +25,7 @@ public class UDPServer extends Server {
   private volatile int frameSize = DEFAULT_FRAME_SIZE;
   private volatile ClientAcceptor clientAcceptor;
   
-  public UDPServer(final SocketExecuter sei, final String host, final int port) throws IOException {
+  protected UDPServer(final SocketExecuter sei, final String host, final int port) throws IOException {
     super(sei);
     channel = DatagramChannel.open();
     channel.socket().bind(new InetSocketAddress(host, port));

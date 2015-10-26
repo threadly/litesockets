@@ -100,7 +100,7 @@ public abstract class Client {
    * 
    * @return true if data is pending write, false if there is no data to write.
    */
-  protected abstract boolean canWrite();
+  public abstract boolean canWrite();
 
   /**
    * <p>This tells us if the client has timed out before it has been connected to the socket.  This is used to remove the client
@@ -141,7 +141,12 @@ public abstract class Client {
    */
   protected abstract void setConnectionStatus(Throwable t);
   
-  
+  /**
+   * If {@link #connect()} has not been called on this client yet.  You can change the allowed connection
+   * timeout using this function.
+   * 
+   * @param timeout the time in milliseconds to wait for the client to connect.
+   */
   public abstract void setConnectionTimeout(int timeout);
   
   /**
@@ -283,7 +288,7 @@ public abstract class Client {
    * @param size max buffer size in bytes.
    */
   public void setMaxBufferSize(final int size) {
-    ArgumentVerifier.assertNotNegative(size, "size");
+    ArgumentVerifier.assertGreaterThanZero(size, "size");
     maxBufferSize = size;
   }
   
@@ -319,8 +324,8 @@ public abstract class Client {
     synchronized(readerLock) {
       final int start = readBuffers.remaining();
       readBuffers.add(bb);
-      if(readBuffers.remaining() > 0 && start == 0){
-        readerListener.call().onRead(this);
+      if(this.readerListener.registeredListenerCount() > 0 && readBuffers.remaining() > 0 && start == 0){
+        callReader();
       }
     }
   }
@@ -353,7 +358,7 @@ public abstract class Client {
   
   /**
    * <p>Returns the {@link SocketChannel} for this client.  If the client does not have a {@link SocketChannel} 
-   * it will return null (ie {@link org.threadly.litesockets.udp.UDPClient}).</p>
+   * it will return null (ie {@link org.threadly.litesockets.UDPClient}).</p>
    * 
    * @return the {@link SocketChannel}  for this client.
    */
@@ -369,7 +374,7 @@ public abstract class Client {
   
   /**
    * <p>Gets the raw Socket object for this Client. If the client does not have a Socket
-   * it will return null (ie {@link org.threadly.litesockets.udp.UDPClient}). This is basically getChannel().socket()</p>
+   * it will return null (ie {@link org.threadly.litesockets.UDPClient}). This is basically getChannel().socket()</p>
    * 
    * @return the Socket for this client.
    */
