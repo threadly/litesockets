@@ -2,8 +2,8 @@ package org.threadly.litesockets.utils;
 
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 
 import org.threadly.util.ArgumentVerifier;
 
@@ -27,7 +27,8 @@ public class MergedByteBuffers {
   public static final long UNSIGNED_INT_MASK = 0xffffffffL;
   
   protected final ArrayDeque<ByteBuffer> availableBuffers = new ArrayDeque<ByteBuffer>();
-  protected volatile int currentSize = 0;
+  protected int currentSize;
+  protected long consumedSize;
 
   /**
    * This method allows you to add ByteBuffers to the MergedByteBuffers.  
@@ -35,14 +36,19 @@ public class MergedByteBuffers {
    * 
    * @param buffer - The byte buffer to add to the MergedByteBuffers
    */
-  public void add(ByteBuffer buffer) {
+  public void add(final ByteBuffer buffer) {
     if(buffer.hasRemaining()) {
-      if (buffer.position() != 0 || buffer.limit() != buffer.capacity()) {
-        buffer = buffer.slice();
-      }
-      availableBuffers.add(buffer);
+      availableBuffers.add(buffer.duplicate());
       currentSize+=buffer.remaining();
     } 
+  }
+  
+  public MergedByteBuffers copy() {
+    final MergedByteBuffers mbb  = new MergedByteBuffers();
+    for(final ByteBuffer bb: this.availableBuffers) {
+      mbb.add(bb.duplicate());
+    }
+    return mbb;
   }
   
   /**
@@ -51,11 +57,12 @@ public class MergedByteBuffers {
    * 
    * @param mbb - The MergedByteBuffers to put into this MergedByteBuffers
    */
-  public void add(MergedByteBuffers mbb) {
-    for(ByteBuffer bb: mbb.availableBuffers) {
+  public void add(final MergedByteBuffers mbb) {
+    for(final ByteBuffer bb: mbb.availableBuffers) {
       add(bb);
     }
     mbb.availableBuffers.clear();
+    mbb.consumedSize += mbb.currentSize;
     mbb.currentSize = 0;
   }
   
@@ -65,20 +72,24 @@ public class MergedByteBuffers {
    * @return a new MergedByteBuffer with the data that was in the original one.
    */
   public MergedByteBuffers duplicateAndClean() {
-    MergedByteBuffers mbb = new MergedByteBuffers();
+    final MergedByteBuffers mbb = new MergedByteBuffers();
     mbb.add(this);
     return mbb;
   }
 
+  
+  public int indexOf(final String pattern) {
+    return indexOf(pattern, Charset.forName("US-ASCII"));
+  }
   /**
    * Like the indexOf in String object this find a pattern of bytes and reports the position they start at.
    * 
    * @param pattern String pattern to search for
    * @return an {@code int} with the offset of the first occurrence of the given . 
    */
-  public int indexOf(String pattern) {
+  public int indexOf(final String pattern, final Charset charSet) {
     ArgumentVerifier.assertNotNull(pattern, "String");
-    return indexOf(pattern.getBytes());
+    return indexOf(pattern.getBytes(charSet));
   }
   
   /**
@@ -87,7 +98,7 @@ public class MergedByteBuffers {
    * @param pattern byte[] pattern to search for
    * @return an {@code int} with the offset of the first occurrence of the given . 
    */
-  public int indexOf(byte[] pattern) {
+  public int indexOf(final byte[] pattern) {
     ArgumentVerifier.assertNotNull(pattern, "byte[]");
     if(currentSize == 0){
       return -1;
@@ -95,36 +106,22 @@ public class MergedByteBuffers {
 
     int patPos = 0;
     int bufPos = 0;
-    int listPos = 0;
 
-    ArrayList<ByteBuffer> localBuffers = new ArrayList<ByteBuffer>(availableBuffers);
-    ByteBuffer currentBuffer = localBuffers.get(listPos).duplicate();
-    listPos++;
+    MergedByteBuffers mbb = copy();
 
-    while((bufPos+patPos) < currentSize) {
-      if(!currentBuffer.hasRemaining()) {
-        currentBuffer = localBuffers.get(listPos).duplicate();
-        listPos++;
-      }
-
-      if(pattern[patPos] == currentBuffer.get()) {
+    while(mbb.remaining() >= pattern.length-patPos) {
+      if(pattern[patPos] == mbb.get()) {
         if(patPos == pattern.length-1) {
           return bufPos;
         }
         patPos++;
       } else {
-        if (patPos != 0) {
-          if(currentBuffer.position()-patPos < 0) {
-            ByteBuffer old = currentBuffer;
-            listPos--;
-            currentBuffer = localBuffers.get(listPos).duplicate();
-            currentBuffer.position(currentBuffer.limit() - (patPos-old.position()));
-          } else {
-            currentBuffer.position(currentBuffer.position()-patPos);
-          }
-          patPos = 0;
-        }
         bufPos++;
+        if (patPos != 0) {
+          mbb = copy();
+          mbb.discard(bufPos);
+        }
+        patPos = 0;
       }
     }
     return -1;
@@ -146,16 +143,19 @@ public class MergedByteBuffers {
    * @return the next single Byte from the MergedByteBuffer.
    */
   public byte get() {
-    ByteBuffer buf = availableBuffers.peek();
+    if(currentSize == 0){
+      throw new BufferUnderflowException();
+    }
+    final ByteBuffer buf = availableBuffers.peek();
 
     // we assume that we have at least one byte in any available buffers
-    byte result = buf.get();
+    final byte result = buf.get();
 
     if (! buf.hasRemaining()) {
       removeFirstBuffer();
     }
     currentSize--;
-
+    consumedSize++;
     return result;
   }
   
@@ -186,21 +186,7 @@ public class MergedByteBuffers {
     if (currentSize < BYTES_IN_SHORT) {
       throw new BufferUnderflowException();
     }
-
-    short result;
-    ByteBuffer first = availableBuffers.peek();
-    if (first.remaining() >= 2) {
-      result = first.getShort();
-
-      if (! first.hasRemaining()) {
-        removeFirstBuffer();
-      }
-    } else {
-      result = (short)readValue(2);
-    }      
-    currentSize -= BYTES_IN_SHORT;
-
-    return result;
+    return pull(BYTES_IN_SHORT).getShort();
   }
 
   /**
@@ -212,21 +198,7 @@ public class MergedByteBuffers {
     if (currentSize < BYTES_IN_INT) {
       throw new BufferUnderflowException();
     }
-
-    int result;
-    ByteBuffer first = availableBuffers.peek();
-    if (first.remaining() >= BYTES_IN_INT) {
-      result = first.getInt();
-
-      if (! first.hasRemaining()) {
-        removeFirstBuffer();
-      }
-    } else {
-      result = (int)readValue(BYTES_IN_INT);
-    }
-    currentSize -= BYTES_IN_INT;
-
-    return result;
+    return pull(BYTES_IN_INT).getInt();
   }
 
   /**
@@ -247,22 +219,7 @@ public class MergedByteBuffers {
     if (currentSize < BYTES_IN_LONG) {
       throw new BufferUnderflowException();
     }
-
-    long result;
-    ByteBuffer first = availableBuffers.peek();
-    if (first.remaining() >= BYTES_IN_LONG) {
-      result = first.getLong();
-
-      if (! first.hasRemaining()) {
-        removeFirstBuffer();
-      }
-    } else {
-      result = readValue(BYTES_IN_LONG);
-    }
-
-    currentSize -= BYTES_IN_LONG;
-
-    return result;
+    return pull(BYTES_IN_LONG).getLong();
   }
   
 
@@ -273,13 +230,14 @@ public class MergedByteBuffers {
    * 
    * @throws BufferUnderflowException if the {@code byte[]} is larger then the {@link #remaining()} in the MergedByteBuffer.
    */
-  public void get(byte[] destBytes) {
+  public void get(final byte[] destBytes) {
     ArgumentVerifier.assertNotNull(destBytes, "byte[]");
     if (currentSize < destBytes.length) {
       throw new BufferUnderflowException();
     }
-    currentSize -= destBytes.length;
     doGet(destBytes);
+    consumedSize += destBytes.length;
+    currentSize -= destBytes.length;
   }
   
   
@@ -307,9 +265,7 @@ public class MergedByteBuffers {
     if (currentSize == 0) {
       return ByteBuffer.allocate(0);
     }
-    ByteBuffer bb = removeFirstBuffer();
-    currentSize -= bb.remaining();
-    return bb;
+    return pull(availableBuffers.peekFirst().remaining());
   }
 
   /**
@@ -318,7 +274,7 @@ public class MergedByteBuffers {
    * 
    * @return a {@link ByteBuffer} of %SIZE% bytes.
    */
-  public ByteBuffer pull(int size) {
+  public ByteBuffer pull(final int size) {
     ArgumentVerifier.assertNotNegative(size, "size");
     if (size == 0) {
       return ByteBuffer.allocate(0);
@@ -326,23 +282,20 @@ public class MergedByteBuffers {
     if (currentSize < size) {
       throw new BufferUnderflowException();
     }
-
+    consumedSize += size;
     currentSize -= size;
-    ByteBuffer first = availableBuffers.peek();
+    final ByteBuffer first = availableBuffers.peek();
     if(first.remaining() == size) {
-      ByteBuffer result = removeFirstBuffer().slice();
-
-      return result;
+      return removeFirstBuffer().slice();
     } else if(first.remaining() > size) {
-      ByteBuffer bb = first.duplicate().slice();
+      final ByteBuffer bb = first.duplicate().slice();
       bb.limit(bb.position()+size);
       first.position(first.position()+size);
-
       return bb;
     } else {
-      ByteBuffer result = ByteBuffer.allocate(size);
-      doGet(result.array());
-      return result;
+      final byte[] result = new byte[size];
+      doGet(result);
+      return ByteBuffer.wrap(result);
     }
   }
 
@@ -351,17 +304,16 @@ public class MergedByteBuffers {
    * 
    * @param size the number of bytes to discard.
    */
-  public void discard(int size) {
+  public void discard(final int size) {
     ArgumentVerifier.assertNotNegative(size, "size");
     if (currentSize < size) {
       throw new BufferUnderflowException();
     }
-
+    //We have logic here since we dont need to do any copying and we just drop the bytes
     int toRemoveAmount = size;
     while (toRemoveAmount > 0) {
-      ByteBuffer buf = availableBuffers.peek();
-
-      int bufRemaining = buf.remaining();
+      final ByteBuffer buf = availableBuffers.peek();
+      final int bufRemaining = buf.remaining();
       if (bufRemaining > toRemoveAmount) {
         buf.position(buf.position() + toRemoveAmount);
         toRemoveAmount = 0;
@@ -370,32 +322,38 @@ public class MergedByteBuffers {
         toRemoveAmount -= bufRemaining;
       }
     }
-
+    consumedSize += size;
     currentSize -= size;
   }
 
+  public String getAsString(final int size) {
+    return getAsString(size, Charset.forName("US-ASCII"));
+  }
+  
   /**
    * This will return the specified number of bytes as a String object.
    * 
    * @param size the number of bytes to put into the string.
    * @return as String Object with set number of bytes in it.
    */
-  public String getAsString(int size) {
+  public String getAsString(final int size, final Charset charSet) {
     ArgumentVerifier.assertNotNegative(size, "size");
-    byte[] ba = new byte[size];
-    doGet(ba);
-    currentSize-=size;
-    return new String(ba);
+    final byte[] ba = new byte[size];
+    get(ba);
+    return new String(ba, charSet);
   }
-
   
-  private void doGet(byte[] destBytes) {
+  protected ByteBuffer removeFirstBuffer() {
+    return this.availableBuffers.pollFirst();
+  }
+  
+  private void doGet(final byte[] destBytes) {
     int remainingToCopy = destBytes.length;
 
     while (remainingToCopy > 0) {
-      ByteBuffer buf = availableBuffers.peek();
+      final ByteBuffer buf = availableBuffers.peek();
 
-      int toCopy = Math.min(buf.remaining(), remainingToCopy);
+      final int toCopy = Math.min(buf.remaining(), remainingToCopy);
       buf.get(destBytes, destBytes.length - remainingToCopy, toCopy);
       remainingToCopy -= toCopy;
 
@@ -405,21 +363,7 @@ public class MergedByteBuffers {
     }
   }
 
-  private long readValue(int bytes) {
-    long result = 0;
-    // work backwards
-    for (int i = bytes - 1; i >= 0; i--) {
-      ByteBuffer buf = availableBuffers.peek();
-      result = result | ((buf.get() & (long)UNSIGNED_BYTE_MASK) << (i * Byte.SIZE));
-
-      if (! buf.hasRemaining()) {
-        availableBuffers.removeFirst();
-      }
-    }
-    return result;
-  }
-  
-  protected ByteBuffer removeFirstBuffer() {
-    return availableBuffers.pollFirst();
+  public long getTotalConsumedBytes() {
+    return consumedSize;
   }
 }

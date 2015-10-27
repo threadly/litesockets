@@ -1,7 +1,6 @@
 package org.threadly.litesockets.tcp;
 
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.security.KeyStore;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -51,21 +50,22 @@ public class NoThreadSSLTests extends SSLTests {
     }
     SE.stop();
     PS.shutdownNow();
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
+  }
+  
+  //@Test
+  public void loop() throws Exception {
+    for(int i=0; i<100; i++) {
+      this.largeWriteTest();
+      this.stop();
+      this.start();
+    }
   }
   
   @Override
-  public void simpleWriteTest() throws IOException, InterruptedException {
-    super.simpleWriteTest();
+  public void largeWriteTest() throws Exception{
+    super.largeWriteTest();
   }
-  
-  @Override
-  public void doLateSSLhandshake() throws IOException, InterruptedException {
-    super.doLateSSLhandshake();
-  }
-  
-  @Override
-  public void useTCPClientPendingReads() throws IOException{
-    super.useTCPClientPendingReads();
-  }
-
 }

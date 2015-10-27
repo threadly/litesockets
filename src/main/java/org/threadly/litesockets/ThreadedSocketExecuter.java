@@ -1,24 +1,23 @@
 package org.threadly.litesockets;
 
-import java.io.IOException;
-import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
 import org.threadly.concurrent.ConfigurableThreadFactory;
 import org.threadly.concurrent.KeyDistributedExecutor;
 import org.threadly.concurrent.ScheduledExecutorServiceWrapper;
-import org.threadly.concurrent.SimpleSchedulerInterface;
 import org.threadly.concurrent.SingleThreadScheduler;
+import org.threadly.concurrent.SubmitterScheduler;
 import org.threadly.util.ArgumentVerifier;
 
 /**
- * <p>This is a mutliThreaded implementation of a {@link SocketExecuterInterface}.  It uses separate threads to perform Accepts, Reads and Writes.  
+ * <p>This is a mutliThreaded implementation of a {@link SocketExecuter}.  It uses separate threads to perform Accepts, Reads and Writes.  
  * Constructing this will create 3 additional threads.  Generally only one of these will ever be needed in a process.</p>
  * 
- * <p>This is generally the {@link SocketExecuterInterface} implementation you want to use for servers, especially if they have to deal with more
+ * <p>This is generally the {@link SocketExecuter} implementation you want to use for servers, especially if they have to deal with more
  * then just a few connections.  See {@link NoThreadSocketExecuter} for a more efficient implementation when not dealing with many connections.</p>
  * 
  * @author lwahlmeier
@@ -30,11 +29,11 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   private final SingleThreadScheduler localReadScheduler;
   private final SingleThreadScheduler localWriteScheduler;
 
-  protected volatile long readThreadID = 0;
+  private volatile long readThreadID;
 
-  private AcceptRunner acceptor;
-  private ReadRunner reader;
-  private WriteRunner writer;
+  private final AcceptRunner acceptor = new AcceptRunner();
+  private final ReadRunner reader = new ReadRunner();
+  private final WriteRunner writer = new WriteRunner();
 
 
   /**
@@ -53,17 +52,17 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
    * 
    * @param exec The {@link ScheduledExecutorService} to be used for client/server callbacks.
    */
-  public ThreadedSocketExecuter(ScheduledExecutorService exec) {
+  public ThreadedSocketExecuter(final ScheduledExecutorService exec) {
     this(new ScheduledExecutorServiceWrapper(exec));
   }
 
   /**
-   * <p>Here you can provide a {@link ScheduledExecutorService} for this {@link SocketExecuterInterface}.  This will be used
+   * <p>Here you can provide a {@link ScheduledExecutorService} for this {@link SocketExecuter}.  This will be used
    * on accept, read, and close callback events.</p>
    * 
    * @param exec the {@link ScheduledExecutorService} to be used for client/server callbacks.
    */
-  public ThreadedSocketExecuter(SimpleSchedulerInterface exec) {
+  public ThreadedSocketExecuter(final SubmitterScheduler exec) {
     super(new SingleThreadScheduler(new ConfigurableThreadFactory("SocketAccept", false, true, Thread.currentThread().getPriority(), null, null)),
         new SingleThreadScheduler(new ConfigurableThreadFactory("SocketReader", false, true, Thread.currentThread().getPriority(), null, null)),
         new SingleThreadScheduler(new ConfigurableThreadFactory("SocketWriter", false, true, Thread.currentThread().getPriority(), null, null)),
@@ -75,18 +74,12 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   }
 
   @Override
-  protected void addThreadExecutorToClient(Client client) {
-    client.setClientsThreadExecutor(clientDistributer.getSubmitterForKey(client));
-  }
-
-  @Override
   protected void startupService() {
+    super.startIfNotStarted();
+    
     acceptSelector = openSelector();
     readSelector = openSelector();
     writeSelector = openSelector();
-    acceptor = new AcceptRunner();
-    reader = new ReadRunner();
-    writer = new WriteRunner();
     acceptScheduler.execute(acceptor);
     readScheduler.execute(reader);
     writeScheduler.execute(writer);
@@ -94,32 +87,45 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
 
   @Override
   protected void shutdownService() {
-    localAcceptScheduler.shutdownNow();
-    localReadScheduler.shutdownNow();
-    localWriteScheduler.shutdownNow();
-    closeSelector(acceptSelector);
-    closeSelector(readSelector);
-    closeSelector(writeSelector);
-    clients.clear();
-    servers.clear();
-  }
-
-  @Override
-  public void flagNewWrite(Client client) {
-    ArgumentVerifier.assertNotNull(client, "Client");
-    if(isRunning() && clients.containsKey(client.getChannel()) && client.canWrite()) {
-      writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
-      writeSelector.wakeup();
+    for(final Client client: clients.values()) {
+      client.close();
     }
-  }
-
-  @Override
-  public void flagNewRead(Client client) {
-    ArgumentVerifier.assertNotNull(client, "Client");
-    if(isRunning() && clients.containsKey(client.getChannel()) && client.canRead()) {
-      readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
-      readSelector.wakeup();
+    for(final Server server: servers.values()) {
+      server.close();
     }
+    closeSelector(localAcceptScheduler, acceptSelector);
+    closeSelector(localReadScheduler, readSelector);
+    closeSelector(localWriteScheduler, writeSelector);
+  }  
+  
+  @Override
+  public void setClientOperations(final Client client) {
+    ArgumentVerifier.assertNotNull(client, "Client");
+    if(!clients.containsKey(client.getChannel()) || client.isClosed()) {
+      clients.remove(client.getChannel());
+      return;
+    }
+
+    synchronized(client) {
+      if(!client.getChannel().isConnected() && client.getChannel().isConnectionPending()) {
+        readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_CONNECT));
+        writeScheduler.execute(new AddToSelector(client, writeSelector, 0));
+      } else if(client.canWrite() && client.canRead()) {
+        writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
+        readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
+      } else if (client.canRead()){
+        readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
+        writeScheduler.execute(new AddToSelector(client, writeSelector, 0));
+      } else if (client.canWrite()){
+        writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
+        readScheduler.execute(new AddToSelector(client, readSelector, 0));
+      } else {
+        writeScheduler.execute(new AddToSelector(client, writeSelector, 0));
+        readScheduler.execute(new AddToSelector(client, readSelector, 0));
+      }
+    }
+    readSelector.wakeup();
+    writeSelector.wakeup();
   }
 
   /**
@@ -132,26 +138,24 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
         try {
           acceptSelector.selectedKeys().clear();
           acceptSelector.select();
-          if(isRunning()) {
-            for(SelectionKey sk: acceptSelector.selectedKeys()) {
-              if(sk.isAcceptable()) {
-                ServerSocketChannel server = (ServerSocketChannel) sk.channel();
-                doServerAccept(servers.get(server));
-              } else if(sk.isReadable()) {
-                DatagramChannel server = (DatagramChannel) sk.channel();
-                final Server udpServer = servers.get(server);
-                udpServer.acceptChannel(server);
-              }
+        } catch (Exception e) {
+          stopIfRunning();
+          return;
+        } 
+        if(isRunning()) {
+          for(final SelectionKey sk: acceptSelector.selectedKeys()) {
+            if(sk.isAcceptable()) {
+              final ServerSocketChannel server = (ServerSocketChannel) sk.channel();
+              doServerAccept(servers.get(server));
+            } else if(sk.isReadable()) {
+              final DatagramChannel server = (DatagramChannel) sk.channel();
+              final Server udpServer = servers.get(server);
+              udpServer.acceptChannel(server);
             }
           }
-        } catch (IOException e) {
-          stopIfRunning();
-        } catch (ClosedSelectorException e) {
-          stopIfRunning();
-        } finally {
-          if(isRunning()) {
-            acceptScheduler.execute(this);
-          }
+        }
+        if(isRunning()) {
+          acceptScheduler.execute(this);
         }
       }
     }
@@ -170,24 +174,23 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
         try {
           readSelector.selectedKeys().clear();
           readSelector.select();
-          if(isRunning() && ! readSelector.selectedKeys().isEmpty()) {
-            for(SelectionKey sk: readSelector.selectedKeys()) {
-              Client client = clients.get(sk.channel());
-              if(sk.isConnectable()) {
-                doClientConnect(client, readSelector);
-                flagNewRead(client);
-                flagNewWrite(client);
-              } else {
-                stats.addRead(doClientRead(client, readSelector));
-              }
+        } catch (Exception e) {
+          stopIfRunning();
+          return;
+        }
+        if(isRunning() && ! readSelector.selectedKeys().isEmpty()) {
+          for(final SelectionKey sk: readSelector.selectedKeys()) {
+            final Client client = clients.get(sk.channel());
+            if(sk.isConnectable()) {
+              doClientConnect(client, readSelector);
+              setClientOperations(client);
+            } else {
+              stats.addRead(doClientRead(client, readSelector));
             }
           }
-        } catch (IOException e) {
-          stopIfRunning();
-        } finally {
-          if(isRunning()) {
-            readScheduler.execute(this);
-          }
+        }
+        if(isRunning()) {
+          readScheduler.execute(this);
         }
       }
     }
@@ -203,20 +206,25 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
         try {
           writeSelector.selectedKeys().clear();
           writeSelector.select();
-          if(isRunning() && ! writeSelector.selectedKeys().isEmpty()) {
-            for(SelectionKey sk: writeSelector.selectedKeys()) {
-              final Client client = clients.get(sk.channel());
-              stats.addWrite(doClientWrite(client, writeSelector));
-            }
-          }
-        } catch (IOException e) {
+        } catch (Exception e) {
           stopIfRunning();
-        } finally {
-          if(isRunning()) {
-            writeScheduler.execute(this);
+          return;
+        }
+        if(isRunning() && ! writeSelector.selectedKeys().isEmpty()) {
+          for(final SelectionKey sk: writeSelector.selectedKeys()) {
+            final Client client = clients.get(sk.channel());
+            stats.addWrite(doClientWrite(client, writeSelector));
           }
+        }
+        if(isRunning()) {
+          writeScheduler.execute(this);
         }
       }
     }
+  }
+
+  @Override
+  public Executor getExecutorFor(final Client obj) {
+    return clientDistributer.getSubmitterForKey(obj);
   }
 }

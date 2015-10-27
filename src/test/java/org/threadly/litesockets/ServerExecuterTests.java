@@ -1,8 +1,6 @@
 package org.threadly.litesockets;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -12,8 +10,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.tcp.FakeTCPServerClient;
-import org.threadly.litesockets.tcp.TCPClient;
-import org.threadly.litesockets.tcp.TCPServer;
 import org.threadly.litesockets.tcp.TCPTests;
 import org.threadly.litesockets.tcp.Utils;
 import org.threadly.test.concurrent.TestCondition;
@@ -35,16 +31,26 @@ public class ServerExecuterTests {
   public void stop() {
     SE.stopIfRunning();
     PS.shutdownNow();
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
+  }
+  
+
+  @Test(expected=IllegalStateException.class)
+  public void clientFromStoppedSE() throws IOException, InterruptedException {
+    SE.stop();
+    SE.createTCPClient("localhost", port);
   }
   
   @Test
   public void manyClientsTest() throws IOException, InterruptedException {
     final int clientCount = 50;
-    TCPServer server = new TCPServer("localhost", port);
+    TCPServer server = SE.createTCPServer("localhost", port);
     final FakeTCPServerClient serverFC = new FakeTCPServerClient(SE);
     server.setClientAcceptor(serverFC);
-    server.setCloser(serverFC);
-    SE.addServer(server);
+    server.addCloseListener(serverFC);
+    server.start();
     final ArrayList<TCPClient> clients = new  ArrayList<TCPClient>(clientCount);
     final ArrayList<TCPServer> servers = new  ArrayList<TCPServer>(clientCount);
     final ArrayList<FakeTCPServerClient> FCclients = new  ArrayList<FakeTCPServerClient>(clientCount);
@@ -54,15 +60,15 @@ public class ServerExecuterTests {
           TCPClient client;
           try {
             final int newport = Utils.findTCPPort();
-            TCPServer server = new TCPServer("localhost", newport);
+            TCPServer server = SE.createTCPServer("localhost", newport);
             FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
             server.setClientAcceptor(clientFC);
-            SE.addServer(server);
+            server.start();
 
-            client = new TCPClient("localhost", port);
+            client = SE.createTCPClient("localhost", port);
             client.setReader(clientFC);
-            client.setCloser(clientFC);
-            SE.addClient(client);
+            client.addCloseListener(clientFC);
+            client.connect();
 
             synchronized(clients) {
               servers.add(server);
@@ -83,8 +89,10 @@ public class ServerExecuterTests {
     }.blockTillTrue(20 * 1000, 100);
     assertEquals(clientCount*2, SE.getClientCount());
     assertEquals(clientCount+1, SE.getServerCount());
-    for(TCPClient c: clients) {
-      c.close();
+    synchronized(clients) {
+      for(TCPClient c: clients) {
+        c.close();
+      }
     }
     new TestCondition(){
       @Override
@@ -97,42 +105,50 @@ public class ServerExecuterTests {
   
   @Test
   public void closeAcceptor() throws IOException {
-    TCPServer server = new TCPServer("localhost", port);
+    TCPServer server = SE.createTCPServer("localhost", port);
     final FakeTCPServerClient serverFC = new FakeTCPServerClient(SE);
     server.setClientAcceptor(serverFC);
-    server.setCloser(serverFC);
-    SE.addServer(server);
-    
-    SE.acceptSelector.close();
+    server.addCloseListener(serverFC);
+    server.start();
+    SE.acceptScheduler.equals(new Runnable() {
+      @Override
+      public void run() {
+        try {
+          SE.acceptSelector.close();
+        } catch (IOException e) {
+        }        
+      }});
+
     
   }
-  
   
   @Test
   public void SEStatsTest() throws IOException, InterruptedException {
     final int sendCount = 1000;
     int port = Utils.findTCPPort();
     final FakeTCPServerClient serverFC = new FakeTCPServerClient(SE);
-    final TCPServer server = new TCPServer("localhost", port);
+    final TCPServer server = SE.createTCPServer("localhost", port);
     server.setClientAcceptor(serverFC);
-    server.setCloser(serverFC);
-    SE.addServer(server);
-    final TCPClient client = new TCPClient("localhost", port);
+    server.addCloseListener(serverFC);
+    server.start();
+
+    final TCPClient client = SE.createTCPClient("localhost", port);
     final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
     client.setReader(clientFC);
-    client.setCloser(clientFC);
-    SE.addClient(client);
+    client.addCloseListener(clientFC);
+    client.connect();
 
     new TestCondition(){
       @Override
       public boolean get() {
-        return serverFC.map.size() == 1;
+        return serverFC.clients.size() == 1;
       }
     }.blockTillTrue(5000);
 
-    final TCPClient sclient = (TCPClient) serverFC.map.keys().nextElement();
+    final TCPClient sclient = (TCPClient) serverFC.clients.get(0);
+    
     for(int i=0; i<sendCount; i++) {
-      client.writeForce(TCPTests.SMALL_TEXT_BUFFER.duplicate());
+      client.write(TCPTests.SMALL_TEXT_BUFFER.duplicate());
     }
 
     new TestCondition(){
@@ -141,8 +157,10 @@ public class ServerExecuterTests {
         return serverFC.map.get(sclient).remaining() == TCPTests.SMALL_TEXT_BUFFER.remaining()*sendCount;
       }
     }.blockTillTrue(5000);
+    
+    
     for(int i=0; i<sendCount; i++) {
-      sclient.writeForce(TCPTests.SMALL_TEXT_BUFFER.duplicate());
+      sclient.write(TCPTests.SMALL_TEXT_BUFFER.duplicate());
     }
     new TestCondition(){
       @Override
@@ -155,7 +173,7 @@ public class ServerExecuterTests {
         }
         return test;
       }
-    }.blockTillTrue(1000);
+    }.blockTillTrue(1000, 100);
 
     client.close();
     new TestCondition(){
@@ -169,6 +187,14 @@ public class ServerExecuterTests {
     assertEquals(sendCount*2*TCPTests.SMALL_TEXT_BUFFER.remaining(), SE.getStats().getTotalRead());
     System.out.println(SE.getStats().getTotalWrite());
     System.out.println(SE.getStats().getTotalRead());
+  }
+  
+  @Test
+  public void serverSizeTest() throws IOException {
+    Server lserver = SE.createTCPServer("localhost", Utils.findTCPPort());
+    lserver.start();
+    lserver.close();
+    System.out.println(SE.getServerCount());
   }
 
 }

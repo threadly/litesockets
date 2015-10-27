@@ -1,11 +1,9 @@
 package org.threadly.litesockets.tcp;
 
 import java.io.IOException;
-import java.util.concurrent.ExecutionException;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.concurrent.SingleThreadScheduler;
 import org.threadly.litesockets.NoThreadSocketExecuter;
@@ -32,42 +30,27 @@ public class NoThreadTCPTests extends TCPTests {
         }
       }});
     serverFC = new FakeTCPServerClient(SE);
-    server = new TCPServer("localhost", port);
+    server = SE.createTCPServer("localhost", port);
     server.setClientAcceptor(serverFC);
-    server.setCloser(serverFC);
-    SE.addServer(server);
+    server.addCloseListener(serverFC);
+    server.start();
   }
   
   @Override
   @After
   public void stop(){
     keepRunning = false;
-    ntSE.wakeup();
-    ntSE.wakeup();
-    ntSE.wakeup();
-    ntSE.wakeup();
-    
-    
+    if(SE.isRunning()) {    
+      ntSE.wakeup();
+      ntSE.wakeup();
+      ntSE.wakeup();
+      ntSE.wakeup();
+    }
     super.stop();
     STS.shutdownNow();
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
   }
   
-  @Override
-  public void simpleWriteTest() throws IOException, InterruptedException {
-    super.simpleWriteTest();
-  }
-
-  //@Test
-  public void loop() throws IOException, InterruptedException {
-    for(int i=0; i<100; i++) {
-      clientLateReadStart();
-      this.stop();
-      this.start();
-    }
-  }
-  
-  @Override
-  public void clientLateReadStart() throws IOException, InterruptedException {
-    super.clientLateReadStart();
-  }
 }

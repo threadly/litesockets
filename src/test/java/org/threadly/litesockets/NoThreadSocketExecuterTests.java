@@ -6,11 +6,19 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.After;
 import org.junit.Test;
 import org.threadly.concurrent.SingleThreadScheduler;
 import org.threadly.test.concurrent.TestCondition;
 
 public class NoThreadSocketExecuterTests {
+  
+  @After
+  public void stop() {
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
+  }
 
   @Test
   public void checkWakeUp() throws InterruptedException {
@@ -37,7 +45,5 @@ public class NoThreadSocketExecuterTests {
     assertTrue(sts.isShutdown());
     ntse.stop();
     assertFalse(ntse.isRunning());
-    //woot branch
-    ntse.wakeup();
   }
 }

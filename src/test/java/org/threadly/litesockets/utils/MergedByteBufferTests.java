@@ -4,10 +4,34 @@ import static org.junit.Assert.*;
 
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.util.Random;
 
+import org.junit.After;
 import org.junit.Test;
 
 public class MergedByteBufferTests {
+  
+  @After
+  public void stop() {
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
+  }
+  
+  
+  @Test
+  public void searchSpaning() {
+    MergedByteBuffers mbb = new MergedByteBuffers();
+    mbb.add(ByteBuffer.wrap("vsdljsakd".getBytes()));
+    mbb.add(ByteBuffer.wrap("testingC".getBytes()));
+    mbb.add(ByteBuffer.wrap("test".getBytes()));
+    mbb.add(ByteBuffer.wrap("ingCrap".getBytes()));
+    System.out.println(mbb.indexOf("testingCrap"));
+    assertEquals(17, mbb.indexOf("testingCrap"));
+    mbb.discard(17);
+    assertEquals("testingCrap", mbb.getAsString("testingCrap".length()));
+    
+  }
 
   @Test
   public void getInts() {
@@ -22,6 +46,7 @@ public class MergedByteBufferTests {
     for(int i = 0; i<200; i++) {
       assertEquals(i, mbb.getInt());
     }
+    assertEquals(200*4, mbb.getTotalConsumedBytes());
   }
 
   @Test
@@ -36,6 +61,7 @@ public class MergedByteBufferTests {
     for(short i = 0; i<200; i++) {
       assertEquals(i, mbb.getShort());
     }
+    assertEquals(200*2, mbb.getTotalConsumedBytes());
   }
 
   @Test
@@ -52,6 +78,7 @@ public class MergedByteBufferTests {
     for(long i = 0; i<200; i++) {
       assertEquals(i, mbb.getLong());
     }
+    assertEquals(200*8, mbb.getTotalConsumedBytes());
   }
   
   @Test
@@ -68,8 +95,29 @@ public class MergedByteBufferTests {
     assertEquals(283686952306183L, mbb.getLong());
     assertEquals(579005069656919567L, mbb.getLong());
     assertEquals(100-8-8, mbb.remaining());
+    assertEquals(16, mbb.getTotalConsumedBytes());
   }
 
+  @Test
+  public void getByteUnsigned() {
+    MergedByteBuffers mbb = new MergedByteBuffers();
+    ByteBuffer bb = ByteBuffer.allocate(1);
+    bb.put((byte)-1);
+    bb.flip();
+    mbb.add(bb);
+    assertEquals(255, mbb.getUnsignedByte());
+  }
+  
+  @Test
+  public void getShortUnsigned() {
+    MergedByteBuffers mbb = new MergedByteBuffers();
+    ByteBuffer bb = ByteBuffer.allocate(2);
+    bb.putShort((short)-1);
+    bb.flip();
+    mbb.add(bb);
+    assertEquals(65535, mbb.getUnsignedShort());
+  }
+  
   @Test
   public void getBytes() {
     MergedByteBuffers mbb = new MergedByteBuffers();
@@ -82,6 +130,7 @@ public class MergedByteBufferTests {
     for(byte i = 0; i<100; i++) {
       assertEquals(i, mbb.get());
     }
+    assertEquals(100, mbb.getTotalConsumedBytes());
   }
   
   @Test
@@ -103,6 +152,7 @@ public class MergedByteBufferTests {
     assertEquals(100, mbb.indexOf(text.getBytes()));
     mbb.discard(100);
     assertEquals(text, mbb.getAsString(text.getBytes().length));
+    assertEquals(100+text.getBytes().length, mbb.getTotalConsumedBytes());
   }
   
   @Test
@@ -144,18 +194,61 @@ public class MergedByteBufferTests {
     mbb.add(bb);
     stuff = mbb.pull(4);
     assertEquals(66051, stuff.getInt());
+    assertEquals(104, mbb.getTotalConsumedBytes());
   }
   
   @Test
   public void pullZero() {
     MergedByteBuffers mbb = new MergedByteBuffers();
     assertEquals(0, mbb.pull(0).remaining());
+    assertEquals(0, mbb.getTotalConsumedBytes());
+  }
+  
+  @Test
+  public void popZeroBuffer() {
+    MergedByteBuffers mbb = new MergedByteBuffers();
+    assertEquals(0, mbb.nextPopSize());
+    assertEquals(0, mbb.pop().remaining());
+  }
+  
+  @Test
+  public void popBuffer() {
+    MergedByteBuffers mbb = new MergedByteBuffers();
+    Random rnd = new Random();
+    int size = rnd.nextInt(300);
+    ByteBuffer bb = ByteBuffer.allocate(size);
+    mbb.add(bb);
+    mbb.add(ByteBuffer.allocate(rnd.nextInt(300)));
+    mbb.add(ByteBuffer.allocate(rnd.nextInt(300)));
+    mbb.add(ByteBuffer.allocate(rnd.nextInt(300)));
+    assertEquals(size, mbb.nextPopSize());
+    assertEquals(size, mbb.pop().remaining());
+    assertEquals(size, mbb.getTotalConsumedBytes());
+  }
+  
+  @Test
+  public void discardAllBuffers() {
+    MergedByteBuffers mbb = new MergedByteBuffers();
+    Random rnd = new Random();
+    mbb.add(ByteBuffer.allocate(rnd.nextInt(300)));
+    mbb.add(ByteBuffer.allocate(rnd.nextInt(300)));
+    mbb.add(ByteBuffer.allocate(rnd.nextInt(300)));
+    int size = mbb.remaining();
+    mbb.discard(size);
+    assertEquals(0, mbb.remaining());
+    assertEquals(size, mbb.getTotalConsumedBytes());
   }
   
   @Test(expected=BufferUnderflowException.class)
   public void badArrayGet() {
     MergedByteBuffers mbb = new MergedByteBuffers();
     mbb.get(new byte[100]);
+  }
+  
+  @Test(expected=BufferUnderflowException.class)
+  public void discardUnderFlow() {
+    MergedByteBuffers mbb = new MergedByteBuffers();
+    mbb.discard(100);
   }
   
   @Test(expected=IllegalArgumentException.class)

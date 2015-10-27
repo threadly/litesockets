@@ -19,7 +19,7 @@ public class TransactionalByteBuffers extends MergedByteBuffers {
   private static final String ACCESS_ERROR = "Can not call method from different thread then the transaction begain with";
   private final ReentrantLock lock = new ReentrantLock();
   private final ArrayDeque<ByteBuffer> consumedBuffers = new ArrayDeque<ByteBuffer>(8); 
-  private int consumedSinceBegin = 0;
+  private int consumedSinceBegin;
   
   /**
    * This mark the beginning of a new transaction.  anything done from this point can either 
@@ -67,16 +67,16 @@ public class TransactionalByteBuffers extends MergedByteBuffers {
   
     try {
       currentSize += consumedSinceBegin;
-      ByteBuffer firstAvailable = availableBuffers.peek();
+      final ByteBuffer firstAvailable = availableBuffers.peek();
       if (firstAvailable != null && firstAvailable.position() != 0) {
-        int firstRollbackAmount = Math.min(consumedSinceBegin, firstAvailable.position());
+        final int firstRollbackAmount = Math.min(consumedSinceBegin, firstAvailable.position());
         firstAvailable.position(firstAvailable.position() - firstRollbackAmount);
         consumedSinceBegin -= firstRollbackAmount;
       }
       while (consumedSinceBegin > 0) {
-        ByteBuffer buf = consumedBuffers.removeLast();
+        final ByteBuffer buf = consumedBuffers.removeLast();
         
-        int rollBackAmount = Math.min(consumedSinceBegin, buf.capacity());
+        final int rollBackAmount = Math.min(consumedSinceBegin, buf.capacity());
         buf.position(buf.capacity() - rollBackAmount);
         
         availableBuffers.addFirst(buf);
@@ -94,123 +94,80 @@ public class TransactionalByteBuffers extends MergedByteBuffers {
   
   @Override
   public byte get() {
-    if(! lock.isLocked()) {
+    if(lock.isLocked()) {
+      if(lock.isHeldByCurrentThread()) {
+        final byte b = super.get();
+        consumedSinceBegin+=1;
+        return b;        
+      } else {
+        throw new IllegalStateException(ACCESS_ERROR);  
+      }
+    } else {
       return super.get();
-    } else if(lock.isHeldByCurrentThread()) {
-      byte b = super.get();
-      consumedSinceBegin+=1;
-      return b;
-    } else {
-      throw new IllegalStateException(ACCESS_ERROR);
     }
   }
   
   @Override
-  public void get(byte[] destBytes) {
-    if(! lock.isLocked()) {
+  public void get(final byte[] destBytes) {
+    if(lock.isLocked()) {
+      if(lock.isHeldByCurrentThread()) {
+        super.get(destBytes);
+        consumedSinceBegin+=destBytes.length;        
+      } else {
+        throw new IllegalStateException(ACCESS_ERROR);  
+      }
+    } else {
       super.get(destBytes);
-    } else if(lock.isHeldByCurrentThread()) {
-      super.get(destBytes);
-      consumedSinceBegin+=destBytes.length;
-    } else {
-      throw new IllegalStateException(ACCESS_ERROR);
-    }
-  }
-  
-  @Override
-  public short getShort() {
-    if(! lock.isLocked()) {
-      return super.getShort();
-    } else if(lock.isHeldByCurrentThread()) {
-      short v = super.getShort(); 
-      consumedSinceBegin+=BYTES_IN_SHORT;
-      return v;
-    } else {
-      throw new IllegalStateException(ACCESS_ERROR);
-    }
-  }
-  
-  @Override
-  public int getInt() {
-    if(! lock.isLocked()) {
-      return super.getInt();
-    } else if(lock.isHeldByCurrentThread()) {
-      int v = super.getInt(); 
-      consumedSinceBegin+=BYTES_IN_INT;
-      return v;
-    } else {
-      throw new IllegalStateException(ACCESS_ERROR);
-    }
-  }
-  
-  @Override
-  public long getLong() {
-    if(! lock.isLocked()) {
-      return super.getLong();
-    } else if(lock.isHeldByCurrentThread()) {
-      consumedSinceBegin+=BYTES_IN_LONG;
-      return super.getLong();
-    } else {
-      throw new IllegalStateException(ACCESS_ERROR);
     }
   }
   
   @Override
   public ByteBuffer pop() {
-    if(! lock.isLocked()) {
-      return super.pop();
-    } else if(lock.isHeldByCurrentThread()) {
-      ByteBuffer bb = super.pop();
-      consumedSinceBegin+=bb.remaining();
-      return bb.duplicate();
-    } else {
-      throw new IllegalStateException(ACCESS_ERROR);
-    }
+    return super.pop();
   }
   
   @Override
-  public ByteBuffer pull(int size) {
-    if(! lock.isLocked()) {
+  public ByteBuffer pull(final int size) {
+    if(lock.isLocked()) {
+      if(lock.isHeldByCurrentThread()) {
+        final ByteBuffer bb = super.pull(size);
+        consumedSinceBegin+=size;
+        return bb;        
+      } else {
+        throw new IllegalStateException(ACCESS_ERROR);  
+      }
+    } else {
       return super.pull(size);
-    } else if(lock.isHeldByCurrentThread()) {
-      ByteBuffer bb = super.pull(size);
-      consumedSinceBegin+=size;
-      return bb;
-    } else {
-      throw new IllegalStateException(ACCESS_ERROR);
     }
   }
   
   @Override
-  public void discard(int size) {
-    if(! lock.isLocked()) {
-      super.discard(size);
-    } else if(lock.isHeldByCurrentThread()) {
-      super.discard(size);
-      consumedSinceBegin+=size;
+  public void discard(final int size) {
+    if(lock.isLocked()) {
+      if(lock.isHeldByCurrentThread()) {
+        super.discard(size);
+        consumedSinceBegin+=size;        
+      } else {
+        throw new IllegalStateException(ACCESS_ERROR);  
+      }
     } else {
-      throw new IllegalStateException(ACCESS_ERROR);
+      super.discard(size);
     }
   }
   
   @Override
-  public String getAsString(int size) {
-    if(! lock.isLocked()) {
-      return super.getAsString(size);
-    } else if(lock.isHeldByCurrentThread()) {
-      consumedSinceBegin+=size;
-      return super.getAsString(size);
-    } else {
-      throw new IllegalStateException(ACCESS_ERROR);
-    }
+  public String getAsString(final int size) {
+    return super.getAsString(size);
   }
-  
+
+
   @Override
   protected ByteBuffer removeFirstBuffer() {
-    ByteBuffer bb = super.removeFirstBuffer();
+    final ByteBuffer bb = super.removeFirstBuffer();
     if(lock.isLocked() && lock.isHeldByCurrentThread()) {
       this.consumedBuffers.add(bb);
     }
     return bb;
   }
+
 }

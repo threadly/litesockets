@@ -1,9 +1,9 @@
 package org.threadly.litesockets;
 
 import java.nio.channels.SelectableChannel;
-import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
+import org.threadly.concurrent.event.ListenerHelper;
 
 /**
  * This is the main Server Interface for litesockets.  
@@ -11,49 +11,85 @@ import org.threadly.litesockets.SocketExecuterInterface.WireProtocol;
  * <p>Any type of connection/open port will use this to "Accept" new client connections on. 
  * The Server has an Acceptor callback for new clients and a Closer callback for clean up when the socket is closed.</p>
  * 
- * <p>Both the {@link ClientAcceptor} and {@link ServerCloser} callbacks can happen on multiple threads so use thread safety when dealing
+ * <p>Both the {@link ClientAcceptor} and {@link ServerCloseListener} callbacks can happen on multiple threads so use thread safety when dealing
  * with those callbacks.</p>
  * 
  *
  */
 public abstract class Server {
   
-  /**
-   * <p>Sets the Thread {@link Executor} that this Server uses.  This is set by the {@link SocketExecuterInterface} but can be overridden with 
-   * little concern.</p>
-   * 
-   * @param executor A thread {@link Executor} that will be used by this Server object.
-   */
-  protected abstract void setThreadExecutor(Executor executor);
+  private final SocketExecuter sei;
+  private final AtomicBoolean closed = new AtomicBoolean(false);
+  private volatile ClientAcceptor clientAcceptor;
+  private volatile ListenerHelper<ServerCloseListener> closer = ListenerHelper.build(ServerCloseListener.class);
+  
+  protected Server(final SocketExecuter sei) {
+    this.sei = sei;
+  }
+  
+
+  public void start() {
+    sei.startListening(this);
+  }
   
   /**
-   * <p>Sets the current {@link SocketExecuterInterface} for this Server to use.  This is set by {@link SocketExecuterInterface#addServer(Server)}
-   * and should probably not be changed.</p>
+   * <p>Gets the Current {@link SocketExecuter} this Server is assigned to.</p>
    * 
-   * @param se {@link SocketExecuterInterface} to set.
+   * @return the current {@link SocketExecuter} for this Server.
    */
-  protected abstract void setSocketExecuter(SocketExecuterInterface se);
-  
-  /**
-   * <p>Gets the Current {@link SocketExecuterInterface} this Server is assigned to.</p>
-   * 
-   * @return the current {@link SocketExecuterInterface} for this Server.
-   */
-  public abstract SocketExecuterInterface getSocketExecuter();
+  public SocketExecuter getSocketExecuter() {
+    return sei;
+  }
   
   /**
    * <p>Get the current ServerCloser callback assigned to this Server.</p>
    * 
    * @return the currently set Closer.
    */
-  public abstract ServerCloser getCloser();
+  protected void callClosers() {
+    this.closer.call().onClose(this);
+  }
   
   /**
-   * <p>Set the {@link ServerCloser} for this Server.</p>
+   * <p>Adds a {@link ServerCloseListener} for this Server.</p>
    * 
-   * @param closer The {@link ServerCloser} to set for this Server. 
+   * @param listener The {@link ServerCloseListener} to set for this Server. 
    */
-  public abstract void setCloser(ServerCloser closer);
+  public void addCloseListener(final ServerCloseListener listener) {
+    this.closer.addListener(listener);
+  }
+  
+  /**
+   * <p>Gets the current {@link ClientAcceptor} Callback for this Server.</p> 
+   * 
+   * @return the currently set {@link ClientAcceptor}.
+   */
+  public ClientAcceptor getClientAcceptor() {
+    return this.clientAcceptor;
+  }
+  
+  /**
+   * <p>Set the {@link ClientAcceptor} for this Server.  This should be set before the Server is added to the {@link SocketExecuter}.
+   * If its not you could miss pending client connections.</p>
+   *   
+   * @param acceptor Sets the {@link ClientAcceptor} callback for this server.
+   */
+  public void setClientAcceptor(final ClientAcceptor acceptor) {
+    clientAcceptor = acceptor;
+  }
+  
+  protected boolean setClosed() {
+    return this.closed.compareAndSet(false, true);
+  }
+  
+  public boolean isClosed() {
+    return closed.get();
+  }
+  
+  /**
+   * <p>Close this servers Socket.  Once closed you must construct a new Server to open it again.</p>
+   */
+  public abstract void close();
   
   /**
    * <p>This is how the extending server receives the {@link SelectableChannel}.
@@ -65,7 +101,7 @@ public abstract class Server {
   protected abstract void acceptChannel(SelectableChannel c);
   
   /**
-   * <p>This is used by the {@link SocketExecuterInterface} to know how to handle this Server 
+   * <p>This is used by the {@link SocketExecuter} to know how to handle this Server 
    * when its added to it.  Currently only UDP or TCP.</p>
    * 
    * @return returns the type of protocol this socket uses.
@@ -78,26 +114,6 @@ public abstract class Server {
    * @return the {@link SelectableChannel} for this server.
    */
   protected abstract SelectableChannel getSelectableChannel();
-  
-  /**
-   * <p>Gets the current {@link ClientAcceptor} Callback for this Server.</p> 
-   * 
-   * @return the currently set {@link ClientAcceptor}.
-   */
-  public abstract ClientAcceptor getClientAcceptor();
-  
-  /**
-   * <p>Set the {@link ClientAcceptor} for this Server.  This should be set before the Server is added to the {@link SocketExecuterInterface}.
-   * If its not you could miss pending client connections.</p>
-   *   
-   * @param clientAcceptor Sets the {@link ClientAcceptor} callback for this server.
-   */
-  public abstract void setClientAcceptor(ClientAcceptor clientAcceptor);
-  
-  /**
-   * <p>Close this servers Socket.  Once closed you must construct a new Server to open it again.</p>
-   */
-  public abstract void close();
   
   /**
    * <p>This is the ClientAcceptor callback for the {@link Server}.  This is called when a new {@link Client} is 
@@ -121,7 +137,7 @@ public abstract class Server {
    * 
    *
    */
-  public interface ServerCloser {
+  public interface ServerCloseListener {
     /**
      * Once a close is detected for this {@link Server} this is called..
      * 

@@ -22,9 +22,9 @@ public class NoThreadUDPTests extends UDPTest {
         ntSE.select();
       }}, 10, 10);
     serverFC = new FakeUDPServerClient(SE);
-    server = new UDPServer("127.0.0.1", port);
+    server = SE.createUDPServer("127.0.0.1", port);
     server.setClientAcceptor(serverFC);
-    SE.addServer(server);
+    server.start();
   }
   
   @After
@@ -32,6 +32,9 @@ public class NoThreadUDPTests extends UDPTest {
     server.close();
     SE.stop();
     PS.shutdownNow();
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
   }
 
 }

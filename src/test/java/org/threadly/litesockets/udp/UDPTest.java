@@ -11,8 +11,10 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
-import org.threadly.litesockets.SocketExecuterInterface;
+import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.ThreadedSocketExecuter;
+import org.threadly.litesockets.UDPClient;
+import org.threadly.litesockets.UDPServer;
 import org.threadly.litesockets.tcp.Utils;
 import org.threadly.test.concurrent.TestCondition;
 
@@ -20,7 +22,7 @@ public class UDPTest {
   PriorityScheduler PS;
   int port = Utils.findUDPPort();
   final String GET = "hello";
-  SocketExecuterInterface SE;
+  SocketExecuter SE;
   UDPServer server;
   FakeUDPServerClient serverFC;
 
@@ -30,27 +32,30 @@ public class UDPTest {
     SE = new ThreadedSocketExecuter(PS);
     SE.start();
     serverFC = new FakeUDPServerClient(SE);
-    server = new UDPServer("127.0.0.1", port);
+    server = SE.createUDPServer("127.0.0.1", port);
     server.setClientAcceptor(serverFC);
-    SE.addServer(server);
+    server.start();
   }
   
   @After
   public void stop() {
-    server.close();
+    SE.stopListening(server);
     SE.stop();
     PS.shutdownNow();
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
   }
   
   @Test
   public void simpleUDPTest() throws IOException {
     int newPort = Utils.findUDPPort();
     FakeUDPServerClient newFC = new FakeUDPServerClient(SE);
-    UDPServer newServer = new UDPServer("localhost", newPort);
+    UDPServer newServer = SE.createUDPServer("localhost", newPort);
     newFC.AddUDPServer(newServer);
     UDPClient c = newServer.createUDPClient("127.0.0.1", port);
     newFC.accept(c);
-    c.writeForce(ByteBuffer.wrap(GET.getBytes()));
+    c.write(ByteBuffer.wrap(GET.getBytes()));
     new TestCondition(){
       @Override
       public boolean get() {
@@ -66,7 +71,7 @@ public class UDPTest {
     }.blockTillTrue(5000);
     System.out.println(serverFC.clients.get(rc).remaining());
     assertEquals(GET, serverFC.clients.get(rc).getAsString(serverFC.clients.get(rc).remaining()));
-    SE.removeServer(newServer);
+    newServer.close();
     c.close();
     newServer.close();
   }
@@ -76,7 +81,7 @@ public class UDPTest {
   public void changeBufferSize() throws IOException, InterruptedException, ExecutionException {
     int newPort = Utils.findUDPPort();
     FakeUDPServerClient newFC = new FakeUDPServerClient(SE);
-    UDPServer newServer = new UDPServer("localhost", newPort);
+    UDPServer newServer = SE.createUDPServer("localhost", newPort);
     newFC.AddUDPServer(newServer);
     UDPClient c = newServer.createUDPClient("127.0.0.1", port);
     assertEquals(0, c.getTimeout());
@@ -84,7 +89,7 @@ public class UDPTest {
     newFC.accept(c);
     c.setMaxBufferSize(2);
     assertEquals(c.getClientsSocketExecuter(), SE);
-    c.writeForce(ByteBuffer.wrap(GET.getBytes()));
+    c.write(ByteBuffer.wrap(GET.getBytes()));
     new TestCondition(){
       @Override
       public boolean get() {
@@ -100,7 +105,7 @@ public class UDPTest {
     }.blockTillTrue(5000);
     System.out.println(serverFC.clients.get(rc).remaining());
     assertEquals(GET, serverFC.clients.get(rc).getAsString(serverFC.clients.get(rc).remaining()));
-    SE.removeServer(newServer);
+    newServer.close();
     c.close();
     newServer.close();
   }
@@ -111,15 +116,15 @@ public class UDPTest {
     
     for(int i=0; i<10; i++) {
       int newPort = Utils.findUDPPort();
-      UDPServer newServer = new UDPServer("localhost", newPort);
+      UDPServer newServer = SE.createUDPServer("localhost", newPort);
       newFC.AddUDPServer(newServer);
       UDPClient c = newServer.createUDPClient("127.0.0.1", port);
       newFC.accept(c);
-      c.writeForce(ByteBuffer.wrap(GET.getBytes()));
+      c.write(ByteBuffer.wrap(GET.getBytes()));
       Thread.sleep(10);
-      c.writeBlocking(ByteBuffer.wrap(GET.getBytes()));
+      c.write(ByteBuffer.wrap(GET.getBytes()));
       Thread.sleep(10);
-      c.writeTry(ByteBuffer.wrap(GET.getBytes()));
+      c.write(ByteBuffer.wrap(GET.getBytes()));
       Thread.sleep(10);
     }
     
@@ -158,11 +163,11 @@ public class UDPTest {
   public void checkClients() throws IOException {
     int newPort = Utils.findUDPPort();
     FakeUDPServerClient newFC = new FakeUDPServerClient(SE);
-    UDPServer newServer = new UDPServer("localhost", newPort);
+    UDPServer newServer = SE.createUDPServer("localhost", newPort);
     newFC.AddUDPServer(newServer);
     UDPClient c = newServer.createUDPClient("127.0.0.1", port);
     newFC.accept(c);
-    c.writeForce(ByteBuffer.wrap(GET.getBytes()));
+    c.write(ByteBuffer.wrap(GET.getBytes()));
     new TestCondition(){
       @Override
       public boolean get() {
@@ -182,11 +187,10 @@ public class UDPTest {
   public void tryAddClient() throws IOException {
     int newPort = Utils.findUDPPort();
     FakeUDPServerClient newFC = new FakeUDPServerClient(SE);
-    UDPServer newServer = new UDPServer("localhost", newPort);
+    UDPServer newServer = SE.createUDPServer("localhost", newPort);
     newFC.AddUDPServer(newServer);
     UDPClient c = newServer.createUDPClient("127.0.0.1", port);
     newFC.accept(c);
-    SE.addClient(c);
     assertEquals(0, SE.getClientCount());
     c.close();
     newServer.close();

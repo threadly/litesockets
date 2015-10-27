@@ -2,7 +2,6 @@ package org.threadly.litesockets;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
@@ -11,8 +10,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.threadly.concurrent.SchedulerServiceInterface;
-import org.threadly.concurrent.SimpleSchedulerInterface;
+import org.threadly.concurrent.SubmitterScheduler;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.WatchdogCache;
 import org.threadly.litesockets.utils.SimpleByteStats;
@@ -24,12 +22,12 @@ import org.threadly.util.ExceptionUtils;
 /**
  *  This is a common base class for the Threaded and NoThread SocketExecuters. 
  */
-abstract class SocketExecuterCommonBase extends AbstractService implements SocketExecuterInterface {
+abstract class SocketExecuterCommonBase extends AbstractService implements SocketExecuter {
   public static final int WATCHDOG_CLEANUP_TIME = 30000;
-  protected final SchedulerServiceInterface acceptScheduler;
-  protected final SchedulerServiceInterface readScheduler;
-  protected final SchedulerServiceInterface writeScheduler;
-  protected final SimpleSchedulerInterface schedulerPool;
+  protected final SubmitterScheduler acceptScheduler;
+  protected final SubmitterScheduler readScheduler;
+  protected final SubmitterScheduler writeScheduler;
+  protected final SubmitterScheduler schedulerPool;
   protected final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
   protected final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
   protected final SocketExecuterByteStats stats = new SocketExecuterByteStats();
@@ -38,14 +36,14 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   protected Selector writeSelector;
   protected Selector acceptSelector;
 
-  SocketExecuterCommonBase(SchedulerServiceInterface scheduler) {
+  SocketExecuterCommonBase(final SubmitterScheduler scheduler) {
     this(scheduler,scheduler,scheduler,scheduler);
   }
 
-  SocketExecuterCommonBase(SchedulerServiceInterface acceptScheduler, 
-      SchedulerServiceInterface readScheduler, 
-      SchedulerServiceInterface writeScheduler, 
-      SimpleSchedulerInterface ssi) {
+  SocketExecuterCommonBase(final SubmitterScheduler acceptScheduler, 
+      final SubmitterScheduler readScheduler, 
+      final SubmitterScheduler writeScheduler, 
+      final SubmitterScheduler ssi) {
     ArgumentVerifier.assertNotNull(ssi, "ThreadScheduler");    
     ArgumentVerifier.assertNotNull(acceptScheduler, "Accept Scheduler");
     ArgumentVerifier.assertNotNull(readScheduler, "Read Scheduler");
@@ -56,73 +54,101 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     this.readScheduler = readScheduler;
     this.writeScheduler = writeScheduler;
   }
-
-  protected abstract void addThreadExecutorToClient(Client client);
-
+  
+  protected void checkRunning() {
+    if(!isRunning()) {
+      throw new IllegalStateException("SocketExecuter is not running!");
+    }
+  }
+  
   @Override
-  public void addClient(final Client client) {
-    ArgumentVerifier.assertNotNull(client, "Client");
-    if(! client.isClosed() && client.getProtocol() == WireProtocol.TCP && isRunning()) {
-      addThreadExecutorToClient(client);
-      client.setClientsSocketExecuter(this);
-      if(client.getChannel() != null && client.getChannel().isConnected()) {
-        Client nc = clients.putIfAbsent(client.getChannel(), client);
-        if(nc == null) {
-          flagNewWrite(client);
-          flagNewRead(client);
-        }
+  public TCPClient createTCPClient(final String host, final int port) throws IOException {
+    checkRunning();
+    TCPClient tc = new TCPClient(this, host, port);
+    clients.put(((Client)tc).getChannel(), tc);
+    return tc;
+  }
+  
+  
+  @Override
+  public TCPClient createTCPClient(final SocketChannel sc) throws IOException {
+    checkRunning();
+    final TCPClient tc = new TCPClient(this, sc);
+    clients.put(((Client)tc).getChannel(), tc);
+    this.setClientOperations(tc);
+    return tc;
+  }
+  
+  @Override
+  public TCPServer createTCPServer(final String host, final int port) throws IOException {
+    checkRunning();
+    TCPServer ts = new TCPServer(this, host, port);
+    servers.put(ts.getSelectableChannel(), ts);
+    return ts;
+  }
+  
+  @Override
+  public TCPServer createTCPServer(final ServerSocketChannel ssc) throws IOException {
+    checkRunning();
+    TCPServer ts = new TCPServer(this, ssc);
+    servers.put(ts.getSelectableChannel(), ts);
+    return ts;
+  }
+  
+  @Override
+  public UDPServer createUDPServer(final String host, final int port) throws IOException {
+    checkRunning();
+    UDPServer us = new UDPServer(this, host, port);
+    servers.put(us.getSelectableChannel(), us);
+    return us;
+  }
+  
+  private boolean checkServer(final Server server) {
+    try{
+      checkRunning();
+    } catch(Exception e) {
+      return false;
+    }
+    if(server.isClosed() || server.getSocketExecuter() != this || !servers.containsKey(server.getSelectableChannel())) {
+      servers.remove(server.getSelectableChannel());
+      return false;
+    }
+    return true;
+  }
+  
+  @Override
+  public void startListening(final Server server) {
+    if(!checkServer(server)) {
+      return;
+    } else {
+      if(server.getServerType() == WireProtocol.TCP) {
+        acceptScheduler.execute(new AddToSelector(server, acceptSelector, SelectionKey.OP_ACCEPT));
+      } else if(server.getServerType() == WireProtocol.UDP) {
+        acceptScheduler.execute(new AddToSelector(server, acceptSelector, SelectionKey.OP_READ));
       } else {
-        client.connect();
-        if(client.getChannel() != null) {
-          Client nc = clients.putIfAbsent(client.getChannel(), client);
-          if(nc == null) {
-            readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_CONNECT));
-            readSelector.wakeup();
-            dogCache.watch(client.connect(), client.getTimeout());
-          }
-        }
+        throw new UnsupportedOperationException("Unknown Server WireProtocol!"+ server.getServerType());
       }
-    }
-  }
-
-  @Override
-  public void removeClient(Client client) {
-    ArgumentVerifier.assertNotNull(client, "Client");
-    if(isRunning() && clients.remove(client.getChannel()) != null) {
-      readScheduler.execute(new RemoveFromSelector(client.getChannel(), readSelector));
-      writeScheduler.execute(new RemoveFromSelector(client.getChannel(), writeSelector));
-      readSelector.wakeup();
-      writeSelector.wakeup();
-    }
-  }
-
-  @Override
-  public void addServer(final Server server) {
-    ArgumentVerifier.assertNotNull(server, "Server");
-    if(isRunning()) {
-      Server sn = servers.putIfAbsent(server.getSelectableChannel(), server);
-      if(sn == null) {
-        server.setSocketExecuter(this);
-        server.setThreadExecutor(schedulerPool);
-        if(server.getServerType() == WireProtocol.TCP) {
-          acceptScheduler.execute(new AddToSelector(server, acceptSelector, SelectionKey.OP_ACCEPT));
-        } else if(server.getServerType() == WireProtocol.UDP) {
-          acceptScheduler.execute(new AddToSelector(server, acceptSelector, SelectionKey.OP_READ));
-        }
-        acceptSelector.wakeup();
-      }
-    }
-  }
-
-  @Override
-  public void removeServer(Server server) {
-    ArgumentVerifier.assertNotNull(server, "Server");
-    if(isRunning() && servers.remove(server.getSelectableChannel()) != null) {
-      acceptScheduler.execute(new RemoveFromSelector(server.getSelectableChannel(), acceptSelector));
       acceptSelector.wakeup();
     }
   }
-
+  
+  
+  @Override
+  public void stopListening(final Server server) {
+    if(!checkServer(server)) {
+      return;
+    } else {
+      if(server.getServerType() == WireProtocol.TCP) {
+        acceptScheduler.execute(new AddToSelector(server, acceptSelector, 0));
+      } else if(server.getServerType() == WireProtocol.UDP) {
+        acceptScheduler.execute(new AddToSelector(server, acceptSelector, 0));
+      } else {
+        throw new UnsupportedOperationException("Unknown Server WireProtocol!"+ server.getServerType());
+      }
+      acceptSelector.wakeup();
+    }
+  }
+  
   @Override
   public int getClientCount() {
     return clients.size();
@@ -134,7 +160,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   }
 
   @Override
-  public SimpleSchedulerInterface getThreadScheduler() {
+  public SubmitterScheduler getThreadScheduler() {
     return schedulerPool;
   }
 
@@ -144,7 +170,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   }
 
   @Override
-  public void watchFuture(ListenableFuture<?> lf, long delay) {
+  public void watchFuture(final ListenableFuture<?> lf, final long delay) {
     dogCache.watch(lf, delay);
   }
 
@@ -156,18 +182,23 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     }
   }
 
-  protected static void closeSelector(Selector selector) {
-    try {
-      selector.close();
-    } catch (IOException e) {
-      ExceptionUtils.handleException(e);
-    }
+  protected static void closeSelector(final SubmitterScheduler scheduler, final Selector selector) {
+    scheduler.execute(new Runnable() {
+      @Override
+      public void run() {
+        try {
+          selector.close();
+        } catch (IOException e) {
+          ExceptionUtils.handleException(e);
+        }
+      }});
+    selector.wakeup();
   }
 
-  protected static void doServerAccept(Server server) {
+  protected static void doServerAccept(final Server server) {
     if(server != null) {
       try {
-        SocketChannel client = ((ServerSocketChannel)server.getSelectableChannel()).accept();
+        final SocketChannel client = ((ServerSocketChannel)server.getSelectableChannel()).accept();
         if(client != null) {
           client.configureBlocking(false);
           server.acceptChannel(client);
@@ -179,27 +210,30 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     }
   }
 
-  protected static void doClientConnect(Client client, Selector selector) {
-    if(client != null) {
-      try {
-        if(client.getChannel().finishConnect()) {
-          client.setConnectionStatus(null);
-        }
-      } catch(IOException e) {
-        client.close();
-        client.setConnectionStatus(e);
-        ExceptionUtils.handleException(e);
+  protected static void doClientConnect(final Client client, final Selector selector) {
+    if(client == null) {
+      return;
+    }
+    try {
+      if(client.getChannel().finishConnect()) {
+        client.setConnectionStatus(null);
       }
+    } catch(IOException e) {
+      client.close();
+      client.setConnectionStatus(e);
+      ExceptionUtils.handleException(e);
     }
   }
 
-  protected static int doClientWrite(Client client, Selector selector) {
+  protected static int doClientWrite(final Client client, final Selector selector) {
     int wrote = 0;
     if(client != null) {
       try {
         wrote = client.getChannel().write(client.getWriteBuffer());
-        client.reduceWrite(wrote);
-        SelectionKey sk = client.getChannel().keyFor(selector);
+        if(wrote > 0) {
+          client.reduceWrite(wrote);
+        }
+        final SelectionKey sk = client.getChannel().keyFor(selector);
         if(! client.canWrite() && (sk.interestOps() & SelectionKey.OP_WRITE) == SelectionKey.OP_WRITE) {
           client.getChannel().register(selector, sk.interestOps() - SelectionKey.OP_WRITE);
         }
@@ -211,22 +245,22 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     return wrote;
   }
 
-  protected static int doClientRead(Client client, Selector selector) {
+  protected static int doClientRead(final Client client, final Selector selector) {
     int read = 0;
     if(client != null) {
       try {
-        ByteBuffer readByteBuffer = client.provideReadByteBuffer();
-        int origPos = readByteBuffer.position();
+        final ByteBuffer readByteBuffer = client.provideReadByteBuffer();
+        final int origPos = readByteBuffer.position();
         read = client.getChannel().read(readByteBuffer);
         if(read < 0) {
           client.close();
         } else if( read > 0){
           readByteBuffer.position(origPos);
-          ByteBuffer resultBuffer = readByteBuffer.slice();
+          final ByteBuffer resultBuffer = readByteBuffer.slice();
           readByteBuffer.position(origPos+read);
           resultBuffer.limit(read);
-          client.addReadBuffer(resultBuffer.asReadOnlyBuffer());
-          SelectionKey sk = client.getChannel().keyFor(selector);
+          client.addReadBuffer(resultBuffer);
+          final SelectionKey sk = client.getChannel().keyFor(selector);
           if(! client.canRead() && (sk.interestOps() & SelectionKey.OP_READ) == SelectionKey.OP_READ) {
             client.getChannel().register(selector, sk.interestOps() - SelectionKey.OP_READ);
           }
@@ -243,14 +277,6 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     }
   }
 
-  protected static void flushSelector(Selector selector) {
-    try {
-      selector.selectNow();
-    } catch (IOException e) {
-      ExceptionUtils.handleException(e);
-    }
-  }
-
   /**
    * This exception in thrown when we have problems doing common operations during startup.
    * This is usually around opening selectors.
@@ -258,37 +284,10 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   public static class StartupException extends RuntimeException {
 
     private static final long serialVersionUID = 358704530394209047L;
-    public StartupException(Throwable t) {
+    public StartupException(final Throwable t) {
       super(t);
     }
 
-  }
-
-
-  /**
-   * This class is a helper runnable to generically remove SelectableChannels from a selector.
-   * 
-   *
-   */
-  protected static class RemoveFromSelector implements Runnable {
-    SelectableChannel localChannel;
-    Selector localSelector;
-
-    public RemoveFromSelector(SelectableChannel channel, Selector selector) {
-      localChannel = channel;
-      localSelector = selector;
-    }
-
-    @Override
-    public void run() {
-      if(localSelector.isOpen()) {
-        SelectionKey sk = localChannel.keyFor(localSelector);
-        if(sk != null) {
-          sk.cancel();
-          flushSelector(localSelector);
-        }
-      }
-    }
   }
 
   /**
@@ -301,39 +300,49 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     final Selector localSelector;
     final int registerType;
 
-    public AddToSelector(Client client, Selector selector, int registerType) {
+    public AddToSelector(final Client client, final Selector selector, final int registerType) {
       localClient = client;
       localServer = null;
       localSelector = selector;
       this.registerType = registerType;
     }
 
-    public AddToSelector(Server server, Selector selector, int registerType) {
+    public AddToSelector(final Server server, final Selector selector, final int registerType) {
       localClient = null;
       localServer = server;
       localSelector = selector;
       this.registerType = registerType;
     }
+    
+    private void runClient() {
+      if(!localClient.isClosed()) {
+        try {
+          localClient.getChannel().register(localSelector, registerType);
+        } catch (ClosedChannelException e) {
+          localClient.close();
+        }
+      }
+    }
+    
+    private void runServer() {
+      if(!localServer.isClosed()) {
+        try {
+          localServer.getSelectableChannel().register(localSelector, registerType);
+        } catch (ClosedChannelException e) {
+          localServer.close();
+        }
+      }
+    }
 
     @Override
     public void run() {
       if(localSelector.isOpen()) {
-        try {
-          if(localClient != null) {
-            localClient.getChannel().register(localSelector, registerType);
-          } else if (localServer != null) {
-            localServer.getSelectableChannel().register(localSelector, registerType);
-          }
-        } catch (ClosedChannelException e) {
-          if(localClient != null) {
-            localClient.close();
-          } else if (localServer != null) {
-            localServer.close();
-          }
-          ExceptionUtils.handleException(e);
-        } catch (CancelledKeyException e) {
-          ExceptionUtils.handleException(e);
+        if(localClient == null && localServer != null) {
+          runServer();            
+        } else if (localClient != null) {
+          runClient();
         }
+        localSelector.wakeup();
       }
     }
   }
@@ -344,14 +353,13 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
    */
   protected static class SocketExecuterByteStats extends SimpleByteStats {
     @Override
-    protected void addWrite(int size) {
+    protected void addWrite(final int size) {
       super.addWrite(size);
     }
 
     @Override
-    protected void addRead(int size) {
+    protected void addRead(final int size) {
       super.addRead(size);
     }
   }
-
 }

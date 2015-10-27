@@ -9,9 +9,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
+import org.threadly.litesockets.TCPClient;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.tcp.FakeTCPServerClient;
-import org.threadly.litesockets.tcp.TCPClient;
 import org.threadly.litesockets.tcp.Utils;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.test.concurrent.TestCondition;
@@ -38,14 +38,18 @@ public class ProfileServerTest {
     pServer.stopIfRunning();
     SE.stopIfRunning();
     PS.shutdown();
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
   }
 
   @Test
   public void helpTest() throws IOException, InterruptedException {
     pServer.start();
-    final TCPClient client = new TCPClient("localhost", port);
+    final TCPClient client = SE.createTCPClient("localhost", port);
+    client.connect();
     clientHandler.addTCPClient(client);
-    client.writeForce(ByteBuffer.wrap("TEST\n".getBytes()));
+    client.write(ByteBuffer.wrap("TEST\n".getBytes()));
     new TestCondition(){
       @Override
       public boolean get() {
@@ -58,9 +62,9 @@ public class ProfileServerTest {
   @Test
   public void DoubleStartTest()  throws IOException, InterruptedException {
     pServer.start();
-    final TCPClient client = new TCPClient("localhost", port);
+    final TCPClient client = SE.createTCPClient("localhost", port);
     clientHandler.addTCPClient(client);
-    client.writeForce(ByteBuffer.wrap("start\n".getBytes()));
+    client.write(ByteBuffer.wrap("start\n".getBytes()));
     new TestCondition(){
       @Override
       public boolean get() {
@@ -68,7 +72,7 @@ public class ProfileServerTest {
       }
     }.blockTillTrue(5000);
     assertEquals(getMessageAsString(ProfileServer.STARTED_RESPONSE),clientHandler.map.get(client).getAsString(clientHandler.map.get(client).remaining()));
-    client.writeForce(ByteBuffer.wrap("start\n".getBytes()));
+    client.write(ByteBuffer.wrap("start\n".getBytes()));
     new TestCondition(){
       @Override
       public boolean get() {
@@ -82,9 +86,9 @@ public class ProfileServerTest {
   @Test
   public void AlreadyStoppedTest()  throws IOException, InterruptedException {
     pServer.start();
-    final TCPClient client = new TCPClient("localhost", port);
+    final TCPClient client = SE.createTCPClient("localhost", port);
     clientHandler.addTCPClient(client);
-    client.writeForce(ByteBuffer.wrap("stop\n".getBytes()));
+    client.write(ByteBuffer.wrap("stop\n".getBytes()));
     new TestCondition(){
       @Override
       public boolean get() {
@@ -98,18 +102,19 @@ public class ProfileServerTest {
   @Test
   public void StartDumpResetDumpStopTest() throws IOException, InterruptedException {
     pServer.start();
-    final TCPClient client = new TCPClient("localhost", port);
+    final TCPClient client = SE.createTCPClient("localhost", port);
     clientHandler.addTCPClient(client);
-    client.writeForce(ByteBuffer.wrap("start\n".getBytes()));
+    client.write(ByteBuffer.wrap("start\n".getBytes()));
     new TestCondition(){
       @Override
       public boolean get() {
+        //System.out.println(clientHandler.map.get(client).remaining() );
         return clientHandler.map.get(client).remaining() == ProfileServer.STARTED_RESPONSE.remaining();
       }
-    }.blockTillTrue(5000);
+    }.blockTillTrue(5000, 100);
     assertEquals(getMessageAsString(ProfileServer.STARTED_RESPONSE),clientHandler.map.get(client).getAsString(clientHandler.map.get(client).remaining()));
     Thread.sleep(100);
-    client.writeForce(ByteBuffer.wrap("dump\n".getBytes()));
+    client.write(ByteBuffer.wrap("dump\n".getBytes()));
     new TestCondition(){
       @Override
       public boolean get() {
@@ -120,7 +125,7 @@ public class ProfileServerTest {
     assertEquals(ProfileServer.START_DUMP,clientHandler.map.get(client).getAsString(ProfileServer.START_DUMP.length()));
     clientHandler.map.get(client).discard(clientHandler.map.get(client).remaining());
     
-    client.writeForce(ByteBuffer.wrap("reset\n".getBytes()));
+    client.write(ByteBuffer.wrap("reset\n".getBytes()));
     new TestCondition(){
       @Override
       public boolean get() {
@@ -131,7 +136,7 @@ public class ProfileServerTest {
     assertEquals(getMessageAsString(ProfileServer.RESET_RESPONSE),clientHandler.map.get(client).getAsString(clientHandler.map.get(client).remaining()));
     clientHandler.map.get(client).discard(clientHandler.map.get(client).remaining());
     
-    client.writeForce(ByteBuffer.wrap("stop\n".getBytes()));
+    client.write(ByteBuffer.wrap("stop\n".getBytes()));
     new TestCondition(){
       @Override
       public boolean get() {
@@ -144,9 +149,9 @@ public class ProfileServerTest {
   @Test
   public void emptyDumpTest() throws IOException, InterruptedException {
     pServer.start();
-    final TCPClient client = new TCPClient("localhost", port);
+    final TCPClient client = SE.createTCPClient("localhost", port);
     clientHandler.addTCPClient(client);
-    client.writeForce(ByteBuffer.wrap("dump\n".getBytes()));
+    client.write(ByteBuffer.wrap("dump\n".getBytes()));
     new TestCondition(){
       @Override
       public boolean get() {
@@ -162,11 +167,14 @@ public class ProfileServerTest {
   @Test
   public void badDataTest() throws IOException, InterruptedException {
     pServer.start();
-    final TCPClient client = new TCPClient("localhost", port);
+    final TCPClient client = SE.createTCPClient("localhost", port);
     clientHandler.addTCPClient(client);
+    StringBuilder sb = new StringBuilder(); 
     for(int i=0; i<10000; i++) {
-      client.writeForce(ByteBuffer.wrap("crap".getBytes()));
+      sb.append("crap");
     }
+    client.write(ByteBuffer.wrap(sb.toString().getBytes()));
+    
     new TestCondition(){
       @Override
       public boolean get() {
