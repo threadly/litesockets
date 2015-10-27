@@ -43,6 +43,14 @@ public class MergedByteBuffers {
     } 
   }
   
+  
+  /**
+   * Make a complete copy of this MergedByteBuffer.  Both references should function independently, but
+   * they are still using the same ByteBuffer backing arrays so any change to the actual byte[] in the 
+   * backing ByteBuffers will change in both.
+   * 
+   * @return a new MergedByteBuffers object that duplicates this one, but works independently.
+   */
   public MergedByteBuffers copy() {
     final MergedByteBuffers mbb  = new MergedByteBuffers();
     for(final ByteBuffer bb: this.availableBuffers) {
@@ -77,14 +85,22 @@ public class MergedByteBuffers {
     return mbb;
   }
 
-  
+  /**
+   * Like the indexOf in String object this find a pattern of bytes and reports the position they start at.  
+   * This defaults to using US-ASCII as the Charset.
+   * 
+   * @param pattern String pattern to search for.
+   * @return an {@code int} with the offset of the first occurrence of the given . 
+   */
   public int indexOf(final String pattern) {
     return indexOf(pattern, Charset.forName("US-ASCII"));
   }
+  
   /**
    * Like the indexOf in String object this find a pattern of bytes and reports the position they start at.
    * 
-   * @param pattern String pattern to search for
+   * @param pattern String pattern to search for.
+   * @param charSet the Charset of the string.
    * @return an {@code int} with the offset of the first occurrence of the given . 
    */
   public int indexOf(final String pattern, final Charset charSet) {
@@ -326,6 +342,13 @@ public class MergedByteBuffers {
     currentSize -= size;
   }
 
+  /**
+   * This will return the specified number of bytes as a String object.
+   * This will default to using the US-ASCII Charset.
+   * 
+   * @param size the number of bytes to put into the string.
+   * @return as String Object with set number of bytes in it.
+   */  
   public String getAsString(final int size) {
     return getAsString(size, Charset.forName("US-ASCII"));
   }
@@ -334,6 +357,7 @@ public class MergedByteBuffers {
    * This will return the specified number of bytes as a String object.
    * 
    * @param size the number of bytes to put into the string.
+   * @param charSet the {@link Charset} of the String to return.
    * @return as String Object with set number of bytes in it.
    */
   public String getAsString(final int size, final Charset charSet) {
@@ -363,6 +387,10 @@ public class MergedByteBuffers {
     }
   }
 
+  /**
+   * 
+   * @return The total number of bytes that haven been pushed through this MergedByteBuffer.
+   */
   public long getTotalConsumedBytes() {
     return consumedSize;
   }

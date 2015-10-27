@@ -96,6 +96,13 @@ public interface SocketExecuter extends Service {
    */
   public void startListening(Server server);
   
+  /**
+   * This will stop tell the executer to stop listening for new connections on the specified {@link Server}.
+   * The {@link Server} will not be closed, but will no longer accept or call back in new connections till startListening 
+   * is called for it.
+   * 
+   * @param server The {@link Server} to stop listening with.
+   */
   public void stopListening(Server server);
   
   /**
@@ -133,8 +140,8 @@ public interface SocketExecuter extends Service {
    * <p>This allows you to put a timer on a {@link ListenableFuture}.  If the timer triggers before the  
    * {@link ListenableFuture} is done it will cancel the {@link ListenableFuture}</p>
    * 
-   * @param lf
-   * @param delay
+   * @param lf The {@link ListenableFuture} to watch.
+   * @param delay The delay time in Millis to wait for the {@link ListenableFuture} to finish.
    */
   public void watchFuture(ListenableFuture<?> lf, long delay);
 }
