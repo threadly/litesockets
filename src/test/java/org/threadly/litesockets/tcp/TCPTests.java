@@ -544,20 +544,6 @@ public class TCPTests {
   }
   
   @Test
-  public void SLFTest() throws InterruptedException, ExecutionException, TimeoutException {
-	  final SettableListenableFuture<Boolean> slf = new SettableListenableFuture<Boolean>(false); 
-	  PriorityScheduler PS = new PriorityScheduler(10);
-	  PS.schedule(new Runnable() {
-
-		@Override
-		public void run() {
-			slf.setResult(true);
-		}}, 500);
-	  slf.setResult(true);
-	  slf.get(1000, TimeUnit.MILLISECONDS);
-  }
-  
-  @Test
   public void writerReaderBlockTest() throws Exception {
     TCPClient tc = SE.createTCPClient("localhost", port);
     tc.connect().get(5000, TimeUnit.MILLISECONDS);
