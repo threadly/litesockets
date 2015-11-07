@@ -67,11 +67,11 @@ public class SSLTests {
   
   @After
   public void stop() {
-    for(Server s: serverFC.servers) {
+    for(Server s: serverFC.getAllServers()) {
       s.close();
     }
     
-    for(Client c: serverFC.clients) {
+    for(Client c: serverFC.getAllClients()) {
       c.close();
     }
     SE.stop();
@@ -117,15 +117,15 @@ public class SSLTests {
     new TestCondition(){
       @Override
       public boolean get() {
-        return serverFC.clients.size() == 1;
+        return serverFC.getNumberOfClients() == 1;
       }
     }.blockTillTrue(5000);
-    final TCPClient sclient = (TCPClient) serverFC.clients.get(0);
+    final TCPClient sclient = serverFC.getClientAt(0);
     serverFC.addTCPClient(client);
     new TestCondition(){
       @Override
       public boolean get() {
-        return serverFC.clients.size() == 2;
+        return serverFC.getNumberOfClients() == 2;
       }
     }.blockTillTrue(5000);
     new TestCondition(){
@@ -142,11 +142,11 @@ public class SSLTests {
     new TestCondition(){
       @Override
       public boolean get() {
-        return serverFC.map.get(client).remaining() > 2;
+        return serverFC.getClientsBuffer(client).remaining() > 2;
       }
     }.blockTillTrue(5000);
     
-    String st = serverFC.map.get(client).getAsString(serverFC.map.get(client).remaining());
+    String st = serverFC.getClientsBuffer(client).getAsString(serverFC.getClientsBuffer(client).remaining());
     assertEquals(TCPTests.SMALL_TEXT, st);
   }
 
@@ -190,10 +190,10 @@ public class SSLTests {
     new TestCondition(){
       @Override
       public boolean get() {
-        return serverFC.clients.size() == 1 && client.isEncrypted();
+        return serverFC.getNumberOfClients() == 1 && client.isEncrypted();
       }
     }.blockTillTrue(5000);
-    final TCPClient sclient = (TCPClient) serverFC.clients.get(0);
+    final TCPClient sclient = serverFC.getClientAt(0);
 
     serverFC.addTCPClient(client);
     
@@ -211,18 +211,18 @@ public class SSLTests {
         System.out.println("r:"+client.ssle.getHandshakeStatus());
         System.out.println("r:"+client.getReadBufferSize());
         */
-        if(serverFC.map.get(client) != null) {
-          return serverFC.map.get(client).remaining() == TCPTests.LARGE_TEXT_BUFFER.remaining()*3;
+        if(serverFC.getClientsBuffer(client) != null) {
+          return serverFC.getClientsBuffer(client).remaining() == TCPTests.LARGE_TEXT_BUFFER.remaining()*3;
         }
         return false;
       }
     }.blockTillTrue(5000);
     
-    String st = serverFC.map.get(client).getAsString(TCPTests.LARGE_TEXT_BUFFER.remaining());
+    String st = serverFC.getClientsBuffer(client).getAsString(TCPTests.LARGE_TEXT_BUFFER.remaining());
     assertEquals(TCPTests.LARGE_TEXT, st);
-    st = serverFC.map.get(client).getAsString(TCPTests.LARGE_TEXT_BUFFER.remaining());
+    st = serverFC.getClientsBuffer(client).getAsString(TCPTests.LARGE_TEXT_BUFFER.remaining());
     assertEquals(TCPTests.LARGE_TEXT, st);
-    st = serverFC.map.get(client).getAsString(TCPTests.LARGE_TEXT_BUFFER.remaining());
+    st = serverFC.getClientsBuffer(client).getAsString(TCPTests.LARGE_TEXT_BUFFER.remaining());
     assertEquals(TCPTests.LARGE_TEXT, st);
   }
     

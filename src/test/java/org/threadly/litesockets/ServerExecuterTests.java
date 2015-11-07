@@ -86,7 +86,7 @@ public class ServerExecuterTests {
     new TestCondition(){
       @Override
       public boolean get() {
-        return serverFC.map.size() == clientCount;
+        return serverFC.getNumberOfClients() == clientCount;
       }
     }.blockTillTrue(10000);
     assertEquals(clientCount*2, SE.getClientCount());
@@ -100,7 +100,7 @@ public class ServerExecuterTests {
       @Override
       public boolean get() {
         //System.out.println("SE Clients:"+SE.getClientCount()+":"+SE.readSelector.keys().size());
-        return serverFC.map.size() == 0;
+        return serverFC.getNumberOfClients() == 0;
       }
     }.blockTillTrue(10000);    
   }
@@ -140,12 +140,12 @@ public class ServerExecuterTests {
     serverFC.addTCPClient(client);
 
     long start = Clock.accurateForwardProgressingMillis();
-    while(serverFC.clients.size() != 2 || Clock.accurateForwardProgressingMillis() - start > 5000) {
+    while(serverFC.getNumberOfClients() != 2 || Clock.accurateForwardProgressingMillis() - start > 5000) {
       Thread.sleep(10);
     }
-    assertEquals(2, serverFC.clients.size());
+    assertEquals(2, serverFC.getNumberOfClients());
 
-    final TCPClient sclient = (TCPClient) serverFC.clients.get(1);
+    final TCPClient sclient = serverFC.getClientAt(1);
 
     for(int i=0; i<sendCount; i++) {
       client.write(TCPTests.SMALL_TEXT_BUFFER.duplicate());
@@ -153,24 +153,31 @@ public class ServerExecuterTests {
     }
     
     start = Clock.accurateForwardProgressingMillis();
-    MergedByteBuffers mbb0 = serverFC.map.get(client);
-    MergedByteBuffers mbb1 = serverFC.map.get(sclient);
+    MergedByteBuffers mbb0 = serverFC.getClientsBuffer(client);
+    MergedByteBuffers mbb1 = serverFC.getClientsBuffer(sclient);
     while(mbb0.remaining() < endSize  ||
         mbb1.remaining() < endSize ||
         Clock.accurateForwardProgressingMillis() - start > 5000) {
       Thread.sleep(10);
     }
 
-    assertEquals(endSize, serverFC.map.get(serverFC.clients.get(0)).remaining());
-    assertEquals(endSize, serverFC.map.get(serverFC.clients.get(1)).remaining());
+    assertEquals(endSize, serverFC.getClientsBuffer(serverFC.getClientAt(0)).remaining());
+    assertEquals(endSize, serverFC.getClientsBuffer(serverFC.getClientAt(1)).remaining());
+
 
     client.close();
     server.close();
-
+    start = Clock.accurateForwardProgressingMillis();
+    while(SE.getStats().getTotalWrite() < endSize*2  ||Clock.accurateForwardProgressingMillis() - start > 5000) {
+      //The write can actually completely finish and be read on the other client before we add it to the stats.
+      Thread.sleep(10);
+    }
+        
+    System.out.println("SE writes:"+SE.getStats().getTotalWrite());
+    System.out.println(SE.getStats().getTotalRead());
     assertEquals(endSize*2, SE.getStats().getTotalWrite());
     assertEquals(endSize*2, SE.getStats().getTotalRead());
-    System.out.println(SE.getStats().getTotalWrite());
-    System.out.println(SE.getStats().getTotalRead());
+
   }
   
   @Test

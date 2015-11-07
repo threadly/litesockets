@@ -41,7 +41,7 @@ public abstract class Client {
    *
    */
   public static enum SocketOption {
-    TCP_NODELAY, SEND_BUFFER_SIZE, RECV_BUFFER_SIZE, UDP_FRAME_SIZE
+    TCP_NODELAY, SEND_BUFFER_SIZE, RECV_BUFFER_SIZE, UDP_FRAME_SIZE, USE_NATIVE_BUFFERS
   }
   
   /**
@@ -66,8 +66,9 @@ public abstract class Client {
   protected final AtomicBoolean closed = new AtomicBoolean(false);
   protected final ListenerHelper<Reader> readerListener = ListenerHelper.build(Reader.class);
   protected final ListenerHelper<CloseListener> closerListener = ListenerHelper.build(CloseListener.class);
+  protected volatile boolean useNativeBuffers = false;
   protected volatile int maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;
-  private ByteBuffer readByteBuffer = ByteBuffer.allocate(NEW_READ_BUFFER_SIZE);
+  private ByteBuffer readByteBuffer = ByteBuffer.allocate(0);
   
   public Client(final SocketExecuter se) {
     this.se = se;
@@ -165,7 +166,11 @@ public abstract class Client {
    */
   protected ByteBuffer provideReadByteBuffer() {
     if(readByteBuffer.remaining() < MIN_READ_BUFFER_SIZE) {
-      readByteBuffer = ByteBuffer.allocate(DEFAULT_MAX_BUFFER_SIZE);
+      if(useNativeBuffers) {
+        readByteBuffer = ByteBuffer.allocateDirect(DEFAULT_MAX_BUFFER_SIZE);
+      } else {
+        readByteBuffer = ByteBuffer.allocate(DEFAULT_MAX_BUFFER_SIZE);
+      }
     }
     return readByteBuffer;
   }

@@ -162,6 +162,9 @@ public class UDPClient extends Client {
       if(so == SocketOption.UDP_FRAME_SIZE) {
         this.udpServer.setFrameSize(value);
         return true;        
+      } else if (so == SocketOption.USE_NATIVE_BUFFERS) {
+        this.useNativeBuffers = value == 1;
+        return true;
       }
     } catch(Exception e) {
 

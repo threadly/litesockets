@@ -295,6 +295,10 @@ public class TCPClient extends Client {
         this.channel.socket().setReceiveBufferSize(value);
         return true;
       }
+      case USE_NATIVE_BUFFERS: {
+        this.useNativeBuffers = value == 1;
+        return true;
+      }
       default:
         return false;
       }

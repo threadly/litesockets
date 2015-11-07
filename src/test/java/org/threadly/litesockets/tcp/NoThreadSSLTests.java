@@ -41,11 +41,11 @@ public class NoThreadSSLTests extends SSLTests {
   
   @After
   public void stop() {
-    for(Server s: serverFC.servers) {
+    for(Server s: serverFC.getAllServers()) {
       s.close();
     }
     
-    for(Client c: serverFC.clients) {
+    for(Client c: serverFC.getAllClients()) {
       c.close();
     }
     SE.stop();

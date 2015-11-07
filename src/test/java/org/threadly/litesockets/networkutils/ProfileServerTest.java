@@ -53,7 +53,7 @@ public class ProfileServerTest {
     new TestCondition(){
       @Override
       public boolean get() {
-        return clientHandler.map.get(client).remaining() > 0;
+        return clientHandler.getClientsBuffer(client).remaining() > 0;
       }
     }.blockTillTrue(5000);
     pServer.stop();
@@ -68,18 +68,18 @@ public class ProfileServerTest {
     new TestCondition(){
       @Override
       public boolean get() {
-        return clientHandler.map.get(client).remaining() > 0;
+        return clientHandler.getClientsBuffer(client).remaining() > 0;
       }
     }.blockTillTrue(5000);
-    assertEquals(getMessageAsString(ProfileServer.STARTED_RESPONSE),clientHandler.map.get(client).getAsString(clientHandler.map.get(client).remaining()));
+    assertEquals(getMessageAsString(ProfileServer.STARTED_RESPONSE),clientHandler.getClientsBuffer(client).getAsString(clientHandler.getClientsBuffer(client).remaining()));
     client.write(ByteBuffer.wrap("start\n".getBytes()));
     new TestCondition(){
       @Override
       public boolean get() {
-        return clientHandler.map.get(client).remaining() > 0;
+        return clientHandler.getClientsBuffer(client).remaining() > 0;
       }
     }.blockTillTrue(5000);
-    assertEquals(getMessageAsString(ProfileServer.ALREADY_STARTED_RESPONSE),clientHandler.map.get(client).getAsString(clientHandler.map.get(client).remaining()));
+    assertEquals(getMessageAsString(ProfileServer.ALREADY_STARTED_RESPONSE),clientHandler.getClientsBuffer(client).getAsString(clientHandler.getClientsBuffer(client).remaining()));
     
   }
   
@@ -92,10 +92,10 @@ public class ProfileServerTest {
     new TestCondition(){
       @Override
       public boolean get() {
-        return clientHandler.map.get(client).remaining() > 0;
+        return clientHandler.getClientsBuffer(client).remaining() > 0;
       }
     }.blockTillTrue(5000);
-    assertEquals(getMessageAsString(ProfileServer.ALREADY_STOPPED_RESPONSE),clientHandler.map.get(client).getAsString(clientHandler.map.get(client).remaining()));
+    assertEquals(getMessageAsString(ProfileServer.ALREADY_STOPPED_RESPONSE),clientHandler.getClientsBuffer(client).getAsString(clientHandler.getClientsBuffer(client).remaining()));
     
   }
   
@@ -109,41 +109,41 @@ public class ProfileServerTest {
       @Override
       public boolean get() {
         //System.out.println(clientHandler.map.get(client).remaining() );
-        return clientHandler.map.get(client).remaining() == ProfileServer.STARTED_RESPONSE.remaining();
+        return clientHandler.getClientsBuffer(client).remaining() == ProfileServer.STARTED_RESPONSE.remaining();
       }
     }.blockTillTrue(5000, 100);
-    assertEquals(getMessageAsString(ProfileServer.STARTED_RESPONSE),clientHandler.map.get(client).getAsString(clientHandler.map.get(client).remaining()));
+    assertEquals(getMessageAsString(ProfileServer.STARTED_RESPONSE),clientHandler.getClientsBuffer(client).getAsString(clientHandler.getClientsBuffer(client).remaining()));
     Thread.sleep(100);
     client.write(ByteBuffer.wrap("dump\n".getBytes()));
     new TestCondition(){
       @Override
       public boolean get() {
-        return clientHandler.map.get(client).remaining() > ProfileServer.START_DUMP.length() + ProfileServer.END_DUMP.length();
+        return clientHandler.getClientsBuffer(client).remaining() > ProfileServer.START_DUMP.length() + ProfileServer.END_DUMP.length();
       }
     }.blockTillTrue(5000);
     Thread.sleep(100);
-    assertEquals(ProfileServer.START_DUMP,clientHandler.map.get(client).getAsString(ProfileServer.START_DUMP.length()));
-    clientHandler.map.get(client).discard(clientHandler.map.get(client).remaining());
+    assertEquals(ProfileServer.START_DUMP,clientHandler.getClientsBuffer(client).getAsString(ProfileServer.START_DUMP.length()));
+    clientHandler.getClientsBuffer(client).discard(clientHandler.getClientsBuffer(client).remaining());
     
     client.write(ByteBuffer.wrap("reset\n".getBytes()));
     new TestCondition(){
       @Override
       public boolean get() {
-        return clientHandler.map.get(client).remaining() == ProfileServer.RESET_RESPONSE.remaining();
+        return clientHandler.getClientsBuffer(client).remaining() == ProfileServer.RESET_RESPONSE.remaining();
       }
     }.blockTillTrue(5000);
     Thread.sleep(100);
-    assertEquals(getMessageAsString(ProfileServer.RESET_RESPONSE),clientHandler.map.get(client).getAsString(clientHandler.map.get(client).remaining()));
-    clientHandler.map.get(client).discard(clientHandler.map.get(client).remaining());
+    assertEquals(getMessageAsString(ProfileServer.RESET_RESPONSE),clientHandler.getClientsBuffer(client).getAsString(clientHandler.getClientsBuffer(client).remaining()));
+    clientHandler.getClientsBuffer(client).discard(clientHandler.getClientsBuffer(client).remaining());
     
     client.write(ByteBuffer.wrap("stop\n".getBytes()));
     new TestCondition(){
       @Override
       public boolean get() {
-        return clientHandler.map.get(client).remaining() == ProfileServer.STOPPED_RESPONSE.remaining();
+        return clientHandler.getClientsBuffer(client).remaining() == ProfileServer.STOPPED_RESPONSE.remaining();
       }
     }.blockTillTrue(5000);
-    assertEquals(getMessageAsString(ProfileServer.STOPPED_RESPONSE),clientHandler.map.get(client).getAsString(clientHandler.map.get(client).remaining()));
+    assertEquals(getMessageAsString(ProfileServer.STOPPED_RESPONSE),clientHandler.getClientsBuffer(client).getAsString(clientHandler.getClientsBuffer(client).remaining()));
   }
   
   @Test
@@ -155,12 +155,12 @@ public class ProfileServerTest {
     new TestCondition(){
       @Override
       public boolean get() {
-        return clientHandler.map.get(client).remaining() > ProfileServer.START_DUMP.length() + ProfileServer.END_DUMP.length();
+        return clientHandler.getClientsBuffer(client).remaining() > ProfileServer.START_DUMP.length() + ProfileServer.END_DUMP.length();
       }
     }.blockTillTrue(5000);
 
-    assertEquals(ProfileServer.START_DUMP, clientHandler.map.get(client).getAsString(ProfileServer.START_DUMP.length()));
-    assertEquals(ProfileServer.END_DUMP, clientHandler.map.get(client).getAsString(ProfileServer.END_DUMP.length()));
+    assertEquals(ProfileServer.START_DUMP, clientHandler.getClientsBuffer(client).getAsString(ProfileServer.START_DUMP.length()));
+    assertEquals(ProfileServer.END_DUMP, clientHandler.getClientsBuffer(client).getAsString(ProfileServer.END_DUMP.length()));
     pServer.stop();
   }
   
@@ -178,7 +178,7 @@ public class ProfileServerTest {
     new TestCondition(){
       @Override
       public boolean get() {
-        return clientHandler.map.size() == 0;
+        return clientHandler.getNumberOfClients() == 0;
       }
     }.blockTillTrue(5000);
     pServer.stop();
