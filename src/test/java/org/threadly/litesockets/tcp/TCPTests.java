@@ -220,9 +220,9 @@ public class TCPTests {
     new TestCondition(){
       @Override
       public boolean get() {
-        return serverFC.map.size() == 2;
+        return serverFC.clients.size() == 2;
       }
-    }.blockTillTrue(5000, 100);
+    }.blockTillTrue(5000);
     TCPClient c2 = (TCPClient) serverFC.clients.get(1);
     c2.setMaxBufferSize(2);
     ArrayList<ListenableFuture<?>> lfl = new ArrayList<ListenableFuture<?>>(); 
@@ -235,14 +235,14 @@ public class TCPTests {
       public boolean get() {
         return serverFC.map.get(client).remaining() == bb.remaining()*100;
       }
-    }.blockTillTrue(5000, 100);
+    }.blockTillTrue(5000);
     c2.close();
     new TestCondition(){
       @Override
       public boolean get() {
         return serverFC.map.size() == 0;
       }
-    }.blockTillTrue(5000, 100);
+    }.blockTillTrue(5000);
     server.close();
   }
   
@@ -363,14 +363,14 @@ public class TCPTests {
       public boolean get() {
         return SE.getClientCount() == 2;
       }
-    }.blockTillTrue(5000, 100);
+    }.blockTillTrue(5000);
     client.close();
     new TestCondition(){
       @Override
       public boolean get() {
         return SE.getClientCount() == 0;
       }
-    }.blockTillTrue(5000, 100);
+    }.blockTillTrue(5000);
     assertEquals(0, SE.getClientCount());
     SE.setClientOperations(client);
     SE.setClientOperations(client);
@@ -392,7 +392,7 @@ public class TCPTests {
       public boolean get() {
         return serverFC.map.size() == 1;
       }
-    }.blockTillTrue(5000, 100);
+    }.blockTillTrue(5000);
     
     TCPClient c2 = null;
     for(Client c: serverFC.map.keySet()) {
@@ -405,7 +405,7 @@ public class TCPTests {
       public boolean get() {
         return serverFC.map.get(cf).remaining() > 0 ;
       }
-    }.blockTillTrue(5000, 100);
+    }.blockTillTrue(5000);
     assertEquals(serverFC.map.get(c2).remaining(), SMALL_TEXT_BUFFER.remaining());
     assertEquals(serverFC.map.get(c2).getAsString(serverFC.map.get(c2).remaining()), SMALL_TEXT);
   }
@@ -425,7 +425,7 @@ public class TCPTests {
       public boolean get() {
         return serverFC.clients.size() == 1;
       }
-    }.blockTillTrue(5000, 100);
+    }.blockTillTrue(5000);
     
     final TCPClient c2 = (TCPClient)serverFC.clients.get(0);
     //SE.removeClient(c2);
@@ -439,7 +439,7 @@ public class TCPTests {
         //System.out.println(client.getWriteBufferSize());
         return serverFC.map.get(c2).remaining() == SMALL_TEXT_BUFFER.remaining()*50000 ;
       }
-    }.blockTillTrue(10000, 100);
+    }.blockTillTrue(10000);
   }
   
   @Test
@@ -457,7 +457,7 @@ public class TCPTests {
       public boolean get() {
         return serverFC.map.size() == 1;
       }
-    }.blockTillTrue(5000, 100);
+    }.blockTillTrue(5000);
     
     TCPClient c2 = null;
     for(Client c: serverFC.map.keySet()) {
@@ -472,7 +472,7 @@ public class TCPTests {
         
         return serverFC.map.get(cf).remaining() == LARGE_TEXT_BUFFER.remaining()*4 ;
       }
-    }.blockTillTrue(5000, 100);
+    }.blockTillTrue(5000);
     assertEquals(serverFC.map.get(c2).remaining(), LARGE_TEXT_BUFFER.remaining()*4);
     assertEquals(serverFC.map.get(c2).getAsString(LARGE_TEXT_BUFFER.remaining()), LARGE_TEXT);
     assertEquals(serverFC.map.get(c2).getAsString(LARGE_TEXT_BUFFER.remaining()), LARGE_TEXT);
@@ -501,16 +501,20 @@ public class TCPTests {
   @Test
   public void tcpTimeout() throws Throwable {
     TCPClient client = SE.createTCPClient("2.0.0.2", port);
-    client.setConnectionTimeout(10);
+    client.setConnectionTimeout(1);
     assertTrue(!client.hasConnectionTimedOut());
-    //SE.addClient(client);
-    try {
-      client.connect().get(5000, TimeUnit.MILLISECONDS);
-      fail();
-    } catch(CancellationException e) {
-      TestUtils.blockTillClockAdvances();
-      assertTrue(client.hasConnectionTimedOut());
+    ListenableFuture<?> lf = client.connect();
+    Thread.sleep(10);
+    assertTrue(client.hasConnectionTimedOut());
+    System.out.println(lf.isCancelled());
+    System.out.println(lf.isDone());
+    while(!lf.isCancelled() || !lf.isDone()) {
+      Thread.sleep(1);
     }
+    System.out.println(lf.isCancelled());
+    System.out.println(lf.isDone());
+    //assertTrue(lf.isCancelled());
+    
   }
   
   @Test(expected=ConnectException.class)

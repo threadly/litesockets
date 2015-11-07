@@ -21,6 +21,15 @@ public class TransactionalByteBuffers extends MergedByteBuffers {
   private final ArrayDeque<ByteBuffer> consumedBuffers = new ArrayDeque<ByteBuffer>(8); 
   private int consumedSinceBegin;
   
+
+  public TransactionalByteBuffers() {
+    super();
+  }
+  
+  public TransactionalByteBuffers(boolean readOnly) {
+    super(readOnly);
+  }
+  
   /**
    * This mark the beginning of a new transaction.  anything done from this point can either 
    * be committed or rolled back and forgotten.

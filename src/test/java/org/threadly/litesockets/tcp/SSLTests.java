@@ -185,32 +185,21 @@ public class SSLTests {
     client.setSSLEngine(sslec);
     client.connect();
     client.setReader(serverFC);
-    client.startSSL().get(5000, TimeUnit.MILLISECONDS);
-    client.write(TCPTests.LARGE_TEXT_BUFFER.duplicate());
-    client.write(TCPTests.LARGE_TEXT_BUFFER.duplicate());
+    client.startSSL();
 
     new TestCondition(){
       @Override
       public boolean get() {
-        return serverFC.clients.size() == 1;
+        return serverFC.clients.size() == 1 && client.isEncrypted();
       }
     }.blockTillTrue(5000);
     final TCPClient sclient = (TCPClient) serverFC.clients.get(0);
 
     serverFC.addTCPClient(client);
-
-    new TestCondition(){
-      @Override
-      public boolean get() {
-        return serverFC.clients.size() == 2;
-      }
-    }.blockTillTrue(5000);
     
-    sclient.write(TCPTests.LARGE_TEXT_BUFFER.duplicate());
-    sclient.write(TCPTests.LARGE_TEXT_BUFFER.duplicate());
-    sclient.write(TCPTests.LARGE_TEXT_BUFFER.duplicate());
-    //System.out.println("w:"+sclient.getWriteBufferSize());
-    //System.out.println(":"+TCPTests.LARGE_TEXT_BUFFER.remaining());
+    for(int i=0; i<3; i++) {
+      sclient.write(TCPTests.LARGE_TEXT_BUFFER.duplicate());
+    }
     
     new TestCondition(){
       @Override
@@ -227,7 +216,7 @@ public class SSLTests {
         }
         return false;
       }
-    }.blockTillTrue(5000, 500);
+    }.blockTillTrue(5000);
     
     String st = serverFC.map.get(client).getAsString(TCPTests.LARGE_TEXT_BUFFER.remaining());
     assertEquals(TCPTests.LARGE_TEXT, st);
@@ -383,7 +372,7 @@ public class SSLTests {
 //        }
         return clientsEncryptedString.get() != null && serversEncryptedString.get() != null;
       }
-    }.blockTillTrue(5000, 100);
+    }.blockTillTrue(5000);
     assertEquals(clientsEncryptedString.get(), serversEncryptedString.get());
   }
 }

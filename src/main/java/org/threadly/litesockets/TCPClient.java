@@ -98,7 +98,7 @@ public class TCPClient extends Client {
     if(startedConnection.compareAndSet(false, true)) {
       try {
         channel.connect(remoteAddress);
-        connectExpiresAt = maxConnectionTime + Clock.lastKnownForwardProgressingMillis();
+        connectExpiresAt = maxConnectionTime + Clock.accurateForwardProgressingMillis();
         se.setClientOperations(this);
         se.watchFuture(connectionFuture, maxConnectionTime);
       } catch (Exception e) {
@@ -125,7 +125,7 @@ public class TCPClient extends Client {
     if(! startedConnection.get() || channel.isConnected()) {
       return false;
     }
-    return Clock.lastKnownForwardProgressingMillis() > connectExpiresAt; 
+    return Clock.accurateForwardProgressingMillis() > connectExpiresAt; 
   }
   
   @Override
@@ -200,7 +200,7 @@ public class TCPClient extends Client {
   public MergedByteBuffers getRead() {
     MergedByteBuffers mbb = super.getRead();
     if(sslProcessor != null && sslProcessor.handShakeStarted() && mbb.remaining() > 0) {
-      mbb = sslProcessor.doRead(mbb);
+      mbb = sslProcessor.decrypt(mbb);
     }
     return mbb;
   }
@@ -214,7 +214,7 @@ public class TCPClient extends Client {
       final boolean needNotify = ! canWrite();
       final SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>(false);
       if(sslProcessor != null && sslProcessor.handShakeStarted()) {
-        writeBuffers.add(sslProcessor.write(bb));
+        writeBuffers.add(sslProcessor.encrypt(bb));
       } else {
         writeBuffers.add(bb);
       }

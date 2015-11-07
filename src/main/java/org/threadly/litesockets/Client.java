@@ -57,7 +57,7 @@ public abstract class Client {
    */
   public static final int MIN_READ_BUFFER_SIZE = 4096;
   
-  private final MergedByteBuffers readBuffers = new MergedByteBuffers();
+  private final MergedByteBuffers readBuffers = new MergedByteBuffers(false);
   protected final SocketExecuter se;
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
   protected final Object readerLock = new Object();

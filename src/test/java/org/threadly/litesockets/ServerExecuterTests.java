@@ -12,7 +12,9 @@ import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.tcp.FakeTCPServerClient;
 import org.threadly.litesockets.tcp.TCPTests;
 import org.threadly.litesockets.tcp.Utils;
+import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.test.concurrent.TestCondition;
+import org.threadly.util.Clock;
 
 public class ServerExecuterTests {
   PriorityScheduler PS;
@@ -86,7 +88,7 @@ public class ServerExecuterTests {
       public boolean get() {
         return serverFC.map.size() == clientCount;
       }
-    }.blockTillTrue(20 * 1000, 100);
+    }.blockTillTrue(10000);
     assertEquals(clientCount*2, SE.getClientCount());
     assertEquals(clientCount+1, SE.getServerCount());
     synchronized(clients) {
@@ -100,7 +102,7 @@ public class ServerExecuterTests {
         //System.out.println("SE Clients:"+SE.getClientCount()+":"+SE.readSelector.keys().size());
         return serverFC.map.size() == 0;
       }
-    }.blockTillTrue(20 * 1000, 100);    
+    }.blockTillTrue(10000);    
   }
   
   @Test
@@ -132,59 +134,41 @@ public class ServerExecuterTests {
     server.addCloseListener(serverFC);
     server.start();
 
-    final TCPClient client = SE.createTCPClient("localhost", port);
-    final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
-    client.setReader(clientFC);
-    client.addCloseListener(clientFC);
-    client.connect();
-
-    new TestCondition(){
-      @Override
-      public boolean get() {
-        return serverFC.clients.size() == 1;
-      }
-    }.blockTillTrue(5000);
-
-    final TCPClient sclient = (TCPClient) serverFC.clients.get(0);
+    int endSize = TCPTests.SMALL_TEXT_BUFFER.remaining()*sendCount;
     
+    final TCPClient client = SE.createTCPClient("localhost", port);
+    serverFC.addTCPClient(client);
+
+    long start = Clock.accurateForwardProgressingMillis();
+    while(serverFC.clients.size() != 2 || Clock.accurateForwardProgressingMillis() - start > 5000) {
+      Thread.sleep(10);
+    }
+    assertEquals(2, serverFC.clients.size());
+
+    final TCPClient sclient = (TCPClient) serverFC.clients.get(1);
+
     for(int i=0; i<sendCount; i++) {
       client.write(TCPTests.SMALL_TEXT_BUFFER.duplicate());
-    }
-
-    new TestCondition(){
-      @Override
-      public boolean get() {
-        return serverFC.map.get(sclient).remaining() == TCPTests.SMALL_TEXT_BUFFER.remaining()*sendCount;
-      }
-    }.blockTillTrue(5000);
-    
-    
-    for(int i=0; i<sendCount; i++) {
       sclient.write(TCPTests.SMALL_TEXT_BUFFER.duplicate());
     }
-    new TestCondition(){
-      @Override
-      public boolean get() {
-        boolean test = false;
-        try {
-          test =clientFC.map.get(client).remaining() == TCPTests.SMALL_TEXT_BUFFER.remaining()*sendCount;
-        } catch(Exception e) {
+    
+    start = Clock.accurateForwardProgressingMillis();
+    MergedByteBuffers mbb0 = serverFC.map.get(client);
+    MergedByteBuffers mbb1 = serverFC.map.get(sclient);
+    while(mbb0.remaining() < endSize  ||
+        mbb1.remaining() < endSize ||
+        Clock.accurateForwardProgressingMillis() - start > 5000) {
+      Thread.sleep(10);
+    }
 
-        }
-        return test;
-      }
-    }.blockTillTrue(1000, 100);
+    assertEquals(endSize, serverFC.map.get(serverFC.clients.get(0)).remaining());
+    assertEquals(endSize, serverFC.map.get(serverFC.clients.get(1)).remaining());
 
     client.close();
-    new TestCondition(){
-      @Override
-      public boolean get() {
-        return sclient.isClosed() && client.isClosed();
-      }
-    }.blockTillTrue(5000);
     server.close();
-    assertEquals(sendCount*2*TCPTests.SMALL_TEXT_BUFFER.remaining(), SE.getStats().getTotalWrite());
-    assertEquals(sendCount*2*TCPTests.SMALL_TEXT_BUFFER.remaining(), SE.getStats().getTotalRead());
+
+    assertEquals(endSize*2, SE.getStats().getTotalWrite());
+    assertEquals(endSize*2, SE.getStats().getTotalRead());
     System.out.println(SE.getStats().getTotalWrite());
     System.out.println(SE.getStats().getTotalRead());
   }

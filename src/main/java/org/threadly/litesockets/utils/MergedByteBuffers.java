@@ -27,8 +27,17 @@ public class MergedByteBuffers {
   public static final long UNSIGNED_INT_MASK = 0xffffffffL;
   
   protected final ArrayDeque<ByteBuffer> availableBuffers = new ArrayDeque<ByteBuffer>();
+  protected final boolean markReadOnly;
   protected int currentSize;
   protected long consumedSize;
+  
+  public MergedByteBuffers() {
+    this(true);
+  }
+  
+  public MergedByteBuffers(boolean readOnly) {
+    this.markReadOnly = readOnly;
+  }
 
   /**
    * This method allows you to add ByteBuffers to the MergedByteBuffers.  
@@ -38,7 +47,12 @@ public class MergedByteBuffers {
    */
   public void add(final ByteBuffer buffer) {
     if(buffer.hasRemaining()) {
-      availableBuffers.add(buffer.duplicate());
+      ByteBuffer bb = buffer.duplicate();
+      if(this.markReadOnly) {
+        availableBuffers.add(bb.asReadOnlyBuffer());
+      } else {
+        availableBuffers.add(bb);
+      }
       currentSize+=buffer.remaining();
     } 
   }
@@ -80,7 +94,7 @@ public class MergedByteBuffers {
    * @return a new MergedByteBuffer with the data that was in the original one.
    */
   public MergedByteBuffers duplicateAndClean() {
-    final MergedByteBuffers mbb = new MergedByteBuffers();
+    final MergedByteBuffers mbb = new MergedByteBuffers(markReadOnly);
     mbb.add(this);
     return mbb;
   }

@@ -12,6 +12,7 @@ import javax.net.ssl.SSLEngineResult;
 import javax.net.ssl.SSLEngineResult.HandshakeStatus;
 import javax.net.ssl.SSLEngineResult.Status;
 import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLSession;
 
 import org.threadly.concurrent.future.ListenableFuture;
@@ -42,7 +43,7 @@ public class SSLProcessor {
   private final AtomicBoolean finishedHandshake = new AtomicBoolean(false); 
   private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
   private final SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>(false);
-  private final TransactionalByteBuffers encryptedReadBuffers = new TransactionalByteBuffers();
+  private final TransactionalByteBuffers encryptedReadBuffers = new TransactionalByteBuffers(false);
   private final SSLEngine ssle;
   private final Client client;
   private ByteBuffer writeBuffer;
@@ -111,8 +112,8 @@ public class SSLProcessor {
     return decryptedReadBuffer;
   }
 
-  public MergedByteBuffers write(final ByteBuffer buffer) {
-    final MergedByteBuffers mbb = new MergedByteBuffers();
+  public MergedByteBuffers encrypt(final ByteBuffer buffer) {
+    final MergedByteBuffers mbb = new MergedByteBuffers(false);
     if(!startedHandshake.get()){
       mbb.add(buffer);
       return mbb;
@@ -133,6 +134,10 @@ public class SSLProcessor {
             runTasks();
           }
         }
+      } catch (SSLHandshakeException e) {
+        this.handshakeFuture.setFailure(e);
+        client.close();
+        break;
       } catch (SSLException e) {
         throw new EncryptionException(e);
       }
@@ -147,9 +152,15 @@ public class SSLProcessor {
     }
     return mbb;
   }
-
-  public MergedByteBuffers doRead(final MergedByteBuffers bb) {
-    final MergedByteBuffers mbb = new MergedByteBuffers();
+  
+  public MergedByteBuffers decrypt(final ByteBuffer bb) {
+    MergedByteBuffers mbb = new MergedByteBuffers(false);
+    mbb.add(bb);
+    return decrypt(mbb);
+  }
+  
+  public MergedByteBuffers decrypt(final MergedByteBuffers bb) {
+    final MergedByteBuffers mbb = new MergedByteBuffers(false);
     if(!this.startedHandshake.get()) {
       mbb.add(bb);
       return mbb;

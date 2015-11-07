@@ -26,7 +26,7 @@ public class NoThreadTCPTests extends TCPTests {
       @Override
       public void run() {
         while(ntSE.isRunning() && keepRunning) {
-          ntSE.select(1000);
+          ntSE.select(1);
         }
       }});
     serverFC = new FakeTCPServerClient(SE);
