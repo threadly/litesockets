@@ -24,6 +24,7 @@ import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
+import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.SocketExecuter;
@@ -560,13 +561,13 @@ public class TCPTests {
     }.blockTillTrue(5000);
     TCPClient sc = (TCPClient) serverFC.clients.get(0);
     while(tc.canRead()) {
-      sc.write(LARGE_TEXT_BUFFER.duplicate()).get(1000, TimeUnit.MILLISECONDS);
-      //System.out.println(tc.getReadBufferSize());
+      ListenableFuture<?> lf = sc.write(LARGE_TEXT_BUFFER.duplicate());
+      Thread.sleep(10);
     }
     sc.setReader(null);
     while(sc.canRead()) {
-      tc.write(LARGE_TEXT_BUFFER.duplicate()).get(1000, TimeUnit.MILLISECONDS);
-      //System.out.println(sc.getReadBufferSize());
+    	ListenableFuture<?> lf = tc.write(LARGE_TEXT_BUFFER.duplicate());
+    	Thread.sleep(10);
     }
     assertFalse(sc.canRead());
     assertFalse(tc.canRead());
