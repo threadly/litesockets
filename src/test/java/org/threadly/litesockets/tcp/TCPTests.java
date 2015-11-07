@@ -24,6 +24,7 @@ import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
+import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.SocketExecuter;
@@ -543,6 +544,20 @@ public class TCPTests {
   }
   
   @Test
+  public void SLFTest() throws InterruptedException, ExecutionException, TimeoutException {
+	  final SettableListenableFuture<Boolean> slf = new SettableListenableFuture<Boolean>(false); 
+	  PriorityScheduler PS = new PriorityScheduler(10);
+	  PS.schedule(new Runnable() {
+
+		@Override
+		public void run() {
+			slf.setResult(true);
+		}}, 500);
+	  slf.setResult(true);
+	  slf.get(1000, TimeUnit.MILLISECONDS);
+  }
+  
+  @Test
   public void writerReaderBlockTest() throws Exception {
     TCPClient tc = SE.createTCPClient("localhost", port);
     tc.connect().get(5000, TimeUnit.MILLISECONDS);
@@ -556,13 +571,13 @@ public class TCPTests {
     }.blockTillTrue(5000);
     TCPClient sc = (TCPClient) serverFC.clients.get(0);
     while(tc.canRead()) {
-      sc.write(LARGE_TEXT_BUFFER.duplicate()).get(1000, TimeUnit.MILLISECONDS);
-      //System.out.println(tc.getReadBufferSize());
+      ListenableFuture<?> lf = sc.write(LARGE_TEXT_BUFFER.duplicate());
+      Thread.sleep(10);
     }
     sc.setReader(null);
     while(sc.canRead()) {
-      tc.write(LARGE_TEXT_BUFFER.duplicate()).get(1000, TimeUnit.MILLISECONDS);
-      //System.out.println(sc.getReadBufferSize());
+    	ListenableFuture<?> lf = tc.write(LARGE_TEXT_BUFFER.duplicate());
+    	Thread.sleep(10);
     }
     assertFalse(sc.canRead());
     assertFalse(tc.canRead());
