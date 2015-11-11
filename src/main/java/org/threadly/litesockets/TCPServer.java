@@ -10,8 +10,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 
 /**
- * This is a {@link Server} implementation of a TCP Server.  {@link org.threadly.litesockets.Server.ClientAcceptor} calls by this server will
- * Create {@link TCPClient}.
+ * A Simple TCP server.
  * 
  */
 public class TCPServer extends Server {

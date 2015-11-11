@@ -23,7 +23,7 @@ import org.threadly.util.ExceptionUtils;
  *  This is a common base class for the Threaded and NoThread SocketExecuters. 
  */
 abstract class SocketExecuterCommonBase extends AbstractService implements SocketExecuter {
-  public static final int WATCHDOG_CLEANUP_TIME = 30000;
+  protected static final int WATCHDOG_CLEANUP_TIME = 30000;
   protected final SubmitterScheduler acceptScheduler;
   protected final SubmitterScheduler readScheduler;
   protected final SubmitterScheduler writeScheduler;
@@ -275,19 +275,6 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     } else {
       return 0;
     }
-  }
-
-  /**
-   * This exception in thrown when we have problems doing common operations during startup.
-   * This is usually around opening selectors.
-   */
-  public static class StartupException extends RuntimeException {
-
-    private static final long serialVersionUID = 358704530394209047L;
-    public StartupException(final Throwable t) {
-      super(t);
-    }
-
   }
 
   /**

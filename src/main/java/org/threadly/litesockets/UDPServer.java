@@ -9,6 +9,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 
 /**
+ * A Simple UDP Server. 
+ * 
  * This is a UDP socket implementation for litesockets.  This UDPServer is treated like a
  * TCPServer.  It will notify the ClientAcceptor any time a new unique ip:port send a packet to this
  * UDP socket.  The UDPServer does not technically "Accept" new connections it just reads data from the socket

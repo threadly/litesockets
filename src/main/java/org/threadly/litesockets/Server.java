@@ -27,9 +27,63 @@ public abstract class Server {
     this.sei = sei;
   }
   
+  /**
+   * <p>This is how the extending server receives the {@link SelectableChannel}.
+   * At this point it needs to do what is needed to turn this Channel into
+   * A Client object for this type of server.</p>
+   * 
+   * @param c The {@link SelectableChannel} that was just accepted by this Server.
+   */
+  protected abstract void acceptChannel(SelectableChannel c);
+  
+  /**
+   * <p>Get the {@link SelectableChannel} used by this Server.</p>
+   * 
+   * @return the {@link SelectableChannel} for this server.
+   */
+  protected abstract SelectableChannel getSelectableChannel();
+  
+  
+  /**
+   * <p>Close this servers Socket.  Once closed you must construct a new Server to open it again.</p>
+   */
+  public abstract void close();
+  
+  /**
+   * <p>This is used by the {@link SocketExecuter} to know how to handle this Server 
+   * when its added to it.  Currently only UDP or TCP.</p>
+   * 
+   * @return returns the type of protocol this socket uses.
+   */
+  public abstract WireProtocol getServerType();
+  
+  
+  protected boolean setClosed() {
+    return this.closed.compareAndSet(false, true);
+  }
 
+  /**
+   * <p>Get the current ServerCloser callback assigned to this Server.</p>
+   * 
+   * @return the currently set Closer.
+   */
+  protected void callClosers() {
+    this.closer.call().onClose(this);
+  }
+
+  /**
+   * Tells the Server to start accepting connections.
+   */
   public void start() {
     sei.startListening(this);
+  }
+  
+  /**
+   * Tells the Server to stop accepting connections.  The Listen port is still open and you
+   * can call {@link #start()} to start listening again.  Use {@link #close()} to close the Listen port.
+   */
+  public void stop() {
+    sei.stopListening(this);
   }
   
   /**
@@ -39,15 +93,6 @@ public abstract class Server {
    */
   public SocketExecuter getSocketExecuter() {
     return sei;
-  }
-  
-  /**
-   * <p>Get the current ServerCloser callback assigned to this Server.</p>
-   * 
-   * @return the currently set Closer.
-   */
-  protected void callClosers() {
-    this.closer.call().onClose(this);
   }
   
   /**
@@ -78,46 +123,17 @@ public abstract class Server {
     clientAcceptor = acceptor;
   }
   
-  protected boolean setClosed() {
-    return this.closed.compareAndSet(false, true);
-  }
-  
+  /**
+   * Tells you if this sever objects Listen port is still open or not.
+   * 
+   * @return true if the socket is closed, false if the socket is open.
+   */
   public boolean isClosed() {
     return closed.get();
   }
   
   /**
-   * <p>Close this servers Socket.  Once closed you must construct a new Server to open it again.</p>
-   */
-  public abstract void close();
-  
-  /**
-   * <p>This is how the extending server receives the {@link SelectableChannel}.
-   * At this point it needs to do what is needed to turn this Channel into
-   * A Client object for this type of server.</p>
-   * 
-   * @param c The {@link SelectableChannel} that was just accepted by this Server.
-   */
-  protected abstract void acceptChannel(SelectableChannel c);
-  
-  /**
-   * <p>This is used by the {@link SocketExecuter} to know how to handle this Server 
-   * when its added to it.  Currently only UDP or TCP.</p>
-   * 
-   * @return returns the type of protocol this socket uses.
-   */
-  public abstract WireProtocol getServerType();
-  
-  /**
-   * <p>Get the {@link SelectableChannel} used by this Server.</p>
-   * 
-   * @return the {@link SelectableChannel} for this server.
-   */
-  protected abstract SelectableChannel getSelectableChannel();
-  
-  /**
-   * <p>This is the ClientAcceptor callback for the {@link Server}.  This is called when a new {@link Client} is 
-   * detected for this server.</p>
+   * Used to notify the when a new {@link Client} has been created for a {@link Server}
    * 
    * <p>NOTE: This will/can be called from many threads at once.</p>
    *
@@ -132,6 +148,8 @@ public abstract class Server {
   }
   
   /**
+   * Used to notify when a {@link Server} connection is closed.
+   * 
    * <p>This is called once a Close is detected on the Servers Socket. Since it can happen on any thread as well
    * you might get new clients for this server shortly after it closes.</p>
    * 

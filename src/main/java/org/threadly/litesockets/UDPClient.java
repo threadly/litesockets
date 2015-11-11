@@ -11,6 +11,8 @@ import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.util.Clock;
 
 /**
+ *  A Client representation of a UDP connection.
+ * 
  *  This is the UDPClient for litesockets.  The UDPClient is a little special as it is
  *  not actually a selectable client.  The Server actually does all the "Reading" for the socket. 
  *  

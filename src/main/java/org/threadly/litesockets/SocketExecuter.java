@@ -12,7 +12,9 @@ import org.threadly.util.Service;
 
 
 /**
- * Basic SocketExecuter interface.  Different Implementations have different ways of operating, but
+ * The main interface used by all SocketExecuter implementations. 
+ * 
+ * Different Implementations have different ways of operating, but
  * they must all implement this for clients/servers to operate against them.
  * 
  * @author lwahlmeier

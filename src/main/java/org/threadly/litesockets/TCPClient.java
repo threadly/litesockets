@@ -22,18 +22,13 @@ import org.threadly.util.Clock;
 import org.threadly.util.Pair;
 
 /**
- * This is a generic Client for TCP connections.  This client can be either from the "client" side or
- * from a client from a {@link TCPServer}, and both function the same way.
+ * A Simple TCP client.
  *   
  */
 public class TCPClient extends Client {
-  /**
-   * The default SocketConnection time out (10 seconds).
-   */
-  public static final int DEFAULT_SOCKET_TIMEOUT = 10000;
-  
-  public static final int MIN_WRITE_BUFFER_SIZE = 8192;
-  public static final int MAX_COMBINED_WRITE_BUFFER_SIZE = 65536;
+  protected static final int DEFAULT_SOCKET_TIMEOUT = 10000;
+  protected static final int MIN_WRITE_BUFFER_SIZE = 8192;
+  protected static final int MAX_COMBINED_WRITE_BUFFER_SIZE = 65536;
   
 
   private final MergedByteBuffers writeBuffers = new MergedByteBuffers();
