@@ -210,12 +210,10 @@ public class TCPClient extends Client {
       final SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>(false);
       if(sslProcessor != null && sslProcessor.handShakeStarted()) {
         writeBuffers.add(sslProcessor.encrypt(bb));
-        writeFutures.add(new Pair<Long, SettableListenableFuture<Long>>(writeBuffers.getTotalConsumedBytes()+writeBuffers.remaining(), slf));
       } else {
         writeBuffers.add(bb);
-        writeFutures.add(new Pair<Long, SettableListenableFuture<Long>>(writeBuffers.getTotalConsumedBytes()+writeBuffers.remaining(), slf));
       }
-      
+      writeFutures.add(new Pair<Long, SettableListenableFuture<Long>>(writeBuffers.getTotalConsumedBytes()+writeBuffers.remaining(), slf));
       if(needNotify && se != null && channel.isConnected()) {
         se.setClientOperations(this);
       }
