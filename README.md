@@ -28,14 +28,7 @@ This gets a little fuzzy in the case of UDP.  A UDP server technically does not 
 The client is what reads/writes to the socket.  This represents a connection to a spesific host/port pair.
 All Read operations happen in a single threaded manor when the Reader callback is called.  Everytime the Reader is called you must call .getRead() on the client.  The client can also have a Closer set.  It will let you know when that client has closed its connection.  The Close should generally only come after all the Reads are done. 
 
-There are 3 different ways to write on the client.  Clients have a "Buffer" size that they try to stay under.  
-
--  .writeTry(ByteBuffer) will tell you if it could not complete the write because the buffer is already maxed out.  
--  .writeBlocking(ByteBuffer) will block until it can do this write.  Depending on how threading is setup you might need to be careful using this, especially if you are connecting to yourself in the same process(deadlock possibilities).
--  .writeForce(ByteBuffer) this will force the client to add the write even if it goes over the max buffer size.  This should be used only when you know what your are doing as if you just kept doing it and nothing was ever written to the socket you will eventually overfill memory.
-
 writes are ByteBuffers only which means they are byte arrays or chunks of data.  In general you should send complete protocol packets at once as the ordering if write is called from different threads is not guaranteed.  If you need to do something like stream a large file your own locking/blocking of the writes might be needed.
-
 
 
 ## Simple Client Example
