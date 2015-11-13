@@ -215,7 +215,7 @@ public class MergedByteBufferTests {
   public void popBuffer() {
     MergedByteBuffers mbb = new MergedByteBuffers();
     Random rnd = new Random();
-    int size = rnd.nextInt(300);
+    int size = Math.abs(rnd.nextInt(300))+10;
     ByteBuffer bb = ByteBuffer.allocate(size);
     mbb.add(bb);
     mbb.add(ByteBuffer.allocate(rnd.nextInt(300)));
