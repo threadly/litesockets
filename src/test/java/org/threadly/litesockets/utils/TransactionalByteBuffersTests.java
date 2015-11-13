@@ -129,6 +129,24 @@ public class TransactionalByteBuffersTests {
   }
   
   @Test
+  public void BufferOffestTransaction() {
+    final TransactionalByteBuffers tbb = new TransactionalByteBuffers();
+    ByteBuffer bb = ByteBuffer.allocate(300000);
+    bb.position(50000);
+    bb.put("StringTest1".getBytes());
+    bb.position(50000);
+    bb.limit(bb.position()+11);
+    tbb.add(bb);
+
+    int size = tbb.remaining();
+    tbb.begin();
+    tbb.getAsString(tbb.remaining()-4);
+    tbb.discard(4);
+    tbb.rollback();
+    assertEquals(size, tbb.remaining());
+  }
+  
+  @Test
   public void getShortTest() {
     ByteBuffer bb = ByteBuffer.allocate(20);
     for(int i=0; i<10; i++) {

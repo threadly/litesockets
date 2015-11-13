@@ -47,7 +47,7 @@ public class MergedByteBuffers {
    */
   public void add(final ByteBuffer buffer) {
     if(buffer.hasRemaining()) {
-      ByteBuffer bb = buffer.duplicate();
+      ByteBuffer bb = buffer.slice();
       if(this.markReadOnly) {
         availableBuffers.add(bb.asReadOnlyBuffer());
       } else {
