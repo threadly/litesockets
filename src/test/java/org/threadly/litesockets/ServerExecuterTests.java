@@ -50,9 +50,7 @@ public class ServerExecuterTests {
     final int clientCount = 50;
     TCPServer server = SE.createTCPServer("localhost", port);
     final FakeTCPServerClient serverFC = new FakeTCPServerClient(SE);
-    server.setClientAcceptor(serverFC);
-    server.addCloseListener(serverFC);
-    server.start();
+    serverFC.addTCPServer(server);
     final ArrayList<TCPClient> clients = new  ArrayList<TCPClient>(clientCount);
     final ArrayList<TCPServer> servers = new  ArrayList<TCPServer>(clientCount);
     final ArrayList<FakeTCPServerClient> FCclients = new  ArrayList<FakeTCPServerClient>(clientCount);
@@ -64,12 +62,10 @@ public class ServerExecuterTests {
             final int newport = Utils.findTCPPort();
             TCPServer server = SE.createTCPServer("localhost", newport);
             FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
-            server.setClientAcceptor(clientFC);
-            server.start();
+            clientFC.addTCPServer(server);
 
             client = SE.createTCPClient("localhost", port);
-            client.setReader(clientFC);
-            client.addCloseListener(clientFC);
+            clientFC.addTCPClient(client);
             client.connect();
 
             synchronized(clients) {

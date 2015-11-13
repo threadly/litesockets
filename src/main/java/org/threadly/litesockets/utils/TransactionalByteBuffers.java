@@ -163,12 +163,6 @@ public class TransactionalByteBuffers extends MergedByteBuffers {
       super.discard(size);
     }
   }
-  
-  @Override
-  public String getAsString(final int size) {
-    return super.getAsString(size);
-  }
-
 
   @Override
   protected ByteBuffer removeFirstBuffer() {

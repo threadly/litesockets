@@ -213,7 +213,7 @@ public class TCPClient extends Client {
       } else {
         writeBuffers.add(bb);
       }
-      this.writeFutures.add(new Pair<Long, SettableListenableFuture<Long>>(writeBuffers.getTotalConsumedBytes()+writeBuffers.remaining(), slf));
+      writeFutures.add(new Pair<Long, SettableListenableFuture<Long>>(writeBuffers.getTotalConsumedBytes()+writeBuffers.remaining(), slf));
       if(needNotify && se != null && channel.isConnected()) {
         se.setClientOperations(this);
       }

@@ -45,8 +45,9 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
    * manually.
    */
   public void wakeup() {
-    checkRunning();
-    commonSelector.wakeup();
+    if(commonSelector != null && commonSelector.isOpen()) {
+      commonSelector.wakeup();
+    }
   }
 
   @Override

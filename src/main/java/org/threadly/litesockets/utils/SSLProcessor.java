@@ -44,6 +44,7 @@ public class SSLProcessor {
   private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
   private final SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>(false);
   private final TransactionalByteBuffers encryptedReadBuffers = new TransactionalByteBuffers(false);
+  private final MergedByteBuffers tempBuffers = new MergedByteBuffers(false); 
   private final SSLEngine ssle;
   private final Client client;
   private ByteBuffer writeBuffer;
@@ -118,7 +119,12 @@ public class SSLProcessor {
       mbb.add(buffer);
       return mbb;
     }
-    final ByteBuffer oldBB = buffer.duplicate();
+    ByteBuffer oldBB = buffer.duplicate();
+    if(finishedHandshake.get() && this.tempBuffers.remaining() > 0) {
+      tempBuffers.add(buffer);
+      oldBB = tempBuffers.pull(tempBuffers.remaining());
+    }
+    
     ByteBuffer newBB; 
     ByteBuffer tmpBB;
     boolean gotFinished = false;
@@ -127,7 +133,11 @@ public class SSLProcessor {
       tmpBB = newBB.duplicate();
       try {
         final SSLEngineResult res = ssle.wrap(oldBB, newBB);
-        if(res.getHandshakeStatus() == FINISHED) {
+        if(!finishedHandshake.get() && oldBB.remaining() > 0) {
+          tempBuffers.add(oldBB);
+          oldBB.position(oldBB.limit());
+        }
+        if(!finishedHandshake.get() && res.getHandshakeStatus() == FINISHED) {
           gotFinished = true;
         } else {
           while (ssle.getHandshakeStatus() == NEED_TASK) {
@@ -148,7 +158,9 @@ public class SSLProcessor {
     }
     if(gotFinished && finishedHandshake.compareAndSet(false, true)) {
       handshakeFuture.setResult(ssle.getSession());
-      client.write(ByteBuffer.allocate(0));
+      if(tempBuffers.remaining() > 0) {
+        mbb.add(encrypt(ByteBuffer.allocate(0)));
+      }
     }
     return mbb;
   }
@@ -204,6 +216,9 @@ public class SSLProcessor {
     case FINISHED: {
       if(this.finishedHandshake.compareAndSet(false, true)){
         handshakeFuture.setResult(ssle.getSession());
+        if(tempBuffers.remaining() > 0) {
+          client.write(ByteBuffer.allocate(0)); //make the client write to flush tempBuffers
+        }
       }
     } break;
     case NEED_TASK: {
