@@ -108,26 +108,19 @@ public class SSLTests {
     SSLEngine sslec = sslCtx.createSSLEngine("localhost", port);
     sslec.setUseClientMode(true);
     client.setSSLEngine(sslec);
-    client.setReader(serverFC);
+    serverFC.addTCPClient(client);
     client.connect().get(5000, TimeUnit.MILLISECONDS);
-
     client.startSSL().get(5000, TimeUnit.MILLISECONDS);;
+    
     System.out.println(System.currentTimeMillis()-start);
     
-    new TestCondition(){
-      @Override
-      public boolean get() {
-        return serverFC.getNumberOfClients() == 1;
-      }
-    }.blockTillTrue(5000);
-    final TCPClient sclient = serverFC.getClientAt(0);
-    serverFC.addTCPClient(client);
     new TestCondition(){
       @Override
       public boolean get() {
         return serverFC.getNumberOfClients() == 2;
       }
     }.blockTillTrue(5000);
+    final TCPClient sclient = serverFC.getClientAt(1);
     new TestCondition(){
       @Override
       public boolean get() {
@@ -183,17 +176,16 @@ public class SSLTests {
     SSLEngine sslec = sslCtx.createSSLEngine("localhost", port);
     sslec.setUseClientMode(true);
     client.setSSLEngine(sslec);
-    client.connect();
-    client.setReader(serverFC);
+    serverFC.addTCPClient(client);
     client.startSSL();
 
     new TestCondition(){
       @Override
       public boolean get() {
-        return serverFC.getNumberOfClients() == 1 && client.isEncrypted();
+        return serverFC.getNumberOfClients() == 2 && client.isEncrypted();
       }
     }.blockTillTrue(5000);
-    final TCPClient sclient = serverFC.getClientAt(0);
+    final TCPClient sclient = serverFC.getClientAt(1);
 
     serverFC.addTCPClient(client);
     

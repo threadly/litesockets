@@ -57,7 +57,7 @@ public class FakeTCPServerClient implements Reader, CloseListener, ClientAccepto
   public void onRead(Client client) {
     MergedByteBuffers mbb = client.getRead();
     System.out.println("GotData:"+mbb.remaining()+":"+client);
-    map.get((TCPClient)client).add(mbb);
+    map.get(client).add(mbb);
   }
 
   @Override

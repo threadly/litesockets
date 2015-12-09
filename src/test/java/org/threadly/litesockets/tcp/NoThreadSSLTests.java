@@ -54,6 +54,10 @@ public class NoThreadSSLTests extends SSLTests {
   @After
   public void stop() {
     running = false;
+    ntSE.wakeup();
+    ntSE.wakeup();
+	SE.stopIfRunning();
+	
     for(Server s: serverFC.getAllServers()) {
       s.close();
     }
@@ -61,9 +65,6 @@ public class NoThreadSSLTests extends SSLTests {
     for(Client c: serverFC.getAllClients()) {
       c.close();
     }
-    ntSE.wakeup();
-    ntSE.wakeup();
-    SE.stopIfRunning();
     PS.shutdownNow();
     System.gc();
     System.out.println("Used Memory:"
