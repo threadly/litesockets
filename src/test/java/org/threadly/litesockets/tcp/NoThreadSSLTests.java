@@ -20,6 +20,8 @@ import org.threadly.litesockets.NoThreadSocketExecuter;
 import org.threadly.litesockets.Server;
 import org.threadly.litesockets.TCPClient;
 import org.threadly.litesockets.TCPServer;
+import org.threadly.litesockets.utils.PortUtils;
+
 
 public class NoThreadSSLTests extends SSLTests {
   NoThreadSocketExecuter ntSE;
@@ -39,7 +41,7 @@ public class NoThreadSSLTests extends SSLTests {
           PS.execute(this);
         }
       }});
-    port = Utils.findTCPPort();
+    port = PortUtils.findTCPPort();
     KS = KeyStore.getInstance(KeyStore.getDefaultType());
     String filename = ClassLoader.getSystemClassLoader().getResource("keystore.jks").getFile();
     FileInputStream ksf = new FileInputStream(filename);
@@ -48,7 +50,7 @@ public class NoThreadSSLTests extends SSLTests {
     kmf.init(KS, "password".toCharArray());
     sslCtx = SSLContext.getInstance("TLS");
     sslCtx.init(kmf.getKeyManagers(), myTMs, null);
-    serverFC = new FakeTCPServerClient(SE);
+    serverFC = new FakeTCPServerClient();
   }
   
   @After

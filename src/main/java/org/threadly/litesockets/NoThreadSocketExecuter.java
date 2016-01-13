@@ -58,15 +58,15 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
       return;
     }
     if(client.getChannel().isConnectionPending()) {
-      schedulerPool.execute(new AddToSelector(client, commonSelector, SelectionKey.OP_CONNECT));
+      schedulerPool.execute(new AddToSelector(schedulerPool, client, commonSelector, SelectionKey.OP_CONNECT));
     } else if(client.canWrite() && client.canRead()) {
-      schedulerPool.execute(new AddToSelector(client, commonSelector, SelectionKey.OP_WRITE|SelectionKey.OP_READ));
+      schedulerPool.execute(new AddToSelector(schedulerPool, client, commonSelector, SelectionKey.OP_WRITE|SelectionKey.OP_READ));
     } else if (client.canRead()){
-      schedulerPool.execute(new AddToSelector(client, commonSelector, SelectionKey.OP_READ));
+      schedulerPool.execute(new AddToSelector(schedulerPool, client, commonSelector, SelectionKey.OP_READ));
     } else if (client.canWrite()){
-      schedulerPool.execute(new AddToSelector(client, commonSelector, SelectionKey.OP_WRITE));
+      schedulerPool.execute(new AddToSelector(schedulerPool, client, commonSelector, SelectionKey.OP_WRITE));
     } else {
-      schedulerPool.execute(new AddToSelector(client, commonSelector, 0));
+      schedulerPool.execute(new AddToSelector(schedulerPool, client, commonSelector, 0));
     }
     commonSelector.wakeup();
   }
@@ -81,11 +81,18 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
 
   @Override
   protected void shutdownService() {
-    localNoThreadScheduler.clearTasks();
+    commonSelector.wakeup();
+    for(final Client client: clients.values()) {
+      client.close();
+    }
+    for(final Server server: servers.values()) {
+      server.close();
+    }
     if(commonSelector != null && commonSelector.isOpen()) {
-      commonSelector.wakeup();
       closeSelector(schedulerPool, commonSelector);
-      commonSelector.wakeup();
+    }
+    if(localNoThreadScheduler.hasTaskReadyToRun()) {
+      localNoThreadScheduler.tick(null);
     }
     clients.clear();
     servers.clear();
@@ -121,33 +128,36 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
       } else {
         commonSelector.select(delay);
       }
-      for(final SelectionKey key: commonSelector.selectedKeys()) {
-        try {
-          if(key.isAcceptable()) {
-            doServerAccept(servers.get(key.channel()));
-          } else {
-            final Client tmpClient = clients.get(key.channel());
-            if(key.isConnectable() && tmpClient != null) {
-              doClientConnect(tmpClient, commonSelector);
-              key.cancel(); //Stupid windows bug here.
-              setClientOperations(tmpClient);
-            } else if(key.isReadable()) {
-              stats.addRead(doClientRead(tmpClient, commonSelector));
-              final Server server = servers.get(key.channel());
-              if(server != null && server.getServerType() == WireProtocol.UDP) {
-                server.acceptChannel((DatagramChannel)server.getSelectableChannel());
+      if(isRunning()) {
+        for(final SelectionKey key: commonSelector.selectedKeys()) {
+          try {
+            if(key.isAcceptable()) {
+              doServerAccept(servers.get(key.channel()));
+            } else {
+              final Client tmpClient = clients.get(key.channel());
+              if(key.isConnectable() && tmpClient != null) {
+                doClientConnect(tmpClient, commonSelector);
+                key.cancel(); //Stupid windows bug here.
+                setClientOperations(tmpClient);
+              } else if(key.isReadable()) {
+                stats.addRead(doClientRead(tmpClient, commonSelector));
+                final Server server = servers.get(key.channel());
+                if(server != null && server.getServerType() == WireProtocol.UDP) {
+                  server.acceptChannel((DatagramChannel)server.getSelectableChannel());
+                }
+              } else if(key.isWritable()) {
+                stats.addWrite(doClientWrite(tmpClient, commonSelector));
               }
-            } else if(key.isWritable()) {
-              stats.addWrite(doClientWrite(tmpClient, commonSelector));
             }
+          } catch(CancelledKeyException e) {
+            //Key could be cancelled at any point, we dont really care about it.
           }
-        } catch(CancelledKeyException e) {
-          //Key could be cancelled at any point, we dont really care about it.
         }
+        //Also for windows bug, canceled keys are not removed till we select again.
+        //So we just have to at the end of the loop.
+        commonSelector.selectNow();
+        localNoThreadScheduler.tick(null);
       }
-      //Also for windows bug, canceled keys are not removed till we select again.
-      //So we just have to at the end of the loop.
-      commonSelector.selectNow(); 
     } catch (IOException e) {
       //There is really nothing to do here but try again, usually this is because of shutdown.
     } catch(ClosedSelectorException e) {
@@ -155,7 +165,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
     } catch (NullPointerException e) {
       //There is a bug in some JVMs around this where the select() can throw an NPE from native code.
     }
-    localNoThreadScheduler.tick(null);
+
   }
 
   @Override

@@ -108,20 +108,20 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
 
     synchronized(client) {
       if(!client.getChannel().isConnected() && client.getChannel().isConnectionPending()) {
-        readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_CONNECT));
-        writeScheduler.execute(new AddToSelector(client, writeSelector, 0));
+        readScheduler.execute(new AddToSelector(readScheduler, client, readSelector, SelectionKey.OP_CONNECT));
+        writeScheduler.execute(new AddToSelector(writeScheduler, client, writeSelector, 0));
       } else if(client.canWrite() && client.canRead()) {
-        writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
-        readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
+        writeScheduler.execute(new AddToSelector(writeScheduler, client, writeSelector, SelectionKey.OP_WRITE));
+        readScheduler.execute(new AddToSelector(readScheduler, client, readSelector, SelectionKey.OP_READ));
       } else if (client.canRead()){
-        readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
-        writeScheduler.execute(new AddToSelector(client, writeSelector, 0));
+        readScheduler.execute(new AddToSelector(readScheduler, client, readSelector, SelectionKey.OP_READ));
+        writeScheduler.execute(new AddToSelector(writeScheduler, client, writeSelector, 0));
       } else if (client.canWrite()){
-        writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
-        readScheduler.execute(new AddToSelector(client, readSelector, 0));
+        writeScheduler.execute(new AddToSelector(writeScheduler, client, writeSelector, SelectionKey.OP_WRITE));
+        readScheduler.execute(new AddToSelector(readScheduler, client, readSelector, 0));
       } else {
-        writeScheduler.execute(new AddToSelector(client, writeSelector, 0));
-        readScheduler.execute(new AddToSelector(client, readSelector, 0));
+        writeScheduler.execute(new AddToSelector(writeScheduler, client, writeSelector, 0));
+        readScheduler.execute(new AddToSelector(readScheduler, client, readSelector, 0));
       }
     }
     readSelector.wakeup();
@@ -183,6 +183,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
             final Client client = clients.get(sk.channel());
             if(sk.isConnectable()) {
               doClientConnect(client, readSelector);
+              sk.cancel();
               setClientOperations(client);
             } else {
               stats.addRead(doClientRead(client, readSelector));

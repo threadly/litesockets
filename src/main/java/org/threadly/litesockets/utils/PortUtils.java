@@ -5,7 +5,7 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.channels.DatagramChannel;
 
-public class TestUtils {
+public class PortUtils {
 
   public static int findTCPPort() {
     try {

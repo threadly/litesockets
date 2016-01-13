@@ -31,6 +31,7 @@ import org.threadly.litesockets.TCPClient;
 import org.threadly.litesockets.TCPServer;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.utils.MergedByteBuffers;
+import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.test.concurrent.TestCondition;
 
 
@@ -48,7 +49,7 @@ public class TCPTests {
     LARGE_TEXT_BUFFER = ByteBuffer.wrap(LARGE_TEXT.getBytes());
   }
   PriorityScheduler PS;
-  int port = Utils.findTCPPort();
+  int port;
   final String GET = "hello";
   SocketExecuter SE;
   TCPServer server;
@@ -56,11 +57,11 @@ public class TCPTests {
   
   @Before
   public void start() throws IOException {
-    port = Utils.findTCPPort();
+    port = PortUtils.findTCPPort();
     PS = new PriorityScheduler(5);
     SE = new ThreadedSocketExecuter(PS);
     SE.start();
-    serverFC = new FakeTCPServerClient(SE);
+    serverFC = new FakeTCPServerClient();
     server = SE.createTCPServer("localhost", port);
     server.setClientAcceptor(serverFC);
     server.addCloseListener(serverFC);
@@ -68,13 +69,17 @@ public class TCPTests {
   }
   
   @After
-  public void stop() {    
-    SE.stopListening(server);
+  public void stop() throws Exception{
+    serverFC = null;
+    Runtime.getRuntime().gc();
+    Runtime.getRuntime().gc();
     SE.stopIfRunning();
-    PS.shutdown();
+    PS.shutdownNow();
+    server.stop();
     System.gc();
     System.out.println("Used Memory:"
         + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
+    
   }
 
   @Test(expected=IllegalStateException.class)
@@ -92,11 +97,11 @@ public class TCPTests {
     assertTrue(client.setSocketOption(Client.SocketOption.TCP_NODELAY, 1));
     assertFalse(client.setSocketOption(Client.SocketOption.SEND_BUFFER_SIZE, 0));
     assertFalse(client.setSocketOption(Client.SocketOption.RECV_BUFFER_SIZE, 0));
-    assertTrue(client.setSocketOption(Client.SocketOption.SEND_BUFFER_SIZE, 1));
-    assertTrue(client.setSocketOption(Client.SocketOption.RECV_BUFFER_SIZE, 1));
+    assertTrue(client.setSocketOption(Client.SocketOption.SEND_BUFFER_SIZE, 4096));
+    assertTrue(client.setSocketOption(Client.SocketOption.RECV_BUFFER_SIZE, 4096));
     assertFalse(client.setSocketOption(Client.SocketOption.UDP_FRAME_SIZE, 1));
     assertFalse(client.isEncrypted());
-    final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
+    final FakeTCPServerClient clientFC = new FakeTCPServerClient();
     clientFC.addTCPClient(client);
     client.connect();
     new TestCondition(){
@@ -143,7 +148,7 @@ public class TCPTests {
   @Test
   public void simpleWriteTest() throws IOException, InterruptedException {
     final TCPClient client = SE.createTCPClient("localhost", port);
-    final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
+    final FakeTCPServerClient clientFC = new FakeTCPServerClient();
     clientFC.addTCPClient(client);
     client.connect();
     new TestCondition(){
@@ -169,7 +174,7 @@ public class TCPTests {
       public boolean get() {
         boolean test = false;
         try {
-          test =clientFC.getClientsBuffer(client).remaining() == SMALL_TEXT_BUFFER.remaining();
+          test = clientFC.getClientsBuffer(client).remaining() == SMALL_TEXT_BUFFER.remaining();
         } catch(Exception e) {
 
         }
@@ -178,20 +183,24 @@ public class TCPTests {
     }.blockTillTrue(1000);
 
     client.close();
+    SE.setClientOperations(sclient);
     new TestCondition(){
       @Override
       public boolean get() {
+        System.out.println(sclient.isClosed()+":"+client.isClosed());
+        SE.setClientOperations(client);
         return sclient.isClosed() && client.isClosed();
       }
-    }.blockTillTrue(5000);
+    }.blockTillTrue(10000, 100);
     server.close();
+
   }
 
   @Test
   public void simpleWriteTestNative() throws IOException, InterruptedException {
     final TCPClient client = SE.createTCPClient("localhost", port);
     client.setSocketOption(SocketOption.USE_NATIVE_BUFFERS, 1);
-    final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
+    final FakeTCPServerClient clientFC = new FakeTCPServerClient();
     clientFC.addTCPClient(client);
     client.connect();
     new TestCondition(){
@@ -243,7 +252,7 @@ public class TCPTests {
     ServerSocketChannel socket = ServerSocketChannel.open();
     socket.socket().bind(new InetSocketAddress("localhost", port), 100);
     server = SE.createTCPServer(socket);
-    serverFC = new FakeTCPServerClient(SE);
+    serverFC = new FakeTCPServerClient();
     server.setClientAcceptor(serverFC);
     server.start();
     TCPClient client = SE.createTCPClient("localhost", port);
@@ -276,13 +285,15 @@ public class TCPTests {
     for(int i=0; i<100; i++) {
       lfl.add(c2.write(bb.duplicate()));
     }
-    FutureUtils.makeCompleteFuture(lfl).get(5000, TimeUnit.MILLISECONDS);;
+    FutureUtils.makeCompleteFuture(lfl).get(5000, TimeUnit.MILLISECONDS);
+    System.out.println(client.canRead());
     new TestCondition(){
       @Override
       public boolean get() {
+        System.out.println(client.canRead()+":"+serverFC.getClientsBuffer(client).remaining());
         return serverFC.getClientsBuffer(client).remaining() == bb.remaining()*100;
       }
-    }.blockTillTrue(5000);
+    }.blockTillTrue(5000, 1000);
     c2.close();
     new TestCondition(){
       @Override
@@ -424,7 +435,7 @@ public class TCPTests {
   @Test
   public void clientStartingWrite() throws IOException, InterruptedException {
     TCPClient client = SE.createTCPClient("localhost", port);
-    final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
+    final FakeTCPServerClient clientFC = new FakeTCPServerClient();
     client.write(SMALL_TEXT_BUFFER.duplicate());
     clientFC.addTCPClient(client);
     client.connect();
@@ -455,7 +466,7 @@ public class TCPTests {
     for(int i=0; i<50000; i++) {
       client.write(SMALL_TEXT_BUFFER.duplicate());  
     }
-    final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
+    final FakeTCPServerClient clientFC = new FakeTCPServerClient();
     clientFC.addTCPClient(client);
     client.connect();
     new TestCondition(){
@@ -481,7 +492,7 @@ public class TCPTests {
   @Test
   public void bigWrite() throws IOException, InterruptedException {
     final TCPClient client = SE.createTCPClient("localhost", port);
-    final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
+    final FakeTCPServerClient clientFC = new FakeTCPServerClient();
     client.write(LARGE_TEXT_BUFFER.duplicate());
     clientFC.addTCPClient(client);
     client.write(LARGE_TEXT_BUFFER.duplicate());
@@ -611,26 +622,35 @@ public class TCPTests {
     assertTrue(tc.getReadBufferSize() >= tc.getMaxBufferSize());
   }
   
-//  @Test
-//  public void manualCreateTCPClient() throws Exception {
-//    TCPClient tc = new TCPClient(SE, "localhost", port);
-//    assertEquals(0, SE.getClientCount());
-//    tc.connect().get(5000, TimeUnit.MILLISECONDS);
-//    new TestCondition(){
-//      @Override
-//      public boolean get() {
-//        return serverFC.map.size() == 1;
-//      }
-//    }.blockTillTrue(5000);
-//    assertEquals(2, SE.getClientCount());
-//    tc.close();
-//    new TestCondition(){
-//      @Override
-//      public boolean get() {
-//        return serverFC.map.size() == 0;
-//      }
-//    }.blockTillTrue(5000);
-//    assertEquals(0, SE.getClientCount());
-//  }
+  @Test
+  public void manyClientsMemoryTest() throws Exception {
+    ArrayList<ListenableFuture<?>> lfl = new ArrayList<ListenableFuture<?>>();
+    for(int i=0; i<100; i++) {
+      TCPClient tc = SE.createTCPClient("127.0.0.1", port);
+      serverFC.addTCPClient(tc);
+      lfl.add(tc.connect());
+    }
+    FutureUtils.makeCompleteFuture(lfl).get(5000, TimeUnit.MILLISECONDS);
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return 200 == SE.getClientCount() ;
+      }
+    }.blockTillTrue(5000);
+    assertEquals(200, SE.getClientCount());
+    for(TCPClient tc: serverFC.getAllClients()) {
+      tc.write(SMALL_TEXT_BUFFER.duplicate());
+    }
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
+    for(TCPClient tc: serverFC.getAllClients()) {
+      MergedByteBuffers mbb = serverFC.getClientsBuffer(tc);
+      mbb.discard(mbb.remaining());
+    }
+    System.gc();
+    System.out.println("Used Memory:"
+        + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
+  }
   
 }

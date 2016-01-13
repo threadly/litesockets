@@ -338,6 +338,12 @@ public class SSLProcessorTests {
       writeBuffers.add(sp.encrypt(bb));
       return FutureUtils.immediateResultFuture(true);
     }
+
+    @Override
+    public ClientOptions clientOptions() {
+      // TODO Auto-generated method stub
+      return null;
+    }
     
   }
   

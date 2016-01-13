@@ -40,6 +40,7 @@ public abstract class Client {
    * @author lwahlmeier
    *
    */
+  @Deprecated
   public static enum SocketOption {
     TCP_NODELAY, SEND_BUFFER_SIZE, RECV_BUFFER_SIZE, UDP_FRAME_SIZE, USE_NATIVE_BUFFERS
   }
@@ -57,6 +58,8 @@ public abstract class Client {
    */
   protected static final int MIN_READ_BUFFER_SIZE = 4096;
   
+  protected static final ByteBuffer EMPTY_BYTEBUFFER = ByteBuffer.allocate(0);
+  
   private final MergedByteBuffers readBuffers = new MergedByteBuffers(false);
   protected final SocketExecuter se;
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
@@ -67,8 +70,10 @@ public abstract class Client {
   protected final ListenerHelper<Reader> readerListener = ListenerHelper.build(Reader.class);
   protected final ListenerHelper<CloseListener> closerListener = ListenerHelper.build(CloseListener.class);
   protected volatile boolean useNativeBuffers = false;
+  protected volatile boolean keepReadBuffer = true;
   protected volatile int maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;
-  private ByteBuffer readByteBuffer = ByteBuffer.allocate(0);
+  protected volatile int newReadBufferSize = NEW_READ_BUFFER_SIZE;
+  private ByteBuffer readByteBuffer = EMPTY_BYTEBUFFER;
   
   public Client(final SocketExecuter se) {
     this.se = se;
@@ -155,7 +160,10 @@ public abstract class Client {
    * @param value The value for the socket option (1 for on, 0 for off).
    * @return True if the option was set, false if not.
    */
+  @Deprecated
   public abstract boolean setSocketOption(SocketOption so, int value);
+  
+  public abstract ClientOptions clientOptions();
   
   /**
    * 
@@ -230,14 +238,23 @@ public abstract class Client {
    * @return A {@link ByteBuffer} to use during this clients read operations.
    */
   protected ByteBuffer provideReadByteBuffer() {
-    if(readByteBuffer.remaining() < MIN_READ_BUFFER_SIZE) {
+    if(keepReadBuffer) {
+      if(readByteBuffer.remaining() < MIN_READ_BUFFER_SIZE) {
+        if(useNativeBuffers) {
+          readByteBuffer = ByteBuffer.allocateDirect(newReadBufferSize);
+        } else {
+          readByteBuffer = ByteBuffer.allocate(newReadBufferSize);
+        }
+      }
+      return readByteBuffer;
+    } else {
       if(useNativeBuffers) {
-        readByteBuffer = ByteBuffer.allocateDirect(DEFAULT_MAX_BUFFER_SIZE);
+        return ByteBuffer.allocateDirect(newReadBufferSize);
       } else {
-        readByteBuffer = ByteBuffer.allocate(DEFAULT_MAX_BUFFER_SIZE);
+        return ByteBuffer.allocate(newReadBufferSize);
       }
     }
-    return readByteBuffer;
+    
   }
   
   /**
@@ -373,9 +390,9 @@ public abstract class Client {
    * 
    * @param size max buffer size in bytes.
    */
+  @Deprecated
   public void setMaxBufferSize(final int size) {
-    ArgumentVerifier.assertGreaterThanZero(size, "size");
-    maxBufferSize = size;
+    clientOptions().setMaxClientReadBuffer(size);
   }
   
   /**
@@ -484,6 +501,123 @@ public abstract class Client {
      * @param client This is the client the close is being called for.
      */
     public void onClose(Client client);
-  }  
+  }
+  
+  public interface ClientOptions {
+    public boolean setTcpNoDelay(boolean enabled);
+    public boolean getTcpNoDelay();
+    
+    public boolean setNativeBuffers(boolean enabled);
+    public boolean getNativeBuffers();
+    
+    public boolean setReducedReadAllocations(boolean enabled);
+    public boolean getReducedReadAllocations();
+    
+    public boolean setMaxClientReadBuffer(int size);
+    public int getMaxClientReadBuffer();
+    
+    public boolean setReadAllocationSize(int size);
+    public int getReadAllocationSize();
+    
+    public boolean setSocketSendBuffer(int size);
+    public int getSocketSendBuffer();
+    
+    public boolean setSocketRecvBuffer(int size);
+    public int getSocketRecvBuffer();
+    
+    public boolean setUdpFrameSize(int size);
+    public int getUdpFrameSize();
+  }
+  
+  protected class BaseClientOptions implements ClientOptions {
+    
+    @Override
+    public boolean setNativeBuffers(boolean enabled) {
+      useNativeBuffers = enabled;
+      return true;
+    }
+
+    @Override
+    public boolean getNativeBuffers() {
+      return useNativeBuffers;
+    }
+    
+    @Override
+    public boolean setReducedReadAllocations(boolean enabled) {
+      keepReadBuffer = enabled;
+      if(!keepReadBuffer) {
+        readByteBuffer = EMPTY_BYTEBUFFER;
+      }
+      return true;
+    }
+
+    @Override
+    public boolean getReducedReadAllocations() {
+      return keepReadBuffer;
+    }
+    
+    @Override
+    public boolean setReadAllocationSize(int size) {
+      newReadBufferSize = size;
+      return true;
+    }
+
+    @Override
+    public int getReadAllocationSize() {
+      return newReadBufferSize;
+    }
+    
+    @Override
+    public boolean setMaxClientReadBuffer(int size) {
+      maxBufferSize = size;
+      return true;
+    }
+
+    @Override
+    public int getMaxClientReadBuffer() {
+      return maxBufferSize;
+    }
+
+    @Override
+    public boolean setTcpNoDelay(boolean enabled) {
+      return false;
+    }
+
+    @Override
+    public boolean getTcpNoDelay() {
+      return false;
+    }
+
+    @Override
+    public boolean setSocketSendBuffer(int size) {
+      return false;
+    }
+
+    @Override
+    public int getSocketSendBuffer() {
+      return -1;
+    }
+
+    @Override
+    public boolean setSocketRecvBuffer(int size) {
+      return false;
+    }
+
+    @Override
+    public int getSocketRecvBuffer() {
+      return -1;
+    }
+
+    @Override
+    public boolean setUdpFrameSize(int size) {
+      return false;
+    }
+
+    @Override
+    public int getUdpFrameSize() {
+      return -1;
+    }
+
+  }
 }
 

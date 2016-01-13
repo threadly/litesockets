@@ -3,6 +3,7 @@ package org.threadly.litesockets;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
@@ -29,15 +30,15 @@ public class TCPClient extends Client {
   protected static final int DEFAULT_SOCKET_TIMEOUT = 10000;
   protected static final int MIN_WRITE_BUFFER_SIZE = 8192;
   protected static final int MAX_COMBINED_WRITE_BUFFER_SIZE = 65536;
-  
 
   private final MergedByteBuffers writeBuffers = new MergedByteBuffers();
   private final Deque<Pair<Long, SettableListenableFuture<Long>>> writeFutures = new ArrayDeque<Pair<Long, SettableListenableFuture<Long>>>();
+  private final TCPSocketOptions tso = new TCPSocketOptions();
   protected final AtomicBoolean startedConnection = new AtomicBoolean(false);
   protected final SettableListenableFuture<Boolean> connectionFuture = new SettableListenableFuture<Boolean>(false);
   protected final SocketChannel channel;
   protected final InetSocketAddress remoteAddress;
-
+  
   private volatile ByteBuffer currentWriteBuffer = ByteBuffer.allocate(0);
   private volatile SSLProcessor sslProcessor;
   
@@ -274,25 +275,22 @@ public class TCPClient extends Client {
     return "TCPClient:FROM:"+getLocalSocketAddress()+":TO:"+getRemoteSocketAddress();
   }
 
+  @SuppressWarnings("deprecation")
   @Override
   public boolean setSocketOption(final SocketOption so, final int value) {
     try{
       switch(so) {
       case TCP_NODELAY: {
-          this.channel.socket().setTcpNoDelay(value == 1);
-          return true;
+          return tso.setTcpNoDelay(value > 0);
       }
       case SEND_BUFFER_SIZE: {
-        this.channel.socket().setSendBufferSize(value);
-        return true;
+        return tso.setSocketSendBuffer(value);
       }
       case RECV_BUFFER_SIZE: {
-        this.channel.socket().setReceiveBufferSize(value);
-        return true;
+        return tso.setSocketRecvBuffer(value);
       }
       case USE_NATIVE_BUFFERS: {
-        this.useNativeBuffers = value == 1;
-        return true;
+        return tso.setNativeBuffers(value > 0);
       }
       default:
         return false;
@@ -300,6 +298,11 @@ public class TCPClient extends Client {
     } catch(Exception e) {
     }
     return false;
+  }
+  
+  @Override
+  public ClientOptions clientOptions() {
+    return tso;
   }
   
   public void setSSLEngine(final SSLEngine ssle) {
@@ -318,5 +321,77 @@ public class TCPClient extends Client {
       return sslProcessor.doHandShake();
     }
     throw new IllegalStateException("Must Set the SSLEngine before starting Encryption!");
+  }
+  
+  private class TCPSocketOptions extends BaseClientOptions {
+    
+    @Override
+    public boolean setTcpNoDelay(boolean enabled) {
+        try {
+          channel.socket().setTcpNoDelay(enabled);
+          return true;
+        } catch (SocketException e) {
+          return false;
+        }
+    }
+    
+    @Override
+    public boolean getTcpNoDelay() {
+        try {
+          return channel.socket().getTcpNoDelay();
+        } catch (SocketException e) {
+          return false;
+        }
+    }
+    
+    @Override
+    public boolean setSocketSendBuffer(int size) {
+      try {
+        ArgumentVerifier.assertGreaterThanZero(size, "size");
+        int prev = channel.socket().getReceiveBufferSize();
+        channel.socket().setReceiveBufferSize(size);
+        if(channel.socket().getReceiveBufferSize() != size) {
+          channel.socket().setReceiveBufferSize(prev);
+          return false;
+        }
+        return true;
+      } catch (Exception e) {
+        return false;
+      }
+    }
+    
+    @Override
+    public int getSocketSendBuffer() {
+      try {
+        return channel.socket().getSendBufferSize();
+      } catch (SocketException e) {
+        return -1;
+      }
+    }
+    
+    @Override
+    public boolean setSocketRecvBuffer(int size) {
+      try {
+        ArgumentVerifier.assertGreaterThanZero(size, "size");
+        int prev = channel.socket().getSendBufferSize();
+        channel.socket().setSendBufferSize(size);
+        if(channel.socket().getSendBufferSize() != size) {
+          channel.socket().setSendBufferSize(prev);
+          return false;
+        }
+        return true;
+      } catch (Exception e) {
+        return false;
+      }
+    }
+    
+    @Override
+    public int getSocketRecvBuffer() {
+      try {
+        return channel.socket().getReceiveBufferSize();
+      } catch (SocketException e) {
+        return -1;
+      }
+    }
   }
 }

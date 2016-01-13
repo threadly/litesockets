@@ -4,9 +4,11 @@ import java.io.IOException;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.concurrent.SingleThreadScheduler;
 import org.threadly.litesockets.NoThreadSocketExecuter;
+import org.threadly.litesockets.utils.PortUtils;
 
 public class NoThreadTCPTests extends TCPTests {
   NoThreadSocketExecuter ntSE;
@@ -16,7 +18,7 @@ public class NoThreadTCPTests extends TCPTests {
   @Before
   public void start() throws IOException {
     keepRunning = true;
-    port = Utils.findTCPPort();
+    port = PortUtils.findTCPPort();
     STS = new SingleThreadScheduler();
     PS = new PriorityScheduler(5);
     ntSE = new NoThreadSocketExecuter();
@@ -26,10 +28,10 @@ public class NoThreadTCPTests extends TCPTests {
       @Override
       public void run() {
         while(ntSE.isRunning() && keepRunning) {
-          ntSE.select(1);
+          ntSE.select(100);
         }
       }});
-    serverFC = new FakeTCPServerClient(SE);
+    serverFC = new FakeTCPServerClient();
     server = SE.createTCPServer("localhost", port);
     server.setClientAcceptor(serverFC);
     server.addCloseListener(serverFC);
@@ -38,19 +40,20 @@ public class NoThreadTCPTests extends TCPTests {
   
   @Override
   @After
-  public void stop(){
-    keepRunning = false;
-    if(SE.isRunning()) {    
-      ntSE.wakeup();
-      ntSE.wakeup();
-      ntSE.wakeup();
-      ntSE.wakeup();
-    }
+  public void stop() throws Exception{
     super.stop();
     STS.shutdownNow();
+    keepRunning = false;
+    System.gc();
+    System.gc();
     System.gc();
     System.out.println("Used Memory:"
         + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
+  }
+  
+  @Test
+  public void manyClientsMemoryTest() throws Exception {
+   super.manyClientsMemoryTest(); 
   }
   
 }

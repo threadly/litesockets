@@ -32,12 +32,13 @@ import org.threadly.litesockets.TCPClient;
 import org.threadly.litesockets.TCPServer;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.utils.MergedByteBuffers;
+import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.litesockets.utils.SSLUtils;
 import org.threadly.test.concurrent.TestCondition;
 
 public class SSLTests {
   PriorityScheduler PS;
-  int port = Utils.findTCPPort();
+  int port;
   final String GET = "hello";
   SocketExecuter SE;
   TrustManager[] myTMs = new TrustManager [] {new SSLUtils.FullTrustManager() };
@@ -51,7 +52,7 @@ public class SSLTests {
     PS = new PriorityScheduler(5);
     SE = new ThreadedSocketExecuter(PS);
     SE.start();
-    port = Utils.findTCPPort();
+    port = PortUtils.findTCPPort();
     KS = KeyStore.getInstance(KeyStore.getDefaultType());
     System.out.println(ClassLoader.getSystemClassLoader().getResource("keystore.jks"));
     String filename = ClassLoader.getSystemClassLoader().getResource("keystore.jks").getFile();
@@ -62,7 +63,7 @@ public class SSLTests {
     //sslCtx = SSLContext.getInstance("TLS");
     sslCtx = SSLContext.getInstance("SSL");
     sslCtx.init(kmf.getKeyManagers(), myTMs, null);
-    serverFC = new FakeTCPServerClient(SE);
+    serverFC = new FakeTCPServerClient();
   }
   
   @After
@@ -76,7 +77,7 @@ public class SSLTests {
     }
     SE.stop();
     PS.shutdownNow();
-    serverFC = new FakeTCPServerClient(SE);
+    serverFC = new FakeTCPServerClient();
     System.gc();
     System.out.println("Used Memory:"
         + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
@@ -84,7 +85,6 @@ public class SSLTests {
   
   @Test(expected=IllegalStateException.class)
   public void badSSLStart() throws Exception {
-    port = Utils.findTCPPort();
     TCPServer server = SE.createTCPServer("localhost", port);
     server.setSSLContext(sslCtx);
     server.setDoHandshake(true);    
@@ -98,7 +98,6 @@ public class SSLTests {
   @Test
   public void simpleWriteTest() throws Exception {
     long start = System.currentTimeMillis();
-    port = Utils.findTCPPort();
     TCPServer server = SE.createTCPServer("localhost", port);
     server.setSSLContext(sslCtx);
     server.setDoHandshake(true);    

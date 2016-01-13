@@ -8,6 +8,7 @@ import java.nio.channels.SocketChannel;
 
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
+import org.threadly.litesockets.Client.BaseClientOptions;
 import org.threadly.util.Clock;
 
 /**
@@ -25,9 +26,11 @@ import org.threadly.util.Clock;
  */
 public class UDPClient extends Client {
   protected static final ListenableFuture<?> COMPLETED_FUTURE = FutureUtils.immediateResultFuture(true);
+  private final UDPSocketOptions uso = new UDPSocketOptions();
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
   protected final InetSocketAddress remoteAddress;
   protected final UDPServer udpServer;
+  
 
   protected UDPClient(final InetSocketAddress sa, final UDPServer server) {
     super(server.getSocketExecuter());
@@ -172,5 +175,14 @@ public class UDPClient extends Client {
 
     }
     return false;
+  }
+
+  @Override
+  public ClientOptions clientOptions() {
+    return uso;
+  }
+  
+  private class UDPSocketOptions extends BaseClientOptions {
+    
   }
 }
