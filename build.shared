@@ -20,7 +20,7 @@ dependencies {
 }
 
 compileJava {
-  options.compilerArgs << "-Xlint:all" << "-Werror"
+  options.compilerArgs << "-Xlint:all"
 }
 
 compileTestJava {
