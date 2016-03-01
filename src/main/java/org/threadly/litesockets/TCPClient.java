@@ -22,10 +22,12 @@ import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.Clock;
 import org.threadly.util.Pair;
 
+
 /**
  * A Simple TCP client.
  *   
  */
+@SuppressWarnings("deprecation")
 public class TCPClient extends Client {
   protected static final int DEFAULT_SOCKET_TIMEOUT = 10000;
   protected static final int MIN_WRITE_BUFFER_SIZE = 8192;
@@ -172,7 +174,6 @@ public class TCPClient extends Client {
     return writeBuffers.remaining() > 0 ;
   }
 
-
   @Override
   public int getWriteBufferSize() {
     return this.writeBuffers.remaining();
@@ -275,7 +276,6 @@ public class TCPClient extends Client {
     return "TCPClient:FROM:"+getLocalSocketAddress()+":TO:"+getRemoteSocketAddress();
   }
 
-  @SuppressWarnings("deprecation")
   @Override
   public boolean setSocketOption(final SocketOption so, final int value) {
     try{
@@ -323,6 +323,11 @@ public class TCPClient extends Client {
     throw new IllegalStateException("Must Set the SSLEngine before starting Encryption!");
   }
   
+  /**
+   * 
+   * @author lwahlmeier
+   *
+   */
   private class TCPSocketOptions extends BaseClientOptions {
     
     @Override

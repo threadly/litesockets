@@ -38,7 +38,7 @@ public abstract class Client {
    * SocketOptions that can be set set on Clients.
    * 
    * @author lwahlmeier
-   *
+   * @deprecated this is deprecated in favor of {@link ClientOptions}
    */
   @Deprecated
   public static enum SocketOption {
@@ -159,6 +159,7 @@ public abstract class Client {
    * @param so The {@link SocketOption} to set for the client.
    * @param value The value for the socket option (1 for on, 0 for off).
    * @return True if the option was set, false if not.
+   * @deprecated use the {@link #clientOptions()} call.
    */
   @Deprecated
   public abstract boolean setSocketOption(SocketOption so, int value);
@@ -389,12 +390,13 @@ public abstract class Client {
    * and network are keeping up with the data going in/out.</p>
    * 
    * @param size max buffer size in bytes.
+   * @deprecated use the {@link #clientOptions()} and set the {@link ClientOptions#setMaxClientReadBuffer(int size)} call.
    */
   @Deprecated
   public void setMaxBufferSize(final int size) {
     clientOptions().setMaxClientReadBuffer(size);
   }
-  
+
   /**
    * <p>Whenever a the {@link Reader} Interfaces {@link Reader#onRead(Client)} is called the
    * {@link #getRead()} should be called from the client.</p>
@@ -503,32 +505,158 @@ public abstract class Client {
     public void onClose(Client client);
   }
   
+  /**
+   * ClientOptions that can be changed depending on what kind of client you want.
+   * 
+   * In general these should not be set unless you have a very specific use case.
+   * 
+   * @author lwahlmeier
+   *
+   */
   public interface ClientOptions {
+    
+    /**
+     * This is only available for connection backed by a TCP socket.
+     * It will turn on TcpNoDelay on the the connection at the System level.
+     * This means that data queued to go out the socket will not delay before being sent.
+     * 
+     * @param enabled true means NoDelay is on, false means NoDelay is off.
+     * @return true if this was able to be set.
+     */
     public boolean setTcpNoDelay(boolean enabled);
+    
+    /**
+     * Returns the current state of TcpNoDelay.
+     * 
+     * @return true means NoDelay is on, false means NoDelay is off.
+     */
     public boolean getTcpNoDelay();
     
+    /**
+     * Sets this client to use Native or Direct ByteBuffers.
+     * This can save allocations to the Heap, but is generally only useful
+     * for things like pass through proxies.
+     * 
+     * @param enabled true means use Native buffers false means use Heap buffers.
+     * @return true if this was able to be set.
+     */
     public boolean setNativeBuffers(boolean enabled);
+    
+    /**
+     * Returns the current state of native buffers.
+     * 
+     * @return true means native buffers are generated false means they are not. 
+     */
     public boolean getNativeBuffers();
     
+    /**
+     * Sets reduced Read buffer allocations.  This is accomplished by over allocating 
+     * the read buffer and returning subsets of it.  This can make reads much faster but
+     * does also use more memory.
+     * 
+     * @param enabled true for enabled false for disabled.
+     * @return true if this was able to be set.
+     */
     public boolean setReducedReadAllocations(boolean enabled);
+    
+    /**
+     * Returns the current state of ReducedReadAllocations.
+     * 
+     * @return true for enabled false for disabled.
+     */
     public boolean getReducedReadAllocations();
     
+    /**
+     * Sets the max size of read buffer the client is allowed to have.
+     * Once this is reached the client will stop doing read operations until 
+     * the Read buffers gets under this size.  This can really effect performance 
+     * especially if its set to small.
+     * 
+     * @param size in bytes. 
+     * @return true if this was able to be set.
+     */
     public boolean setMaxClientReadBuffer(int size);
+    
+    /**
+     * Returns the currently set max Read buffer size in Bytes.
+     * 
+     * @return size of max read buffer size.
+     */
     public int getMaxClientReadBuffer();
     
+    /**
+     * Sets the size of the ByteBuffer used for Reads.  The larger this
+     * buffer is the more data we can read from the socket at once.  If
+     * {@link #getReducedReadAllocations()} is true we will reuse the unused
+     * space in this buffer until it gets below the minimum read threshold.
+     * 
+     * @param size in bytes.
+     * @return true if this was able to be set.
+     */
     public boolean setReadAllocationSize(int size);
+    
+    /**
+     * Returns the current Read buffer allocation size in bytes.
+     * 
+     * @return bytes allocated for reads.
+     */
     public int getReadAllocationSize();
     
+    /**
+     * This sets the System level socket send buffer size.  Every OS
+     * has its own min and max values for this, if you go over or under that
+     * it will not be set.
+     * 
+     * @param size buffer size in bytes.
+     * @return true if this was able to be set.
+     */
     public boolean setSocketSendBuffer(int size);
+    
+    /**
+     * Returns the currently set send buffer size in bytes.
+     * 
+     * @return send buffer size in bytes.
+     */
     public int getSocketSendBuffer();
     
+    /**
+     * This sets the System level socket receive buffer size.  Every OS
+     * has its own min and max values for this, if you go over or under that
+     * it will not be set.
+     * 
+     * @param size buffer size in bytes.
+     * @return true if this was able to be set.
+     */
     public boolean setSocketRecvBuffer(int size);
+    
+    /**
+     * Returns the currently set receive buffer size in bytes.
+     * 
+     * @return send buffer size in bytes.
+     */
     public int getSocketRecvBuffer();
     
+    /**
+     * Sets the UDP frame size.  This only possible on UDP backed clients.
+     * 
+     * @param size max frame size in bytes
+     * @return true if this was able to be set.
+     */
     public boolean setUdpFrameSize(int size);
+    
+    /**
+     * Returns the currently set UDP frame size in bytes.
+     * 
+     * @return frame size in bytes.
+     */
     public int getUdpFrameSize();
   }
   
+  /**
+   * 
+   * @author lwahlmeier
+   *
+   */
   protected class BaseClientOptions implements ClientOptions {
     
     @Override

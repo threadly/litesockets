@@ -12,6 +12,7 @@ import org.threadly.concurrent.ScheduledExecutorServiceWrapper;
 import org.threadly.concurrent.SingleThreadScheduler;
 import org.threadly.concurrent.SubmitterScheduler;
 import org.threadly.util.ArgumentVerifier;
+import org.threadly.util.ExceptionUtils;
 
 /**
  * <p>This is a mutliThreaded implementation of a {@link SocketExecuter}.  It uses separate threads to perform Accepts, Reads and Writes.  
@@ -181,12 +182,19 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
         if(isRunning() && ! readSelector.selectedKeys().isEmpty()) {
           for(final SelectionKey sk: readSelector.selectedKeys()) {
             final Client client = clients.get(sk.channel());
-            if(sk.isConnectable()) {
-              doClientConnect(client, readSelector);
-              sk.cancel();
-              setClientOperations(client);
-            } else {
-              stats.addRead(doClientRead(client, readSelector));
+            if(client != null) {
+              try {
+                if(sk.isConnectable()) {
+                  doClientConnect(client, readSelector);
+                  sk.cancel();
+                  setClientOperations(client);
+                } else {
+                  stats.addRead(doClientRead(client, readSelector));
+                }
+              } catch(Exception e) {
+                client.close();
+                ExceptionUtils.handleException(e);
+              }
             }
           }
         }
