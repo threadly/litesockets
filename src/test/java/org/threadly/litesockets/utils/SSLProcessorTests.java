@@ -250,6 +250,7 @@ public class SSLProcessorTests {
       return false;
     }
 
+    @Deprecated
     @Override
     public boolean setSocketOption(SocketOption so, int value) {
       // TODO Auto-generated method stub

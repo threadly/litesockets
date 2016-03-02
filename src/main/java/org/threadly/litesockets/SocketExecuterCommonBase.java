@@ -170,6 +170,10 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   public SimpleByteStats getStats() {
     return stats;
   }
+  
+  protected SocketExecuterByteStats writeableStats() {
+    return stats;
+  }
 
   @Override
   public void watchFuture(final ListenableFuture<?> lf, final long delay) {
@@ -248,6 +252,10 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     }
     return wrote;
   }
+  
+  private static int doRead(ByteBuffer bb, SocketChannel sc) throws IOException {
+    return sc.read(bb);
+  }
 
   protected static int doClientRead(final Client client, final Selector selector) {
     int read = 0;
@@ -255,7 +263,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
       try {
         final ByteBuffer readByteBuffer = client.provideReadByteBuffer();
         final int origPos = readByteBuffer.position();
-        read = client.getChannel().read(readByteBuffer);
+        read = doRead(readByteBuffer, client.getChannel());
         if(read < 0) {
           client.close();
         } else if( read > 0){

@@ -265,10 +265,7 @@ public class TCPClient extends Client {
 
   @Override
   public InetSocketAddress getLocalSocketAddress() {
-    if(this.channel != null) {
-      return (InetSocketAddress) channel.socket().getLocalSocketAddress();
-    }
-    return null;
+    return (InetSocketAddress) channel.socket().getLocalSocketAddress();
   }
   
   @Override
@@ -353,10 +350,10 @@ public class TCPClient extends Client {
     public boolean setSocketSendBuffer(int size) {
       try {
         ArgumentVerifier.assertGreaterThanZero(size, "size");
-        int prev = channel.socket().getReceiveBufferSize();
-        channel.socket().setReceiveBufferSize(size);
-        if(channel.socket().getReceiveBufferSize() != size) {
-          channel.socket().setReceiveBufferSize(prev);
+        int prev = channel.socket().getSendBufferSize();
+        channel.socket().setSendBufferSize(size);
+        if(channel.socket().getSendBufferSize() != size) {
+          channel.socket().setSendBufferSize(prev);
           return false;
         }
         return true;
@@ -378,10 +375,10 @@ public class TCPClient extends Client {
     public boolean setSocketRecvBuffer(int size) {
       try {
         ArgumentVerifier.assertGreaterThanZero(size, "size");
-        int prev = channel.socket().getSendBufferSize();
-        channel.socket().setSendBufferSize(size);
-        if(channel.socket().getSendBufferSize() != size) {
-          channel.socket().setSendBufferSize(prev);
+        int prev = channel.socket().getReceiveBufferSize();
+        channel.socket().setReceiveBufferSize(size);
+        if(channel.socket().getReceiveBufferSize() != size) {
+          channel.socket().setReceiveBufferSize(prev);
           return false;
         }
         return true;

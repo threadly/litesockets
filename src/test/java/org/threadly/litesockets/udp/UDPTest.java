@@ -88,7 +88,7 @@ public class UDPTest {
     assertEquals(0, c.getTimeout());
     c.connect().get();
     newFC.accept(c);
-    c.setMaxBufferSize(2);
+    c.clientOptions().setMaxClientReadBuffer(2);
     assertEquals(c.getClientsSocketExecuter(), SE);
     c.write(ByteBuffer.wrap(GET.getBytes()));
     new TestCondition(){

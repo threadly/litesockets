@@ -135,32 +135,25 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
               doServerAccept(servers.get(key.channel()));
             } else {
               final Client tmpClient = clients.get(key.channel());
-              try{
-                if(key.isConnectable() && tmpClient != null) {
-                  doClientConnect(tmpClient, commonSelector);
-                  key.cancel(); //Stupid windows bug here.
-                  setClientOperations(tmpClient);
-                } else {
-                  if (key.isReadable()) {
-                    if(tmpClient != null){
-                      stats.addRead(doClientRead(tmpClient, commonSelector));
-                    } else {
-                      final Server server = servers.get(key.channel());
-                      if(server != null && server.getServerType() == WireProtocol.UDP) {
-                        server.acceptChannel((DatagramChannel)server.getSelectableChannel());
-                      }
+              if(key.isConnectable() && tmpClient != null) {
+                doClientConnect(tmpClient, commonSelector);
+                key.cancel(); //Stupid windows bug here.
+                setClientOperations(tmpClient);
+              } else {
+                if (key.isReadable()) {
+                  if(tmpClient != null){
+                    stats.addRead(doClientRead(tmpClient, commonSelector));
+                  } else {
+                    final Server server = servers.get(key.channel());
+                    if(server != null && server.getServerType() == WireProtocol.UDP) {
+                      server.acceptChannel((DatagramChannel)server.getSelectableChannel());
                     }
-                  } 
-                  if(key.isWritable()) {
-                    stats.addWrite(doClientWrite(tmpClient, commonSelector));
                   }
-                }
-              } catch(Exception e) {
-                if(tmpClient != null) {
-                  tmpClient.close();
+                } 
+                if(key.isWritable()) {
+                  stats.addWrite(doClientWrite(tmpClient, commonSelector));
                 }
               }
-
             }
           } catch(CancelledKeyException e) {
             //Key could be cancelled at any point, we dont really care about it.

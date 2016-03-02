@@ -1,5 +1,6 @@
 package org.threadly.litesockets;
 
+import java.nio.channels.CancelledKeyException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
@@ -191,7 +192,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
                 } else {
                   stats.addRead(doClientRead(client, readSelector));
                 }
-              } catch(Exception e) {
+              } catch(CancelledKeyException e) {
                 client.close();
                 ExceptionUtils.handleException(e);
               }

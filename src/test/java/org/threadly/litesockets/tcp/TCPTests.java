@@ -25,7 +25,6 @@ import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.Reader;
-import org.threadly.litesockets.Client.SocketOption;
 import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.TCPClient;
 import org.threadly.litesockets.TCPServer;
@@ -94,54 +93,35 @@ public class TCPTests {
   @Test
   public void setClientOptions() throws IOException, InterruptedException {
     final TCPClient client = SE.createTCPClient("localhost", port);
-    assertTrue(client.setSocketOption(Client.SocketOption.TCP_NODELAY, 1));
-    assertFalse(client.setSocketOption(Client.SocketOption.SEND_BUFFER_SIZE, 0));
-    assertFalse(client.setSocketOption(Client.SocketOption.RECV_BUFFER_SIZE, 0));
-    assertTrue(client.setSocketOption(Client.SocketOption.SEND_BUFFER_SIZE, 4096));
-    assertTrue(client.setSocketOption(Client.SocketOption.RECV_BUFFER_SIZE, 4096));
-    assertFalse(client.setSocketOption(Client.SocketOption.UDP_FRAME_SIZE, 1));
+    assertTrue(client.clientOptions().setTcpNoDelay(true));
+    assertTrue(client.clientOptions().getTcpNoDelay());
+    assertTrue(client.clientOptions().setTcpNoDelay(false));
+    assertFalse(client.clientOptions().getTcpNoDelay());
+    
+    assertFalse(client.clientOptions().setSocketSendBuffer(0));
+    assertTrue(client.clientOptions().setSocketSendBuffer(16384));
+    assertEquals(16384, client.clientOptions().getSocketSendBuffer());
+
+    assertFalse(client.clientOptions().setSocketRecvBuffer(0));
+    assertTrue(client.clientOptions().setSocketRecvBuffer(16384));
+    assertEquals(16384, client.clientOptions().getSocketRecvBuffer());
+
+    assertFalse(client.clientOptions().setUdpFrameSize(1000));
+    assertEquals(-1, client.clientOptions().getUdpFrameSize());
+    
     assertFalse(client.isEncrypted());
-    final FakeTCPServerClient clientFC = new FakeTCPServerClient();
-    clientFC.addTCPClient(client);
-    client.connect();
-    new TestCondition(){
-      @Override
-      public boolean get() {
-        return serverFC.getNumberOfClients() == 1;
-      }
-    }.blockTillTrue(5000);
-
-    final TCPClient sclient = serverFC.getClientAt(0);
-    client.write(SMALL_TEXT_BUFFER.duplicate());
-    //System.out.println("1");
-    new TestCondition(){
-      @Override
-      public boolean get() {
-        return serverFC.getClientsBuffer(sclient).remaining() == SMALL_TEXT_BUFFER.remaining();
-      }
-    }.blockTillTrue(5000);
-
-    sclient.write(SMALL_TEXT_BUFFER.duplicate());
-    new TestCondition(){
-      @Override
-      public boolean get() {
-        boolean test = false;
-        try {
-          test =clientFC.getClientsBuffer(client).remaining() == SMALL_TEXT_BUFFER.remaining();
-        } catch(Exception e) {
-
-        }
-        return test;
-      }
-    }.blockTillTrue(1000);
-
+    assertFalse(client.clientOptions().setSocketSendBuffer(1));
+    assertFalse(client.clientOptions().setSocketRecvBuffer(1));
+    
     client.close();
-    new TestCondition(){
-      @Override
-      public boolean get() {
-        return sclient.isClosed() && client.isClosed();
-      }
-    }.blockTillTrue(5000);
+    
+    assertEquals(-1, client.clientOptions().getSocketRecvBuffer());
+    assertEquals(-1, client.clientOptions().getSocketSendBuffer());
+    assertFalse(client.clientOptions().setSocketSendBuffer(16384));
+    assertFalse(client.clientOptions().setSocketRecvBuffer(16384));
+    assertFalse(client.clientOptions().setTcpNoDelay(true));
+    assertFalse(client.clientOptions().getTcpNoDelay());
+    
     server.close();
   }
   
@@ -199,7 +179,7 @@ public class TCPTests {
   @Test
   public void simpleWriteTestNative() throws IOException, InterruptedException {
     final TCPClient client = SE.createTCPClient("localhost", port);
-    client.setSocketOption(SocketOption.USE_NATIVE_BUFFERS, 1);
+    client.clientOptions().setNativeBuffers(true);
     final FakeTCPServerClient clientFC = new FakeTCPServerClient();
     clientFC.addTCPClient(client);
     client.connect();
@@ -211,7 +191,7 @@ public class TCPTests {
     }.blockTillTrue(5000);
 
     final TCPClient sclient = serverFC.getClientAt(0);
-    sclient.setSocketOption(SocketOption.USE_NATIVE_BUFFERS, 1);
+    sclient.clientOptions().setNativeBuffers(true);
     client.write(SMALL_TEXT_BUFFER.duplicate());
     //System.out.println("1");
     new TestCondition(){
