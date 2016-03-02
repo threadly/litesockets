@@ -23,7 +23,7 @@ public class UDPServer extends Server {
   public static final int DEFAULT_FRAME_SIZE = 1500;
   
   private final ConcurrentHashMap<InetSocketAddress, UDPClient> clients = new ConcurrentHashMap<InetSocketAddress, UDPClient>();
-  protected final DatagramChannel channel;
+  private final DatagramChannel channel;
   private volatile int frameSize = DEFAULT_FRAME_SIZE;
   private volatile ClientAcceptor clientAcceptor;
   
@@ -37,6 +37,10 @@ public class UDPServer extends Server {
   protected void setFrameSize(final int size) {
     frameSize = size;
   }
+  
+  protected int getFrameSize() {
+    return frameSize;
+  }
 
   @Override
   public void acceptChannel(final SelectableChannel c) {
@@ -45,7 +49,7 @@ public class UDPServer extends Server {
       try {
         final InetSocketAddress isa = (InetSocketAddress)channel.receive(bb);
         bb.flip();
-        getSocketExecuter().getThreadScheduler().execute(new NewDataRunnable(isa, bb));
+        getSocketExecuter().getThreadScheduler().execute(new NewDataRunnable(this, isa, bb));
       } catch (IOException e) {
 
       }
@@ -86,6 +90,18 @@ public class UDPServer extends Server {
     }
   }
   
+  protected int write(ByteBuffer bb, InetSocketAddress remoteAddress) throws IOException {
+    return channel.send(bb, remoteAddress);
+  }
+  
+  /**
+   * Creates a new client from this UDPServer.  If a client is already created for that
+   * source address that client will be returned.
+   * 
+   * @param host the remote host to send data to.
+   * @param port the port on that host to send data to.
+   * @return a {@link UDPClient} pointing to that remote address. 
+   */
   public UDPClient createUDPClient(final String host, final int port) {
     final InetSocketAddress sa = new InetSocketAddress(host,port);
     if(! clients.containsKey(sa)) {
@@ -101,26 +117,28 @@ public class UDPServer extends Server {
    * @author lwahlmeier
    *
    */
-  private class NewDataRunnable implements Runnable {
+  private static class NewDataRunnable implements Runnable {
     private final InetSocketAddress isa;
     private final ByteBuffer bb;
+    private final UDPServer us;
     
-    public NewDataRunnable(final InetSocketAddress isa, final ByteBuffer bb) {
+    public NewDataRunnable(final UDPServer us, final InetSocketAddress isa, final ByteBuffer bb) {
+      this.us = us;
       this.isa = isa;
       this.bb = bb;
     }
 
     @Override
     public void run() {
-      if(! clients.containsKey(isa)) {
-        UDPClient udpc = new UDPClient(isa, UDPServer.this);
-        udpc = clients.putIfAbsent(isa, udpc);
+      if(! us.clients.containsKey(isa)) {
+        UDPClient udpc = new UDPClient(isa, us);
+        udpc = us.clients.putIfAbsent(isa, udpc);
         if(udpc == null) {
-          udpc = clients.get(isa);
-          clientAcceptor.accept(udpc);
+          udpc = us.clients.get(isa);
+          us.clientAcceptor.accept(udpc);
         }
       }
-      final UDPClient udpc = clients.get(isa);
+      final UDPClient udpc = us.clients.get(isa);
       if(udpc.canRead()) {
         udpc.addReadBuffer(bb);
       }      

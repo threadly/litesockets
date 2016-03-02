@@ -3,6 +3,7 @@ package org.threadly.litesockets;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 
@@ -23,11 +24,15 @@ import org.threadly.util.Clock;
  *  on the socket.
  *  
  */
+@SuppressWarnings("deprecation")
 public class UDPClient extends Client {
-  protected static final ListenableFuture<?> COMPLETED_FUTURE = FutureUtils.immediateResultFuture(true);
+  protected static final ListenableFuture<Boolean> COMPLETED_FUTURE = FutureUtils.immediateResultFuture(true);
+  
+  private final UDPSocketOptions uso = new UDPSocketOptions();
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
   protected final InetSocketAddress remoteAddress;
   protected final UDPServer udpServer;
+  
 
   protected UDPClient(final InetSocketAddress sa, final UDPServer server) {
     super(server.getSocketExecuter());
@@ -110,7 +115,7 @@ public class UDPClient extends Client {
 
   @Override
   public ListenableFuture<Boolean> connect() {
-    return FutureUtils.immediateResultFuture(true);
+    return COMPLETED_FUTURE;
   }
 
   @Override
@@ -130,10 +135,7 @@ public class UDPClient extends Client {
 
   @Override
   public InetSocketAddress getLocalSocketAddress() {
-    if(udpServer.getSelectableChannel() != null) {
-      return (InetSocketAddress)udpServer.getSelectableChannel().socket().getLocalSocketAddress();
-    }
-    return null;
+    return (InetSocketAddress)udpServer.getSelectableChannel().socket().getLocalSocketAddress();
   }
 
   @Override
@@ -146,7 +148,7 @@ public class UDPClient extends Client {
     addWriteStats(bb.remaining());
     if(!closed.get()) {
       try {
-        udpServer.channel.send(bb, remoteAddress);
+        udpServer.write(bb, remoteAddress);
       } catch (IOException e) {
       }
     }
@@ -172,5 +174,77 @@ public class UDPClient extends Client {
 
     }
     return false;
+  }
+
+  @Override
+  public ClientOptions clientOptions() {
+    return uso;
+  }
+
+  /**
+   * 
+   * @author lwahlmeier
+   *
+   */
+  private class UDPSocketOptions extends BaseClientOptions {
+    
+    @Override
+    public boolean setSocketSendBuffer(int size) {
+      int prev = getSocketSendBuffer();
+      try {
+        udpServer.getSelectableChannel().socket().getSendBufferSize();
+        if(prev != getSocketSendBuffer()) {
+          udpServer.setFrameSize(prev);
+          return false;
+        }
+        return true;
+      } catch (SocketException e) {
+        return false;
+      }
+    }
+
+    @Override
+    public int getSocketSendBuffer() {
+      try {
+        return udpServer.getSelectableChannel().socket().getSendBufferSize();
+      } catch (SocketException e) {
+        return -1;
+      }
+    }
+
+    @Override
+    public boolean setSocketRecvBuffer(int size) {
+      int prev = getSocketRecvBuffer();
+      try {
+        udpServer.getSelectableChannel().socket().getReceiveBufferSize();
+        if(prev != getSocketRecvBuffer()) {
+          udpServer.setFrameSize(prev);
+          return false;
+        }
+        return true;
+      } catch (SocketException e) {
+        return false;
+      }
+    }
+
+    @Override
+    public int getSocketRecvBuffer() {
+      try {
+        return udpServer.getSelectableChannel().socket().getReceiveBufferSize();
+      } catch (SocketException e) {
+        return -1;
+      }
+    }
+
+    @Override
+    public boolean setUdpFrameSize(int size) {
+      udpServer.setFrameSize(size);
+      return true;
+    }
+
+    @Override
+    public int getUdpFrameSize() {
+      return udpServer.getFrameSize();
+    }
   }
 }

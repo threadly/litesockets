@@ -6,15 +6,15 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import org.junit.After;
 import org.junit.Before;
 import org.threadly.concurrent.PriorityScheduler;
-import org.threadly.litesockets.tcp.Utils;
+import org.threadly.litesockets.utils.PortUtils;
 
-public class JavaUtilsSETest extends ServerExecuterTests{
+public class JavaUtilsSETest extends SocketExecuterTests{
   ScheduledThreadPoolExecutor sch;
   
   @Before
   public void start() {
     sch = new ScheduledThreadPoolExecutor(10);
-    port = Utils.findTCPPort();
+    port = PortUtils.findTCPPort();
     PS = new PriorityScheduler(5);
     SE = new ThreadedSocketExecuter(sch);
     SE.start();

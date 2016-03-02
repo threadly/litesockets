@@ -10,19 +10,16 @@ import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server;
 import org.threadly.litesockets.Server.ClientAcceptor;
 import org.threadly.litesockets.Server.ServerCloseListener;
-import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.TCPClient;
 import org.threadly.litesockets.TCPServer;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 
 public class FakeTCPServerClient implements Reader, CloseListener, ClientAcceptor, ServerCloseListener{
-  private SocketExecuter se;
   private ConcurrentHashMap<TCPClient, MergedByteBuffers> map = new ConcurrentHashMap<TCPClient, MergedByteBuffers>();
   private ArrayList<TCPClient> clients = new ArrayList<TCPClient>();
   private ArrayList<TCPServer> servers = new ArrayList<TCPServer>();
 
-  public FakeTCPServerClient(SocketExecuter se) {
-    this.se = se;
+  public FakeTCPServerClient() {
   }
   
   public int getNumberOfClients() {
@@ -57,7 +54,7 @@ public class FakeTCPServerClient implements Reader, CloseListener, ClientAccepto
   public void onRead(Client client) {
     MergedByteBuffers mbb = client.getRead();
     System.out.println("GotData:"+mbb.remaining()+":"+client);
-    map.get((TCPClient)client).add(mbb);
+    map.get(client).add(mbb);
   }
 
   @Override

@@ -1,6 +1,6 @@
 package org.threadly.litesockets.networkutils;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -12,8 +12,8 @@ import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.TCPClient;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.tcp.FakeTCPServerClient;
-import org.threadly.litesockets.tcp.Utils;
 import org.threadly.litesockets.utils.MergedByteBuffers;
+import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.test.concurrent.TestCondition;
 
 public class ProfileServerTest {
@@ -25,11 +25,11 @@ public class ProfileServerTest {
   
   @Before
   public void start() throws IOException {
-    port = Utils.findTCPPort();
+    port = PortUtils.findTCPPort();
     PS = new PriorityScheduler(5);
     SE = new ThreadedSocketExecuter(PS);
     SE.start();
-    clientHandler = new FakeTCPServerClient(SE);
+    clientHandler = new FakeTCPServerClient();
     pServer = new ProfileServer(SE, "localhost", port, 10);
   }
   

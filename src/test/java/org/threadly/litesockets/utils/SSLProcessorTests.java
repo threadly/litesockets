@@ -250,6 +250,7 @@ public class SSLProcessorTests {
       return false;
     }
 
+    @Deprecated
     @Override
     public boolean setSocketOption(SocketOption so, int value) {
       // TODO Auto-generated method stub
@@ -337,6 +338,12 @@ public class SSLProcessorTests {
     public ListenableFuture<?> write(final ByteBuffer bb) {
       writeBuffers.add(sp.encrypt(bb));
       return FutureUtils.immediateResultFuture(true);
+    }
+
+    @Override
+    public ClientOptions clientOptions() {
+      // TODO Auto-generated method stub
+      return null;
     }
     
   }

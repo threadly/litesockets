@@ -1,6 +1,7 @@
 package org.threadly.litesockets.udp;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -15,12 +16,12 @@ import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.UDPClient;
 import org.threadly.litesockets.UDPServer;
-import org.threadly.litesockets.tcp.Utils;
+import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.test.concurrent.TestCondition;
 
 public class UDPTest {
   PriorityScheduler PS;
-  int port = Utils.findUDPPort();
+  int port = PortUtils.findUDPPort();
   final String GET = "hello";
   SocketExecuter SE;
   UDPServer server;
@@ -49,7 +50,7 @@ public class UDPTest {
   
   @Test
   public void simpleUDPTest() throws IOException {
-    int newPort = Utils.findUDPPort();
+    int newPort = PortUtils.findUDPPort();
     FakeUDPServerClient newFC = new FakeUDPServerClient(SE);
     UDPServer newServer = SE.createUDPServer("localhost", newPort);
     newFC.AddUDPServer(newServer);
@@ -79,7 +80,7 @@ public class UDPTest {
   
   @Test
   public void changeBufferSize() throws IOException, InterruptedException, ExecutionException {
-    int newPort = Utils.findUDPPort();
+    int newPort = PortUtils.findUDPPort();
     FakeUDPServerClient newFC = new FakeUDPServerClient(SE);
     UDPServer newServer = SE.createUDPServer("localhost", newPort);
     newFC.AddUDPServer(newServer);
@@ -87,7 +88,7 @@ public class UDPTest {
     assertEquals(0, c.getTimeout());
     c.connect().get();
     newFC.accept(c);
-    c.setMaxBufferSize(2);
+    c.clientOptions().setMaxClientReadBuffer(2);
     assertEquals(c.getClientsSocketExecuter(), SE);
     c.write(ByteBuffer.wrap(GET.getBytes()));
     new TestCondition(){
@@ -115,7 +116,7 @@ public class UDPTest {
     FakeUDPServerClient newFC = new FakeUDPServerClient(SE);
     
     for(int i=0; i<10; i++) {
-      int newPort = Utils.findUDPPort();
+      int newPort = PortUtils.findUDPPort();
       UDPServer newServer = SE.createUDPServer("localhost", newPort);
       newFC.AddUDPServer(newServer);
       UDPClient c = newServer.createUDPClient("127.0.0.1", port);
@@ -161,7 +162,7 @@ public class UDPTest {
   
   @Test
   public void checkClients() throws IOException {
-    int newPort = Utils.findUDPPort();
+    int newPort = PortUtils.findUDPPort();
     FakeUDPServerClient newFC = new FakeUDPServerClient(SE);
     UDPServer newServer = SE.createUDPServer("localhost", newPort);
     newFC.AddUDPServer(newServer);
@@ -185,7 +186,7 @@ public class UDPTest {
   
   @Test
   public void tryAddClient() throws IOException {
-    int newPort = Utils.findUDPPort();
+    int newPort = PortUtils.findUDPPort();
     FakeUDPServerClient newFC = new FakeUDPServerClient(SE);
     UDPServer newServer = SE.createUDPServer("localhost", newPort);
     newFC.AddUDPServer(newServer);
@@ -196,4 +197,19 @@ public class UDPTest {
     newServer.close();
   }
 
+  public void printBA(byte[] ba) {
+    printBB(ByteBuffer.wrap(ba));
+  }
+  
+  public void printBB(ByteBuffer bb) {
+    ByteBuffer bb2 = bb.duplicate();
+    
+    byte[] ba = new byte[bb2.remaining()];
+    bb2.get(ba);
+    StringBuilder sb = new StringBuilder(ba.length * 2);
+    for(byte b: ba) {
+      sb.append(String.format("%02x", b & 0xff));
+    }
+    System.out.println(sb.toString());
+  }
 }

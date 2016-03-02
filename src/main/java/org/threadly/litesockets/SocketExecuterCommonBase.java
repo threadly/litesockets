@@ -2,6 +2,7 @@ package org.threadly.litesockets;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
@@ -9,6 +10,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 
 import org.threadly.concurrent.SubmitterScheduler;
 import org.threadly.concurrent.future.ListenableFuture;
@@ -122,9 +124,9 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
       return;
     } else {
       if(server.getServerType() == WireProtocol.TCP) {
-        acceptScheduler.execute(new AddToSelector(server, acceptSelector, SelectionKey.OP_ACCEPT));
+        acceptScheduler.execute(new AddToSelector(acceptScheduler, server, acceptSelector, SelectionKey.OP_ACCEPT));
       } else if(server.getServerType() == WireProtocol.UDP) {
-        acceptScheduler.execute(new AddToSelector(server, acceptSelector, SelectionKey.OP_READ));
+        acceptScheduler.execute(new AddToSelector(acceptScheduler, server, acceptSelector, SelectionKey.OP_READ));
       } else {
         throw new UnsupportedOperationException("Unknown Server WireProtocol!"+ server.getServerType());
       }
@@ -139,9 +141,9 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
       return;
     } else {
       if(server.getServerType() == WireProtocol.TCP) {
-        acceptScheduler.execute(new AddToSelector(server, acceptSelector, 0));
+        acceptScheduler.execute(new AddToSelector(acceptScheduler, server, acceptSelector, 0));
       } else if(server.getServerType() == WireProtocol.UDP) {
-        acceptScheduler.execute(new AddToSelector(server, acceptSelector, 0));
+        acceptScheduler.execute(new AddToSelector(acceptScheduler, server, acceptSelector, 0));
       } else {
         throw new UnsupportedOperationException("Unknown Server WireProtocol!"+ server.getServerType());
       }
@@ -166,6 +168,10 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
 
   @Override
   public SimpleByteStats getStats() {
+    return stats;
+  }
+  
+  protected SocketExecuterByteStats writeableStats() {
     return stats;
   }
 
@@ -236,6 +242,8 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         final SelectionKey sk = client.getChannel().keyFor(selector);
         if(! client.canWrite() && (sk.interestOps() & SelectionKey.OP_WRITE) == SelectionKey.OP_WRITE) {
           client.getChannel().register(selector, sk.interestOps() - SelectionKey.OP_WRITE);
+        } else {
+          client.getChannel().register(selector, sk.interestOps());
         }
       } catch(Exception e) {
         client.close();
@@ -244,6 +252,10 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     }
     return wrote;
   }
+  
+  private static int doRead(ByteBuffer bb, SocketChannel sc) throws IOException {
+    return sc.read(bb);
+  }
 
   protected static int doClientRead(final Client client, final Selector selector) {
     int read = 0;
@@ -251,7 +263,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
       try {
         final ByteBuffer readByteBuffer = client.provideReadByteBuffer();
         final int origPos = readByteBuffer.position();
-        read = client.getChannel().read(readByteBuffer);
+        read = doRead(readByteBuffer, client.getChannel());
         if(read < 0) {
           client.close();
         } else if( read > 0){
@@ -263,6 +275,8 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
           final SelectionKey sk = client.getChannel().keyFor(selector);
           if(! client.canRead() && (sk.interestOps() & SelectionKey.OP_READ) == SelectionKey.OP_READ) {
             client.getChannel().register(selector, sk.interestOps() - SelectionKey.OP_READ);
+          } else {
+            client.getChannel().register(selector, sk.interestOps());
           }
         }
       } catch(Exception e) {
@@ -286,15 +300,18 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     final Server localServer;
     final Selector localSelector;
     final int registerType;
+    final Executor exec;
 
-    public AddToSelector(final Client client, final Selector selector, final int registerType) {
+    public AddToSelector(final Executor exec, final Client client, final Selector selector, final int registerType) {
+      this.exec = exec;
       localClient = client;
       localServer = null;
       localSelector = selector;
       this.registerType = registerType;
     }
 
-    public AddToSelector(final Server server, final Selector selector, final int registerType) {
+    public AddToSelector(final Executor exec, final Server server, final Selector selector, final int registerType) {
+      this.exec = exec;
       localClient = null;
       localServer = server;
       localSelector = selector;
@@ -304,7 +321,10 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     private void runClient() {
       if(!localClient.isClosed()) {
         try {
+          localSelector.wakeup();
           localClient.getChannel().register(localSelector, registerType);
+        } catch (CancelledKeyException e) {
+          exec.execute(this);
         } catch (ClosedChannelException e) {
           localClient.close();
         }

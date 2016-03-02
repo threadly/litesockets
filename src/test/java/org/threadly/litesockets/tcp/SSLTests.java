@@ -32,12 +32,13 @@ import org.threadly.litesockets.TCPClient;
 import org.threadly.litesockets.TCPServer;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.utils.MergedByteBuffers;
+import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.litesockets.utils.SSLUtils;
 import org.threadly.test.concurrent.TestCondition;
 
 public class SSLTests {
   PriorityScheduler PS;
-  int port = Utils.findTCPPort();
+  int port;
   final String GET = "hello";
   SocketExecuter SE;
   TrustManager[] myTMs = new TrustManager [] {new SSLUtils.FullTrustManager() };
@@ -51,7 +52,7 @@ public class SSLTests {
     PS = new PriorityScheduler(5);
     SE = new ThreadedSocketExecuter(PS);
     SE.start();
-    port = Utils.findTCPPort();
+    port = PortUtils.findTCPPort();
     KS = KeyStore.getInstance(KeyStore.getDefaultType());
     System.out.println(ClassLoader.getSystemClassLoader().getResource("keystore.jks"));
     String filename = ClassLoader.getSystemClassLoader().getResource("keystore.jks").getFile();
@@ -62,7 +63,7 @@ public class SSLTests {
     //sslCtx = SSLContext.getInstance("TLS");
     sslCtx = SSLContext.getInstance("SSL");
     sslCtx.init(kmf.getKeyManagers(), myTMs, null);
-    serverFC = new FakeTCPServerClient(SE);
+    serverFC = new FakeTCPServerClient();
   }
   
   @After
@@ -76,7 +77,7 @@ public class SSLTests {
     }
     SE.stop();
     PS.shutdownNow();
-    serverFC = new FakeTCPServerClient(SE);
+    serverFC = new FakeTCPServerClient();
     System.gc();
     System.out.println("Used Memory:"
         + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
@@ -84,7 +85,6 @@ public class SSLTests {
   
   @Test(expected=IllegalStateException.class)
   public void badSSLStart() throws Exception {
-    port = Utils.findTCPPort();
     TCPServer server = SE.createTCPServer("localhost", port);
     server.setSSLContext(sslCtx);
     server.setDoHandshake(true);    
@@ -98,7 +98,6 @@ public class SSLTests {
   @Test
   public void simpleWriteTest() throws Exception {
     long start = System.currentTimeMillis();
-    port = Utils.findTCPPort();
     TCPServer server = SE.createTCPServer("localhost", port);
     server.setSSLContext(sslCtx);
     server.setDoHandshake(true);    
@@ -108,26 +107,19 @@ public class SSLTests {
     SSLEngine sslec = sslCtx.createSSLEngine("localhost", port);
     sslec.setUseClientMode(true);
     client.setSSLEngine(sslec);
-    client.setReader(serverFC);
+    serverFC.addTCPClient(client);
     client.connect().get(5000, TimeUnit.MILLISECONDS);
-
     client.startSSL().get(5000, TimeUnit.MILLISECONDS);;
+    
     System.out.println(System.currentTimeMillis()-start);
     
-    new TestCondition(){
-      @Override
-      public boolean get() {
-        return serverFC.getNumberOfClients() == 1;
-      }
-    }.blockTillTrue(5000);
-    final TCPClient sclient = serverFC.getClientAt(0);
-    serverFC.addTCPClient(client);
     new TestCondition(){
       @Override
       public boolean get() {
         return serverFC.getNumberOfClients() == 2;
       }
     }.blockTillTrue(5000);
+    final TCPClient sclient = serverFC.getClientAt(1);
     new TestCondition(){
       @Override
       public boolean get() {
@@ -183,17 +175,16 @@ public class SSLTests {
     SSLEngine sslec = sslCtx.createSSLEngine("localhost", port);
     sslec.setUseClientMode(true);
     client.setSSLEngine(sslec);
-    client.connect();
-    client.setReader(serverFC);
+    serverFC.addTCPClient(client);
     client.startSSL();
 
     new TestCondition(){
       @Override
       public boolean get() {
-        return serverFC.getNumberOfClients() == 1 && client.isEncrypted();
+        return serverFC.getNumberOfClients() == 2 && client.isEncrypted();
       }
     }.blockTillTrue(5000);
-    final TCPClient sclient = serverFC.getClientAt(0);
+    final TCPClient sclient = serverFC.getClientAt(1);
 
     serverFC.addTCPClient(client);
     

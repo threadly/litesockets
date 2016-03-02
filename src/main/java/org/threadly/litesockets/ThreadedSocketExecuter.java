@@ -1,5 +1,6 @@
 package org.threadly.litesockets;
 
+import java.nio.channels.CancelledKeyException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
@@ -12,6 +13,7 @@ import org.threadly.concurrent.ScheduledExecutorServiceWrapper;
 import org.threadly.concurrent.SingleThreadScheduler;
 import org.threadly.concurrent.SubmitterScheduler;
 import org.threadly.util.ArgumentVerifier;
+import org.threadly.util.ExceptionUtils;
 
 /**
  * <p>This is a mutliThreaded implementation of a {@link SocketExecuter}.  It uses separate threads to perform Accepts, Reads and Writes.  
@@ -108,20 +110,20 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
 
     synchronized(client) {
       if(!client.getChannel().isConnected() && client.getChannel().isConnectionPending()) {
-        readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_CONNECT));
-        writeScheduler.execute(new AddToSelector(client, writeSelector, 0));
+        readScheduler.execute(new AddToSelector(readScheduler, client, readSelector, SelectionKey.OP_CONNECT));
+        writeScheduler.execute(new AddToSelector(writeScheduler, client, writeSelector, 0));
       } else if(client.canWrite() && client.canRead()) {
-        writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
-        readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
+        writeScheduler.execute(new AddToSelector(writeScheduler, client, writeSelector, SelectionKey.OP_WRITE));
+        readScheduler.execute(new AddToSelector(readScheduler, client, readSelector, SelectionKey.OP_READ));
       } else if (client.canRead()){
-        readScheduler.execute(new AddToSelector(client, readSelector, SelectionKey.OP_READ));
-        writeScheduler.execute(new AddToSelector(client, writeSelector, 0));
+        readScheduler.execute(new AddToSelector(readScheduler, client, readSelector, SelectionKey.OP_READ));
+        writeScheduler.execute(new AddToSelector(writeScheduler, client, writeSelector, 0));
       } else if (client.canWrite()){
-        writeScheduler.execute(new AddToSelector(client, writeSelector, SelectionKey.OP_WRITE));
-        readScheduler.execute(new AddToSelector(client, readSelector, 0));
+        writeScheduler.execute(new AddToSelector(writeScheduler, client, writeSelector, SelectionKey.OP_WRITE));
+        readScheduler.execute(new AddToSelector(readScheduler, client, readSelector, 0));
       } else {
-        writeScheduler.execute(new AddToSelector(client, writeSelector, 0));
-        readScheduler.execute(new AddToSelector(client, readSelector, 0));
+        writeScheduler.execute(new AddToSelector(writeScheduler, client, writeSelector, 0));
+        readScheduler.execute(new AddToSelector(readScheduler, client, readSelector, 0));
       }
     }
     readSelector.wakeup();
@@ -181,11 +183,19 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
         if(isRunning() && ! readSelector.selectedKeys().isEmpty()) {
           for(final SelectionKey sk: readSelector.selectedKeys()) {
             final Client client = clients.get(sk.channel());
-            if(sk.isConnectable()) {
-              doClientConnect(client, readSelector);
-              setClientOperations(client);
-            } else {
-              stats.addRead(doClientRead(client, readSelector));
+            if(client != null) {
+              try {
+                if(sk.isConnectable()) {
+                  doClientConnect(client, readSelector);
+                  sk.cancel();
+                  setClientOperations(client);
+                } else {
+                  stats.addRead(doClientRead(client, readSelector));
+                }
+              } catch(CancelledKeyException e) {
+                client.close();
+                ExceptionUtils.handleException(e);
+              }
             }
           }
         }

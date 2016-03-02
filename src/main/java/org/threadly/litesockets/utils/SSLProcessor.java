@@ -44,7 +44,7 @@ public class SSLProcessor {
   private final AtomicBoolean finishedHandshake = new AtomicBoolean(false); 
   private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
   private final SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>(false);
-  private final TransactionalByteBuffers encryptedReadBuffers = new TransactionalByteBuffers(false);
+  private final MergedByteBuffers encryptedReadBuffers = new MergedByteBuffers(false);
   private final MergedByteBuffers tempBuffers = new MergedByteBuffers(false); 
   private final SSLEngine ssle;
   private final Client client;
@@ -95,21 +95,23 @@ public class SSLProcessor {
     SSLEngineResult.HandshakeStatus hs = ssle.getHandshakeStatus();
     while(hs == NEED_TASK) {
       final Runnable task = ssle.getDelegatedTask();
-      ExceptionUtils.runRunnable(task);
+      if(task != null) {
+        ExceptionUtils.runRunnable(task);
+      }
       hs = ssle.getHandshakeStatus();
     }
   }
 
   private ByteBuffer getAppWriteBuffer() {
     if(this.writeBuffer == null || this.writeBuffer.remaining() < ssle.getSession().getPacketBufferSize()+EXTRA_BUFFER_AMOUNT) {
-      this.writeBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()*PREALLOCATE_BUFFER_MULTIPLIER);
+      this.writeBuffer = ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()+EXTRA_BUFFER_AMOUNT);
     }
-    return ByteBuffer.allocate(ssle.getSession().getPacketBufferSize()*PREALLOCATE_BUFFER_MULTIPLIER);
+    return writeBuffer;
   }
   
   private ByteBuffer getDecryptedByteBuffer() {
     if(decryptedReadBuffer == null || decryptedReadBuffer.remaining() < ssle.getSession().getApplicationBufferSize()+EXTRA_BUFFER_AMOUNT) {
-      decryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getApplicationBufferSize()*PREALLOCATE_BUFFER_MULTIPLIER);
+      decryptedReadBuffer = ByteBuffer.allocate(ssle.getSession().getApplicationBufferSize()+EXTRA_BUFFER_AMOUNT);
     }
     return decryptedReadBuffer;
   }
@@ -157,6 +159,7 @@ public class SSLProcessor {
         mbb.add(tmpBB);
       }
     }
+    writeBuffer = null;
     if(gotFinished && finishedHandshake.compareAndSet(false, true)) {
       handshakeFuture.setResult(ssle.getSession());
       if(tempBuffers.remaining() > 0) {
@@ -180,10 +183,6 @@ public class SSLProcessor {
     }
     encryptedReadBuffers.add(bb);
     final ByteBuffer encBB = encryptedReadBuffers.pull(encryptedReadBuffers.remaining());
-//    ByteBuffer enc2bb = ByteBuffer.allocate(encBB.remaining());
-//    enc2bb.put(encBB);
-//    enc2bb.flip();
-//    encBB = enc2bb;
     while(encBB.remaining() > 0) {
       final ByteBuffer dbb = getDecryptedByteBuffer();
       final ByteBuffer newBB = dbb.duplicate();
