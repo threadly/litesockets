@@ -9,7 +9,6 @@ import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -31,14 +30,14 @@ import javax.xml.bind.DatatypeConverter;
  * Common utilities for SSL connections. 
  */
 public class SSLUtils {
-  
+
   public static final String SSL_HANDSHAKE_ERROR = "Problem doing SSL Handshake";
   public static final String PEM_CERT_START = "-----BEGIN CERTIFICATE-----";
   public static final String PEM_CERT_END = "-----END CERTIFICATE-----";
   public static final String PEM_KEY_START = "-----BEGIN PRIVATE KEY-----";
   public static final String PEM_KEY_END = "-----END PRIVATE KEY-----";
   public static final SSLContext OPEN_SSL_CTX; 
-  
+
   static {
     try {
       //We dont allow SSL by default connections anymore
@@ -50,12 +49,12 @@ public class SSLUtils {
       throw new RuntimeException(e);
     }
   }
-  
+
   public static TrustManager[] getOpenTrustManager() {
     return new TrustManager [] {new SSLUtils.FullTrustManager() };
   }
 
-  
+
   /**
    * Java 7 introduced SNI by default when you establish SSl connections.
    * The problem is there is no way to turn it off or on at a per connection level.
@@ -68,7 +67,7 @@ public class SSLUtils {
   public static void disableSNI() {
     System.setProperty ("jsse.enableSNIExtension", "false");
   }
-  
+
   /**
    * Java 7 introduced SNI by default when you establish SSl connections.
    * The problem is there is no way to turn it off or on at a per connection level.
@@ -81,7 +80,7 @@ public class SSLUtils {
   public static void enableSNI() {
     System.setProperty ("jsse.enableSNIExtension", "true");
   }
-  
+
   public static String fileToString(File file) throws IOException {
     RandomAccessFile raf = new RandomAccessFile(file, "r");
     byte[] ba = new byte[(int)raf.length()];
@@ -89,7 +88,7 @@ public class SSLUtils {
     raf.close();
     return new String(ba);
   }
-  
+
   public static List<X509Certificate> getPEMFileCerts(File certFile) throws CertificateException, IOException {
     String certString = fileToString(certFile);
     List<X509Certificate> certs = new ArrayList<X509Certificate>();
@@ -103,7 +102,7 @@ public class SSLUtils {
     }
     return certs;
   }
-  
+
   public static RSAPrivateKey getPEMFileKey(File keyFile) throws IOException, InvalidKeySpecException, NoSuchAlgorithmException {
     String keyString = fileToString(keyFile);
     int keyPos = keyString.indexOf(PEM_KEY_START)+PEM_KEY_START.length();
@@ -111,11 +110,11 @@ public class SSLUtils {
     if(keyPos == -1 || keyEnd == -1) {
       throw new InvalidKeySpecException("could not find key!");
     }
-    
+
     PKCS8EncodedKeySpec keyspec = new PKCS8EncodedKeySpec(DatatypeConverter.parseBase64Binary(keyString.substring(keyPos, keyEnd).trim()));
     return (RSAPrivateKey) KeyFactory.getInstance("RSA").generatePrivate(keyspec);
   }
-  
+
   /**
    * Creates a keystore from PEM files (something java should just do...).  There 
    * are some minor restrictions.  The key must be in PKCS8 (not PKCS1). Not sure
@@ -128,26 +127,26 @@ public class SSLUtils {
   public static KeyManagerFactory generateKeyStoreFromPEM(File certFile, File keyFile) throws KeyStoreException{
     char[] password = UUID.randomUUID().toString().toCharArray();
     try {
-    List<X509Certificate> certs = getPEMFileCerts(certFile);
-    RSAPrivateKey key = getPEMFileKey(keyFile);
-    
-    KeyStore keystore = KeyStore.getInstance("JKS");
-    keystore.load(null);
-    for(int i=0; i<certs.size(); i++) {
-      keystore.setCertificateEntry("cert-"+i, certs.get(i));
-    }
-    
-    keystore.setKeyEntry("mykey", key, password, certs.toArray(new X509Certificate[certs.size()]));
-    KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
-    kmf.init(keystore, password);
-    return kmf;
+      List<X509Certificate> certs = getPEMFileCerts(certFile);
+      RSAPrivateKey key = getPEMFileKey(keyFile);
+
+      KeyStore keystore = KeyStore.getInstance("JKS");
+      keystore.load(null);
+      for(int i=0; i<certs.size(); i++) {
+        keystore.setCertificateEntry("cert-"+i, certs.get(i));
+      }
+
+      keystore.setKeyEntry("mykey", key, password, certs.toArray(new X509Certificate[certs.size()]));
+      KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
+      kmf.init(keystore, password);
+      return kmf;
     } catch(Exception e) {
       throw new KeyStoreException(e);
     }
   }
-  
+
   private SSLUtils(){}
-  
+
   /**
    * This trust manager just trusts everyone and everything.  You probably 
    * should not be using it unless you know what your doing.
