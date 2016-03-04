@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -54,13 +55,10 @@ public class SSLTests {
     SE.start();
     port = PortUtils.findTCPPort();
     KS = KeyStore.getInstance(KeyStore.getDefaultType());
-    System.out.println(ClassLoader.getSystemClassLoader().getResource("keystore.jks"));
-    String filename = ClassLoader.getSystemClassLoader().getResource("keystore.jks").getFile();
-    FileInputStream ksf = new FileInputStream(filename);
-    KS.load(ksf, "password".toCharArray());
-    kmf = KeyManagerFactory.getInstance("SunX509");
-    kmf.init(KS, "password".toCharArray());
-    //sslCtx = SSLContext.getInstance("TLS");
+
+    File filename = new File(ClassLoader.getSystemClassLoader().getResource("test.pem").getFile());
+
+    kmf = SSLUtils.generateKeyStoreFromPEM(filename, filename);    
     sslCtx = SSLContext.getInstance("SSL");
     sslCtx.init(kmf.getKeyManagers(), myTMs, null);
     serverFC = new FakeTCPServerClient();
