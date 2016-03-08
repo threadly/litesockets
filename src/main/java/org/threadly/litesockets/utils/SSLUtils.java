@@ -31,6 +31,7 @@ import javax.xml.bind.DatatypeConverter;
  */
 public class SSLUtils {
 
+  public static final int MAX_PEM_FILE_SIZE = 1024*1024;
   public static final String SSL_HANDSHAKE_ERROR = "Problem doing SSL Handshake";
   public static final String PEM_CERT_START = "-----BEGIN CERTIFICATE-----";
   public static final String PEM_CERT_END = "-----END CERTIFICATE-----";
@@ -41,7 +42,7 @@ public class SSLUtils {
   static {
     try {
       //We dont allow SSL by default connections anymore
-      OPEN_SSL_CTX = SSLContext.getInstance("TLS");
+      OPEN_SSL_CTX = SSLContext.getInstance("SSL");
       OPEN_SSL_CTX.init(null, getOpenTrustManager(), null);
     } catch (NoSuchAlgorithmException e) {
       throw new RuntimeException(e);
@@ -81,8 +82,15 @@ public class SSLUtils {
     System.setProperty ("jsse.enableSNIExtension", "true");
   }
 
-  public static String fileToString(File file) throws IOException {
+  public static String fileToString(File file, int max) throws IOException {
+    if(!file.exists() && file.canRead()) {
+      throw new IllegalStateException("File "+file.getName()+" either does not exist or can not be read");
+    }
     RandomAccessFile raf = new RandomAccessFile(file, "r");
+    if(raf.length() > max) {
+      raf.close();
+      throw new IllegalStateException("File "+file.getName()+" is to large (>"+max);
+    }
     byte[] ba = new byte[(int)raf.length()];
     raf.read(ba);
     raf.close();
@@ -90,7 +98,7 @@ public class SSLUtils {
   }
 
   public static List<X509Certificate> getPEMFileCerts(File certFile) throws CertificateException, IOException {
-    String certString = fileToString(certFile);
+    String certString = fileToString(certFile, MAX_PEM_FILE_SIZE);
     List<X509Certificate> certs = new ArrayList<X509Certificate>();
     int certPos = certString.indexOf(PEM_CERT_START);
     CertificateFactory factory = CertificateFactory.getInstance("X.509");
@@ -104,7 +112,7 @@ public class SSLUtils {
   }
 
   public static RSAPrivateKey getPEMFileKey(File keyFile) throws IOException, InvalidKeySpecException, NoSuchAlgorithmException {
-    String keyString = fileToString(keyFile);
+    String keyString = fileToString(keyFile, MAX_PEM_FILE_SIZE);
     int keyPos = keyString.indexOf(PEM_KEY_START)+PEM_KEY_START.length();
     int keyEnd = keyString.indexOf(PEM_KEY_END);
     if(keyPos == -1 || keyEnd == -1) {
@@ -116,13 +124,13 @@ public class SSLUtils {
   }
 
   /**
-   * Creates a keystore from PEM files (something java should just do...).  There 
-   * are some minor restrictions.  The key must be in PKCS8 (not PKCS1). Not sure
+   * Creates a {@link KeyManagerFactory} from PEM files (something java should just do...).  There 
+   * are some minor restrictions.  The key must be in PKCS8 (not PKCS1).
    * 
-   * @param certFile
-   * @param keyFile
-   * @return
-   * @throws KeyStoreException
+   * @param certFile the PEM encoded certificate file to use. 
+   * @param keyFile the PEM encoded key to use.
+   * @return a {@link KeyManagerFactory} using the provided cert and file.
+   * @throws KeyStoreException Thrown if there is any kind of error opening or parsing the PEM files.
    */
   public static KeyManagerFactory generateKeyStoreFromPEM(File certFile, File keyFile) throws KeyStoreException{
     char[] password = UUID.randomUUID().toString().toCharArray();
