@@ -210,26 +210,32 @@ public class SSLProcessor {
     return mbb;
 
   }
+  
+  private void finishHandshake() {
+    if(this.finishedHandshake.compareAndSet(false, true)){
+      handshakeFuture.setResult(ssle.getSession());
+      if(tempBuffers.remaining() > 0) {
+        client.write(EMPTY_BYTEBUFFER); //make the client write to flush tempBuffers
+      }
+    }
+  }
 
   private void processHandshake(final HandshakeStatus status) throws SSLException {
     switch(status) {
+    case NOT_HANDSHAKING:
+      //Fix for older android versions, they dont send a finished
     case FINISHED: {
-      if(this.finishedHandshake.compareAndSet(false, true)){
-        handshakeFuture.setResult(ssle.getSession());
-        if(tempBuffers.remaining() > 0) {
-          client.write(EMPTY_BYTEBUFFER); //make the client write to flush tempBuffers
-        }
+      if(handShakeStarted()) {
+        finishHandshake();
       }
     } break;
     case NEED_TASK: {
-      while (ssle.getHandshakeStatus() == NEED_TASK) {
-        runTasks();
-      }
+      runTasks();
     } break;
     case NEED_WRAP: {
       client.write(EMPTY_BYTEBUFFER);
     } break;
-    case NOT_HANDSHAKING:
+
     default: {
 
     } break;
