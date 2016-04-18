@@ -35,6 +35,7 @@ import org.threadly.test.concurrent.TestCondition;
 
 
 public class TCPTests {
+  private static final String OS = System.getProperty("os.name").toLowerCase();
   public static final String SMALL_TEXT = "TEST111";
   public static final ByteBuffer SMALL_TEXT_BUFFER = ByteBuffer.wrap(SMALL_TEXT.getBytes());
   public static final String LARGE_TEXT;
@@ -110,8 +111,10 @@ public class TCPTests {
     assertEquals(-1, client.clientOptions().getUdpFrameSize());
     
     assertFalse(client.isEncrypted());
-    assertFalse(client.clientOptions().setSocketSendBuffer(1));
-    assertFalse(client.clientOptions().setSocketRecvBuffer(1));
+    if(!OS.contains("win")) {
+      assertFalse(client.clientOptions().setSocketSendBuffer(1));
+      assertFalse(client.clientOptions().setSocketRecvBuffer(1));
+    }
     
     client.close();
     
