@@ -35,7 +35,7 @@ public class UDPClient extends Client {
   
 
   protected UDPClient(final InetSocketAddress sa, final UDPServer server) {
-    super(server.getSocketExecuter());
+    super(server.getSocketExecuter(), false);
     this.remoteAddress = sa;
     udpServer = server;
   }

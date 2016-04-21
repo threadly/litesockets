@@ -126,7 +126,18 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
       if(server.getServerType() == WireProtocol.TCP) {
         acceptScheduler.execute(new AddToSelector(acceptScheduler, server, acceptSelector, SelectionKey.OP_ACCEPT));
       } else if(server.getServerType() == WireProtocol.UDP) {
-        acceptScheduler.execute(new AddToSelector(acceptScheduler, server, acceptSelector, SelectionKey.OP_READ));
+        readScheduler.execute(new AddToSelector(readScheduler, server, readSelector, SelectionKey.OP_READ));
+        readSelector.wakeup();
+        if(server instanceof UDPServer) {
+          UDPServer s = (UDPServer) server;
+          if(s.needsWrite()) {
+            writeScheduler.execute(new AddToSelector(writeScheduler, server, writeSelector, SelectionKey.OP_WRITE));
+          } else {
+            writeScheduler.execute(new AddToSelector(writeScheduler, server, writeSelector, 0));
+          }
+          writeSelector.wakeup();
+          
+        }
       } else {
         throw new UnsupportedOperationException("Unknown Server WireProtocol!"+ server.getServerType());
       }

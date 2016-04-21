@@ -151,7 +151,18 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
                   }
                 } 
                 if(key.isWritable()) {
-                  stats.addWrite(doClientWrite(tmpClient, commonSelector));
+                  if(tmpClient != null){
+                    stats.addWrite(doClientWrite(tmpClient, commonSelector));
+                  } else {
+                    final Server server = servers.get(key.channel());
+                    if(server != null) {
+                      if(server instanceof UDPServer) {
+                        UDPServer us = (UDPServer) server;
+                        stats.addWrite(us.doWrite());
+                        startListening(us);
+                      }
+                    }
+                  }
                 }
               }
             }

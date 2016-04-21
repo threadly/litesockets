@@ -69,14 +69,16 @@ public abstract class Client {
   protected final AtomicBoolean closed = new AtomicBoolean(false);
   protected final ListenerHelper<Reader> readerListener = ListenerHelper.build(Reader.class);
   protected final ListenerHelper<CloseListener> closerListener = ListenerHelper.build(CloseListener.class);
+  private final boolean combineReadBuffers;
   protected volatile boolean useNativeBuffers = false;
   protected volatile boolean keepReadBuffer = true;
   protected volatile int maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;
   protected volatile int newReadBufferSize = NEW_READ_BUFFER_SIZE;
   private ByteBuffer readByteBuffer = EMPTY_BYTEBUFFER;
   
-  public Client(final SocketExecuter se) {
+  public Client(final SocketExecuter se, boolean combineReadBuffers) {
     this.se = se;
+    this.combineReadBuffers = combineReadBuffers;
   }
   
   /**
@@ -285,7 +287,7 @@ public abstract class Client {
     synchronized(readerLock) {
       final int start = readBuffers.remaining();
       readBuffers.add(bb);
-      if(this.readerListener.registeredListenerCount() > 0 && readBuffers.remaining() > 0 && start == 0){
+      if(!this.combineReadBuffers || (this.readerListener.registeredListenerCount() > 0 && readBuffers.remaining() > 0 && start == 0)){
         callReader();
       }
     }
@@ -405,8 +407,15 @@ public abstract class Client {
    */
   public MergedByteBuffers getRead() {
     MergedByteBuffers mbb = null;
-    synchronized(readerLock) {
-      mbb = readBuffers.duplicateAndClean();
+    if(this.combineReadBuffers) {
+      synchronized(readerLock) {
+        mbb = readBuffers.duplicateAndClean();
+      }
+    } else {
+      mbb = new MergedByteBuffers();
+      synchronized(readerLock) {
+        mbb.add(readBuffers.pop());
+      }
     }
     if(mbb.remaining() >= maxBufferSize) {
       se.setClientOperations(this);

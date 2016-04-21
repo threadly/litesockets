@@ -47,30 +47,17 @@ public class MergedByteBuffers {
    */
   public void add(final ByteBuffer buffer) {
     if(buffer.hasRemaining()) {
-      ByteBuffer bb = buffer.slice();
-      if(this.markReadOnly) {
-        availableBuffers.add(bb.asReadOnlyBuffer());
+      if(markReadOnly) {
+        doAdd(buffer.slice().asReadOnlyBuffer());
       } else {
-        availableBuffers.add(bb);
+        doAdd(buffer.slice());
       }
-      currentSize+=buffer.remaining();
     } 
   }
   
-  
-  /**
-   * Make a complete copy of this MergedByteBuffer.  Both references should function independently, but
-   * they are still using the same ByteBuffer backing arrays so any change to the actual byte[] in the 
-   * backing ByteBuffers will change in both.
-   * 
-   * @return a new MergedByteBuffers object that duplicates this one, but works independently.
-   */
-  public MergedByteBuffers copy() {
-    final MergedByteBuffers mbb  = new MergedByteBuffers();
-    for(final ByteBuffer bb: this.availableBuffers) {
-      mbb.add(bb.duplicate());
-    }
-    return mbb;
+  private void doAdd(final ByteBuffer bb) {
+    availableBuffers.add(bb);
+    currentSize+=bb.remaining();
   }
   
   /**
@@ -86,6 +73,21 @@ public class MergedByteBuffers {
     mbb.availableBuffers.clear();
     mbb.consumedSize += mbb.currentSize;
     mbb.currentSize = 0;
+  }
+  
+  /**
+   * Make a complete copy of this MergedByteBuffer.  Both references should function independently, but
+   * they are still using the same ByteBuffer backing arrays so any change to the actual byte[] in the 
+   * backing ByteBuffers will change in both.
+   * 
+   * @return a new MergedByteBuffers object that duplicates this one, but works independently.
+   */
+  public MergedByteBuffers copy() {
+    final MergedByteBuffers mbb  = new MergedByteBuffers();
+    for(final ByteBuffer bb: this.availableBuffers) {
+      mbb.add(bb.duplicate());
+    }
+    return mbb;
   }
   
   /**

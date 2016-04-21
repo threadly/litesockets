@@ -6,6 +6,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectableChannel;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 
 /**
@@ -23,6 +24,7 @@ public class UDPServer extends Server {
   public static final int DEFAULT_FRAME_SIZE = 1500;
   
   private final ConcurrentHashMap<InetSocketAddress, UDPClient> clients = new ConcurrentHashMap<InetSocketAddress, UDPClient>();
+  private final ConcurrentLinkedQueue<WriteDataPair> writeQueue = new ConcurrentLinkedQueue<WriteDataPair>();
   private final DatagramChannel channel;
   private volatile int frameSize = DEFAULT_FRAME_SIZE;
   private volatile ClientAcceptor clientAcceptor;
@@ -49,6 +51,7 @@ public class UDPServer extends Server {
       try {
         final InetSocketAddress isa = (InetSocketAddress)channel.receive(bb);
         bb.flip();
+        System.out.println("READ:"+bb);
         getSocketExecuter().getThreadScheduler().execute(new NewDataRunnable(this, isa, bb));
       } catch (IOException e) {
 
@@ -90,8 +93,25 @@ public class UDPServer extends Server {
     }
   }
   
-  protected int write(ByteBuffer bb, InetSocketAddress remoteAddress) throws IOException {
-    return channel.send(bb, remoteAddress);
+  protected int doWrite() {
+    WriteDataPair wdp = writeQueue.poll();
+    if(wdp != null) {
+      try {
+        return channel.send(wdp.bb, wdp.isa);
+      } catch (IOException e) {
+        return 0;
+      }
+    }
+    return 0;
+  }
+  
+  protected boolean needsWrite() {
+    return !writeQueue.isEmpty();
+  }
+  
+  protected void write(ByteBuffer bb, InetSocketAddress remoteAddress) throws IOException {
+    writeQueue.add(new WriteDataPair(remoteAddress, bb));
+    getSocketExecuter().startListening(this);
   }
   
   /**
@@ -144,6 +164,16 @@ public class UDPServer extends Server {
       }      
     }
     
+  }
+  
+  private static class WriteDataPair {
+    private final ByteBuffer bb;
+    private final InetSocketAddress isa;
+    
+    private WriteDataPair(InetSocketAddress isa, ByteBuffer bb) {
+      this.bb = bb;
+      this.isa = isa;
+    }
   }
 
 }

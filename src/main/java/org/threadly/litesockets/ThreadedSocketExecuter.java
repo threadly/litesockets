@@ -149,10 +149,6 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
             if(sk.isAcceptable()) {
               final ServerSocketChannel server = (ServerSocketChannel) sk.channel();
               doServerAccept(servers.get(server));
-            } else if(sk.isReadable()) {
-              final DatagramChannel server = (DatagramChannel) sk.channel();
-              final Server udpServer = servers.get(server);
-              udpServer.acceptChannel(server);
             }
           }
         }
@@ -196,6 +192,14 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
                 client.close();
                 ExceptionUtils.handleException(e);
               }
+            } else {
+              final Server server = servers.get(sk.channel());
+              if(server != null) {
+                if(sk.isReadable()) {
+                  final DatagramChannel dgc = (DatagramChannel) sk.channel();
+                  server.acceptChannel(dgc);
+                }
+              }
             }
           }
         }
@@ -223,7 +227,18 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
         if(isRunning() && ! writeSelector.selectedKeys().isEmpty()) {
           for(final SelectionKey sk: writeSelector.selectedKeys()) {
             final Client client = clients.get(sk.channel());
-            stats.addWrite(doClientWrite(client, writeSelector));
+            if(client != null) {
+              stats.addWrite(doClientWrite(client, writeSelector));
+            } else {
+              final Server server = servers.get(sk.channel());
+              if(server != null) {
+                if(server instanceof UDPServer) {
+                  UDPServer us = (UDPServer) server;
+                  us.doWrite();
+                  startListening(us);
+                }
+              }
+            }
           }
         }
         if(isRunning()) {

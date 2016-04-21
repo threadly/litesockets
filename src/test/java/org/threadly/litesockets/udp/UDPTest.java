@@ -132,9 +132,10 @@ public class UDPTest {
     new TestCondition(){
       @Override
       public boolean get() {
+        System.out.println(serverFC.clientList.size()+":"+serverFC);
         return serverFC.clientList.size() == 10;
       }
-    }.blockTillTrue(5000);
+    }.blockTillTrue(5000, 200);
 
     new TestCondition(){
       @Override
