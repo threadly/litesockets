@@ -21,20 +21,20 @@ public class MergedByteBuffers {
   public static final int BYTES_IN_LONG = Long.SIZE/Byte.SIZE;
   public static final int BYTES_IN_INT = Integer.SIZE/Byte.SIZE;
   public static final int BYTES_IN_SHORT = Short.SIZE/Byte.SIZE;
-  
+
   public static final short UNSIGNED_BYTE_MASK = 0xff;
   public static final int UNSIGNED_SHORT_MASK = 0xffff;
   public static final long UNSIGNED_INT_MASK = 0xffffffffL;
-  
+
   protected final ArrayDeque<ByteBuffer> availableBuffers = new ArrayDeque<ByteBuffer>();
   protected final boolean markReadOnly;
   protected int currentSize;
   protected long consumedSize;
-  
+
   public MergedByteBuffers() {
     this(true);
   }
-  
+
   public MergedByteBuffers(boolean readOnly) {
     this.markReadOnly = readOnly;
   }
@@ -59,7 +59,7 @@ public class MergedByteBuffers {
     availableBuffers.add(bb);
     currentSize+=bb.remaining();
   }
-  
+
   /**
    * This method allows you to add a MergedByteBuffers to another MergedByteBuffers.  
    * All must be done in order of how you want to pull the data back out.
@@ -74,7 +74,7 @@ public class MergedByteBuffers {
     mbb.consumedSize += mbb.currentSize;
     mbb.currentSize = 0;
   }
-  
+
   /**
    * Make a complete copy of this MergedByteBuffer.  Both references should function independently, but
    * they are still using the same ByteBuffer backing arrays so any change to the actual byte[] in the 
@@ -111,7 +111,7 @@ public class MergedByteBuffers {
   public int indexOf(final String pattern) {
     return indexOf(pattern, Charset.forName("US-ASCII"));
   }
-  
+
   /**
    * Like the indexOf in String object this find a pattern of bytes and reports the position they start at.
    * 
@@ -123,7 +123,7 @@ public class MergedByteBuffers {
     ArgumentVerifier.assertNotNull(pattern, "String");
     return indexOf(pattern.getBytes(charSet));
   }
-  
+
   /**
    * Like the indexOf in String object this find a pattern of bytes and reports the position they start at.
    * 
@@ -140,9 +140,12 @@ public class MergedByteBuffers {
     int bufPos = 0;
 
     MergedByteBuffers mbb = copy();
+    byte[] prevMatched = new byte[pattern.length];
 
     while(mbb.remaining() >= pattern.length-patPos) {
-      if(pattern[patPos] == mbb.get()) {
+      prevMatched[patPos] = mbb.get();
+      //System.out.println(patPos+":"+bufPos+":"+mbb.remaining());
+      if(pattern[patPos] == prevMatched[patPos]) {
         if(patPos == pattern.length-1) {
           return bufPos;
         }
@@ -150,8 +153,14 @@ public class MergedByteBuffers {
       } else {
         bufPos++;
         if (patPos != 0) {
-          mbb = copy();
-          mbb.discard(bufPos);
+          ByteBuffer bb = ByteBuffer.wrap(prevMatched);
+          bb.position(1);
+          bb.limit(patPos+1);
+          if(bb.remaining() > 0) {
+            //System.out.println("-----"+bb.remaining()+":"+patPos+":"+bufPos);
+            mbb.addFront(bb);
+          }
+          prevMatched = new byte[pattern.length];
         }
         patPos = 0;
       }
@@ -159,6 +168,10 @@ public class MergedByteBuffers {
     return -1;
   }
 
+  private void addFront(ByteBuffer bb) {
+    this.availableBuffers.addFirst(bb.duplicate());
+    this.currentSize+=bb.remaining();
+  }
 
   /**
    * Check how much data is available in the MergedByteBuffer.
@@ -190,7 +203,7 @@ public class MergedByteBuffers {
     consumedSize++;
     return result;
   }
-  
+
   /**
    * Returns the next {@code byte} unsigned as {@code short} stored in the MergedByteBuffer.
    * 
@@ -253,7 +266,7 @@ public class MergedByteBuffers {
     }
     return pull(BYTES_IN_LONG).getLong();
   }
-  
+
 
   /**
    * Fills the passed {@code byte[]} completely with data from the MergedByteBuffer. 
@@ -271,8 +284,8 @@ public class MergedByteBuffers {
     consumedSize += destBytes.length;
     currentSize -= destBytes.length;
   }
-  
-  
+
+
   /**
    * Get the size of the next full {@link ByteBuffer} in the queue.
    * 
@@ -284,7 +297,7 @@ public class MergedByteBuffers {
     }
     return availableBuffers.peekFirst().remaining();
   }
-  
+
   /**
    * Get the next Complete {@link ByteBuffer} in its entirety.  This byteBuffer could be 
    * any size and it will just pull it off the queue and return it.
@@ -368,7 +381,7 @@ public class MergedByteBuffers {
   public String getAsString(final int size) {
     return getAsString(size, Charset.forName("US-ASCII"));
   }
-  
+
   /**
    * This will return the specified number of bytes as a String object.
    * 
@@ -382,11 +395,11 @@ public class MergedByteBuffers {
     get(ba);
     return new String(ba, charSet);
   }
-  
+
   protected ByteBuffer removeFirstBuffer() {
     return this.availableBuffers.pollFirst();
   }
-  
+
   private void doGet(final byte[] destBytes) {
     int remainingToCopy = destBytes.length;
 
