@@ -51,7 +51,6 @@ public class UDPServer extends Server {
       try {
         final InetSocketAddress isa = (InetSocketAddress)channel.receive(bb);
         bb.flip();
-        System.out.println("READ:"+bb);
         getSocketExecuter().getThreadScheduler().execute(new NewDataRunnable(this, isa, bb));
       } catch (IOException e) {
 
@@ -166,6 +165,11 @@ public class UDPServer extends Server {
     
   }
   
+  /**
+   * 
+   * @author lwahlmeier
+   *
+   */
   private static class WriteDataPair {
     private final ByteBuffer bb;
     private final InetSocketAddress isa;

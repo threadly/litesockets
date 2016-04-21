@@ -105,7 +105,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     return us;
   }
   
-  private boolean checkServer(final Server server) {
+  protected boolean checkServer(final Server server) {
     try{
       checkRunning();
     } catch(Exception e) {
@@ -119,46 +119,21 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   }
   
   @Override
-  public void startListening(final Server server) {
-    if(!checkServer(server)) {
-      return;
-    } else {
-      if(server.getServerType() == WireProtocol.TCP) {
-        acceptScheduler.execute(new AddToSelector(acceptScheduler, server, acceptSelector, SelectionKey.OP_ACCEPT));
-      } else if(server.getServerType() == WireProtocol.UDP) {
-        readScheduler.execute(new AddToSelector(readScheduler, server, readSelector, SelectionKey.OP_READ));
-        readSelector.wakeup();
-        if(server instanceof UDPServer) {
-          UDPServer s = (UDPServer) server;
-          if(s.needsWrite()) {
-            writeScheduler.execute(new AddToSelector(writeScheduler, server, writeSelector, SelectionKey.OP_WRITE));
-          } else {
-            writeScheduler.execute(new AddToSelector(writeScheduler, server, writeSelector, 0));
-          }
-          writeSelector.wakeup();
-          
-        }
-      } else {
-        throw new UnsupportedOperationException("Unknown Server WireProtocol!"+ server.getServerType());
-      }
-      acceptSelector.wakeup();
-    }
-  }
-  
-  
-  @Override
   public void stopListening(final Server server) {
     if(!checkServer(server)) {
       return;
     } else {
       if(server.getServerType() == WireProtocol.TCP) {
         acceptScheduler.execute(new AddToSelector(acceptScheduler, server, acceptSelector, 0));
+        acceptSelector.wakeup();
       } else if(server.getServerType() == WireProtocol.UDP) {
-        acceptScheduler.execute(new AddToSelector(acceptScheduler, server, acceptSelector, 0));
+        readScheduler.execute(new AddToSelector(readScheduler, server, readSelector, 0));
+        writeScheduler.execute(new AddToSelector(writeScheduler, server, writeSelector, 0));
+        readSelector.wakeup();
+        writeSelector.wakeup();
       } else {
         throw new UnsupportedOperationException("Unknown Server WireProtocol!"+ server.getServerType());
       }
-      acceptSelector.wakeup();
     }
   }
   

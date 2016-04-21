@@ -57,7 +57,7 @@ public class TCPClient extends Client {
    * @throws IOException - This is thrown if there are any problems making the socket.
    */
   protected TCPClient(final SocketExecuter sei, final String host, final int port) throws IOException {
-    super(sei, true);
+    super(sei);
     remoteAddress = new InetSocketAddress(host, port);
     channel = SocketChannel.open();
     channel.configureBlocking(false);
@@ -72,7 +72,7 @@ public class TCPClient extends Client {
    * @throws IOException if there is anything wrong with the {@link SocketChannel} this will be thrown.
    */
   protected TCPClient(final SocketExecuter sei, final SocketChannel channel) throws IOException {
-    super(sei, true);
+    super(sei);
     if(! channel.isOpen()) {
       throw new ClosedChannelException();
     }

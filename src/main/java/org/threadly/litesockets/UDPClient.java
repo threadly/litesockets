@@ -9,6 +9,7 @@ import java.nio.channels.SocketChannel;
 
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
+import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.util.Clock;
 
 /**
@@ -35,7 +36,7 @@ public class UDPClient extends Client {
   
 
   protected UDPClient(final InetSocketAddress sa, final UDPServer server) {
-    super(server.getSocketExecuter(), false);
+    super(server.getSocketExecuter());
     this.remoteAddress = sa;
     udpServer = server;
   }
@@ -81,11 +82,6 @@ public class UDPClient extends Client {
   @Override
   public WireProtocol getProtocol() {
     return WireProtocol.UDP;
-  }
-
-  @Override
-  protected void addReadBuffer(final ByteBuffer bb) {
-    super.addReadBuffer(bb);
   }
 
   @Override
@@ -179,6 +175,31 @@ public class UDPClient extends Client {
   @Override
   public ClientOptions clientOptions() {
     return uso;
+  }
+  
+  @Override
+  protected void addReadBuffer(final ByteBuffer bb) {
+    addReadStats(bb.remaining());
+    synchronized(readerLock) {
+      readBuffers.add(bb);
+      callReader();
+    }
+  }
+  
+  @Override
+  public MergedByteBuffers getRead() {
+    MergedByteBuffers mbb = new MergedByteBuffers();
+    int start = 0;
+    int finished = 0;
+    synchronized(readerLock) {
+      start = getReadBufferSize();
+      mbb.add(readBuffers.pop());
+      finished = start - getReadBufferSize();
+    }
+    if(start >= maxBufferSize && finished < maxBufferSize) {
+      se.setClientOperations(this);
+    }
+    return mbb;
   }
 
   /**

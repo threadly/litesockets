@@ -129,6 +129,32 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
     readSelector.wakeup();
     writeSelector.wakeup();
   }
+  
+  @Override
+  public void startListening(final Server server) {
+    if(!checkServer(server)) {
+      return;
+    } else {
+      if(server.getServerType() == WireProtocol.TCP) {
+        acceptScheduler.execute(new AddToSelector(acceptScheduler, server, acceptSelector, SelectionKey.OP_ACCEPT));
+        acceptSelector.wakeup();
+      } else if(server.getServerType() == WireProtocol.UDP) {
+        readScheduler.execute(new AddToSelector(readScheduler, server, readSelector, SelectionKey.OP_READ));
+        readSelector.wakeup();
+        if(server instanceof UDPServer) {
+          UDPServer s = (UDPServer) server;
+          if(s.needsWrite()) {
+            writeScheduler.execute(new AddToSelector(writeScheduler, server, writeSelector, SelectionKey.OP_WRITE));
+          } else {
+            writeScheduler.execute(new AddToSelector(writeScheduler, server, writeSelector, 0));
+          }
+          writeSelector.wakeup();
+        }
+      } else {
+        throw new UnsupportedOperationException("Unknown Server WireProtocol!"+ server.getServerType());
+      }
+    }
+  }
 
   /**
    * Runnable for the Acceptor thread.  This runs the acceptSelector on the AcceptorThread. 

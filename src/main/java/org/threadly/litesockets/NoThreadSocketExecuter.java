@@ -70,6 +70,29 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
     }
     commonSelector.wakeup();
   }
+  
+  @Override
+  public void startListening(final Server server) {
+    if(!checkServer(server)) {
+      return;
+    } else {
+      if(server.getServerType() == WireProtocol.TCP) {
+        schedulerPool.execute(new AddToSelector(schedulerPool, server, commonSelector, SelectionKey.OP_ACCEPT));
+      } else if(server.getServerType() == WireProtocol.UDP) {
+        if(server instanceof UDPServer) {
+          UDPServer s = (UDPServer) server;
+          if(s.needsWrite()) {
+            schedulerPool.execute(new AddToSelector(schedulerPool, server, commonSelector, SelectionKey.OP_WRITE|SelectionKey.OP_READ));
+          } else {
+            schedulerPool.execute(new AddToSelector(schedulerPool, server, commonSelector, SelectionKey.OP_READ));
+          }
+        }
+      } else {
+        throw new UnsupportedOperationException("Unknown Server WireProtocol!"+ server.getServerType());
+      }
+      commonSelector.wakeup();
+    }
+  }
 
   @Override
   protected void startupService() {
