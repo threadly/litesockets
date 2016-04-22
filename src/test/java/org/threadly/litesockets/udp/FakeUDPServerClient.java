@@ -37,6 +37,7 @@ public class FakeUDPServerClient implements CloseListener, Reader, ClientAccepto
   @Override
   public void accept(Client c) {
     UDPClient uc = (UDPClient) c;
+    System.out.println("New Client:"+this);
     uc.setReader(this);
     uc.addCloseListener(this);
     clients.put(uc, new MergedByteBuffers());
@@ -51,6 +52,7 @@ public class FakeUDPServerClient implements CloseListener, Reader, ClientAccepto
     if(mbb != null) {
       mbb.add(bb);
     }
+    System.out.println("Got Read:"+mbb.remaining());
   }
 
   @Override

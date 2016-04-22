@@ -33,7 +33,7 @@ import org.threadly.util.Clock;
  *
  */
 public abstract class Client {
-  
+
   /**
    * SocketOptions that can be set set on Clients.
    * 
@@ -44,7 +44,7 @@ public abstract class Client {
   public static enum SocketOption {
     TCP_NODELAY, SEND_BUFFER_SIZE, RECV_BUFFER_SIZE, UDP_FRAME_SIZE, USE_NATIVE_BUFFERS
   }
-  
+
   /**
    * Default max buffer size (64k).  Read and write buffers are independent of each other.
    */
@@ -57,10 +57,10 @@ public abstract class Client {
    * Minimum allowed readBuffer (4k).  If the readBuffer is lower then this we will create a new one.
    */
   protected static final int MIN_READ_BUFFER_SIZE = 4096;
-  
+
   protected static final ByteBuffer EMPTY_BYTEBUFFER = ByteBuffer.allocate(0);
-  
-  private final MergedByteBuffers readBuffers = new MergedByteBuffers(false);
+
+  protected final MergedByteBuffers readBuffers = new MergedByteBuffers(false);
   protected final SocketExecuter se;
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
   protected final Object readerLock = new Object();
@@ -74,11 +74,11 @@ public abstract class Client {
   protected volatile int maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;
   protected volatile int newReadBufferSize = NEW_READ_BUFFER_SIZE;
   private ByteBuffer readByteBuffer = EMPTY_BYTEBUFFER;
-  
+
   public Client(final SocketExecuter se) {
     this.se = se;
   }
-  
+
   /**
    * <p>Used by SocketExecuter to set if there was a success or error when connecting, completing the 
    * {@link ListenableFuture}.</p>
@@ -86,7 +86,7 @@ public abstract class Client {
    * @param t if there was an error connecting this is provided otherwise a successful connect will pass {@code null}.
    */
   protected abstract void setConnectionStatus(Throwable t);
-  
+
   /**
    * <p>This provides the next available Write buffer.  This is typically only called by the {@link SocketExecuter}.
    * This is not threadsafe as the same {@link ByteBuffer} will be provided to any thread that calls this, until 
@@ -99,7 +99,7 @@ public abstract class Client {
    * @return a {@link ByteBuffer} that can be used to Read new data off the socket for this client.
    */
   protected abstract ByteBuffer getWriteBuffer();
-  
+
   /**
    * <p>This is called after a write is written to the clients socket.  This tells the client how much of that 
    * {@link ByteBuffer} was written and then reduces the writeBuffersSize accordingly.</p>
@@ -107,7 +107,7 @@ public abstract class Client {
    * @param size the size in bytes of data written on the socket.
    */
   protected abstract void reduceWrite(int size);
-  
+
   /**
    * <p>Gets the raw Socket object for this Client. If the client does not have a Socket
    * it will return null (ie {@link UDPClient}). This is basically getChannel().socket()</p>
@@ -123,20 +123,20 @@ public abstract class Client {
    * @return the {@link SocketChannel}  for this client.
    */
   protected abstract SocketChannel getChannel();
-  
+
   /**
    * 
    * @return the remote {@link SocketAddress} this client is connected to.
    */
   public abstract SocketAddress getRemoteSocketAddress();
-  
-  
+
+
   /**
    * 
    * @return the local {@link SocketAddress} this client is using.
    */
   public abstract SocketAddress getLocalSocketAddress();
-  
+
 
   /**
    * Returns true if this client has data pending in its write buffers.  False if there is no data pending write.
@@ -152,7 +152,7 @@ public abstract class Client {
    * @return false if the client has been connected, true if it has not connected and the timeout limit has been reached.
    */
   public abstract boolean hasConnectionTimedOut();
-  
+
   /**
    * <p>This lets you set lower level socket options for this client.  Mainly Buffer sizes and no delay options.</p>
    * 
@@ -163,9 +163,9 @@ public abstract class Client {
    */
   @Deprecated
   public abstract boolean setSocketOption(SocketOption so, int value);
-  
+
   public abstract ClientOptions clientOptions();
-  
+
   /**
    * 
    * <p>Called to connect this client to a host.  This is done non-blocking.</p>
@@ -175,29 +175,29 @@ public abstract class Client {
    * @return A {@link ListenableFuture} that will complete when the socket is connected, or fail if we cant connect.
    */
   public abstract ListenableFuture<Boolean> connect();
-  
+
   /**
    * Sets the connection timeout value for this client.  This must be called before {@link #connect()} has called on this client.  
    * 
    * @param timeout the time in milliseconds to wait for the client to connect.
    */
   public abstract void setConnectionTimeout(int timeout);
-  
+
   /**
    * <p>Used to get this clients connection timeout information.</p>
    * 
    * @return the max amount of time to wait for a connection to connect on this socket.
    */
   public abstract int getTimeout();
-  
-  
+
+
   /**
    * <p>This is used to get the current size of the unWriten writeBuffer.</p>
    * 
    * @return the current size of the writeBuffer.
    */
   public abstract int getWriteBufferSize();
-  
+
   /**
    * <p>This is used by the {@link SocketExecuter} to help understand how to manage this client.
    * Currently only UDP and TCP exist.</p>
@@ -205,7 +205,7 @@ public abstract class Client {
    * @return The IP protocol type of this client.
    */
   public abstract WireProtocol getProtocol();
-  
+
   /**
    * <p>This is called to write data to the clients socket.  Its important to note that there is no back
    * pressure when adding writes so care should be taken to now allow the clients {@link #getWriteBufferSize()} to get
@@ -215,18 +215,18 @@ public abstract class Client {
    * @return A {@link ListenableFuture} that will be completed once the data has been fully written to the socket.
    */
   public abstract ListenableFuture<?> write(ByteBuffer bb);
-  
+
   /**
    * <p>Closes this client.  Reads can still occur after this it called.  {@link CloseListener#onClose(Client)} will still be
    * called (if set) once all reads are done.</p>
    */
   public abstract void close();
-  
-  
+
+
   protected void addReadStats(final int size) {
     stats.addRead(size);
   }
-  
+
   protected void addWriteStats(final int size) {
     stats.addWrite(size);
   }
@@ -255,9 +255,9 @@ public abstract class Client {
         return ByteBuffer.allocate(newReadBufferSize);
       }
     }
-    
+
   }
-  
+
   /**
    * <p>This is used to get the currently set {@link Closer} for this client.</p>
    * 
@@ -266,11 +266,11 @@ public abstract class Client {
   protected void callClosers() {
     this.closerListener.call().onClose(this);
   }
-  
+
   protected void callReader() {
     this.readerListener.call().onRead(this);
   }
-  
+
   /**
    * 
    * <p>Adds a {@link ByteBuffer} to the Clients readBuffer.  This is normally only used by the {@link SocketExecuter},
@@ -282,15 +282,18 @@ public abstract class Client {
    */
   protected void addReadBuffer(final ByteBuffer bb) {
     addReadStats(bb.remaining());
+    int start;
+    int end;
     synchronized(readerLock) {
-      final int start = readBuffers.remaining();
+      start = readBuffers.remaining();
       readBuffers.add(bb);
-      if(this.readerListener.registeredListenerCount() > 0 && readBuffers.remaining() > 0 && start == 0){
-        callReader();
-      }
+      end = readBuffers.remaining();
+    }
+    if(end > 0 && start == 0){
+      callReader();
     }
   }
-  
+
   /**
    * Returns true if this client can have reads added to it or false if its read buffers are full.
    * 
@@ -300,7 +303,7 @@ public abstract class Client {
   public boolean canRead() {
     return readBuffers.remaining() < maxBufferSize;
   }
-  
+
   /**
    * <p>This is used to get the current size of the readBuffers pending reads.</p>
    * 
@@ -309,7 +312,7 @@ public abstract class Client {
   public int getReadBufferSize() {
     return readBuffers.remaining();
   }
-  
+
   /**
    * This is used to get the currently set max buffer size.
    * 
@@ -318,7 +321,7 @@ public abstract class Client {
   public int getMaxBufferSize() {
     return this.maxBufferSize;
   }
-  
+
   /**
    * <p> This returns this clients {@link Executor}.</p>
    * 
@@ -330,7 +333,7 @@ public abstract class Client {
   public Executor getClientsThreadExecutor() {
     return se.getExecutorFor(this);
   }
-  
+
   /**
    * <p>This is used to get the clients {@link SocketExecuter}.</p>
    * 
@@ -413,7 +416,7 @@ public abstract class Client {
     }
     return mbb;
   }
-  
+
   /**
    * <p>Returns if this client is closed or not.  Once a client is marked closed there is no way to reOpen it.
    * You must just make a new client.  Just because this returns false does not mean the client is connected.
@@ -424,11 +427,11 @@ public abstract class Client {
   public boolean isClosed() {
     return closed.get();
   }
-  
+
   protected boolean setClose() {
     return closed.compareAndSet(false, true);
   }
-  
+
   /**
    * Returns the {@link SimpleByteStats} for this client.
    * 
@@ -437,7 +440,7 @@ public abstract class Client {
   public SimpleByteStats getStats() {
     return stats;
   }
-  
+
   /**
    * Implementation of the SimpleByteStats.
    */
@@ -451,14 +454,14 @@ public abstract class Client {
       ArgumentVerifier.assertNotNegative(size, "size");
       super.addWrite(size);
     }
-    
+
     @Override
     protected void addRead(final int size) {
       ArgumentVerifier.assertNotNegative(size, "size");
       super.addRead(size);
     }
   }
-  
+
   /**
    * Used to notify when a Client there is data to Read for a Client.
    * 
@@ -486,8 +489,8 @@ public abstract class Client {
      */
     public void onRead(Client client);
   }
-  
-  
+
+
   /**
    * Used to notify when a Client is closed.
    * 
@@ -504,7 +507,7 @@ public abstract class Client {
      */
     public void onClose(Client client);
   }
-  
+
   /**
    * ClientOptions that can be changed depending on what kind of client you want.
    * 
@@ -514,7 +517,7 @@ public abstract class Client {
    *
    */
   public interface ClientOptions {
-    
+
     /**
      * This is only available for connection backed by a TCP socket.
      * It will turn on TcpNoDelay on the the connection at the System level.
@@ -524,14 +527,14 @@ public abstract class Client {
      * @return true if this was able to be set.
      */
     public boolean setTcpNoDelay(boolean enabled);
-    
+
     /**
      * Returns the current state of TcpNoDelay.
      * 
      * @return true means NoDelay is on, false means NoDelay is off.
      */
     public boolean getTcpNoDelay();
-    
+
     /**
      * Sets this client to use Native or Direct ByteBuffers.
      * This can save allocations to the Heap, but is generally only useful
@@ -541,14 +544,14 @@ public abstract class Client {
      * @return true if this was able to be set.
      */
     public boolean setNativeBuffers(boolean enabled);
-    
+
     /**
      * Returns the current state of native buffers.
      * 
      * @return true means native buffers are generated false means they are not. 
      */
     public boolean getNativeBuffers();
-    
+
     /**
      * Sets reduced Read buffer allocations.  This is accomplished by over allocating 
      * the read buffer and returning subsets of it.  This can make reads much faster but
@@ -558,14 +561,14 @@ public abstract class Client {
      * @return true if this was able to be set.
      */
     public boolean setReducedReadAllocations(boolean enabled);
-    
+
     /**
      * Returns the current state of ReducedReadAllocations.
      * 
      * @return true for enabled false for disabled.
      */
     public boolean getReducedReadAllocations();
-    
+
     /**
      * Sets the max size of read buffer the client is allowed to have.
      * Once this is reached the client will stop doing read operations until 
@@ -576,14 +579,14 @@ public abstract class Client {
      * @return true if this was able to be set.
      */
     public boolean setMaxClientReadBuffer(int size);
-    
+
     /**
      * Returns the currently set max Read buffer size in Bytes.
      * 
      * @return size of max read buffer size.
      */
     public int getMaxClientReadBuffer();
-    
+
     /**
      * Sets the size of the ByteBuffer used for Reads.  The larger this
      * buffer is the more data we can read from the socket at once.  If
@@ -594,14 +597,14 @@ public abstract class Client {
      * @return true if this was able to be set.
      */
     public boolean setReadAllocationSize(int size);
-    
+
     /**
      * Returns the current Read buffer allocation size in bytes.
      * 
      * @return bytes allocated for reads.
      */
     public int getReadAllocationSize();
-    
+
     /**
      * This sets the System level socket send buffer size.  Every OS
      * has its own min and max values for this, if you go over or under that
@@ -611,14 +614,14 @@ public abstract class Client {
      * @return true if this was able to be set.
      */
     public boolean setSocketSendBuffer(int size);
-    
+
     /**
      * Returns the currently set send buffer size in bytes.
      * 
      * @return send buffer size in bytes.
      */
     public int getSocketSendBuffer();
-    
+
     /**
      * This sets the System level socket receive buffer size.  Every OS
      * has its own min and max values for this, if you go over or under that
@@ -628,14 +631,14 @@ public abstract class Client {
      * @return true if this was able to be set.
      */
     public boolean setSocketRecvBuffer(int size);
-    
+
     /**
      * Returns the currently set receive buffer size in bytes.
      * 
      * @return send buffer size in bytes.
      */
     public int getSocketRecvBuffer();
-    
+
     /**
      * Sets the UDP frame size.  This only possible on UDP backed clients.
      * 
@@ -643,7 +646,7 @@ public abstract class Client {
      * @return true if this was able to be set.
      */
     public boolean setUdpFrameSize(int size);
-    
+
     /**
      * Returns the currently set UDP frame size in bytes.
      * 
@@ -651,14 +654,14 @@ public abstract class Client {
      */
     public int getUdpFrameSize();
   }
-  
+
   /**
    * 
    * @author lwahlmeier
    *
    */
   protected class BaseClientOptions implements ClientOptions {
-    
+
     @Override
     public boolean setNativeBuffers(boolean enabled) {
       useNativeBuffers = enabled;
@@ -669,7 +672,7 @@ public abstract class Client {
     public boolean getNativeBuffers() {
       return useNativeBuffers;
     }
-    
+
     @Override
     public boolean setReducedReadAllocations(boolean enabled) {
       keepReadBuffer = enabled;
@@ -683,7 +686,7 @@ public abstract class Client {
     public boolean getReducedReadAllocations() {
       return keepReadBuffer;
     }
-    
+
     @Override
     public boolean setReadAllocationSize(int size) {
       newReadBufferSize = size;
@@ -694,7 +697,7 @@ public abstract class Client {
     public int getReadAllocationSize() {
       return newReadBufferSize;
     }
-    
+
     @Override
     public boolean setMaxClientReadBuffer(int size) {
       maxBufferSize = size;

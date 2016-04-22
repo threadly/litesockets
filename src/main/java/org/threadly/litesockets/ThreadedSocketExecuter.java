@@ -78,7 +78,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   @Override
   protected void startupService() {
     super.startIfNotStarted();
-    
+
     acceptSelector = openSelector();
     readSelector = openSelector();
     writeSelector = openSelector();
@@ -99,7 +99,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
     closeSelector(localReadScheduler, readSelector);
     closeSelector(localWriteScheduler, writeSelector);
   }  
-  
+
   @Override
   public void setClientOperations(final Client client) {
     ArgumentVerifier.assertNotNull(client, "Client");
@@ -130,6 +130,28 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
     writeSelector.wakeup();
   }
 
+  @Override
+  public void setUDPServerOperations(final UDPServer udpServer, final boolean enable) {
+    if(checkServer(udpServer)) {
+      if(enable) {
+        readScheduler.execute(new AddToSelector(readScheduler, udpServer, readSelector, SelectionKey.OP_READ));
+        readSelector.wakeup();
+        if(udpServer.needsWrite()) {
+          writeScheduler.execute(new AddToSelector(writeScheduler, udpServer, writeSelector, SelectionKey.OP_WRITE));
+          writeSelector.wakeup();
+        } else {
+          writeScheduler.execute(new AddToSelector(writeScheduler, udpServer, writeSelector, 0));
+          writeSelector.wakeup();
+        }
+      } else {
+        readScheduler.execute(new AddToSelector(readScheduler, udpServer, readSelector, 0));
+        writeScheduler.execute(new AddToSelector(writeScheduler, udpServer, writeSelector, 0));
+        readSelector.wakeup();
+        writeSelector.wakeup();
+      }
+    }
+  }
+
   /**
    * Runnable for the Acceptor thread.  This runs the acceptSelector on the AcceptorThread. 
    */
@@ -149,10 +171,6 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
             if(sk.isAcceptable()) {
               final ServerSocketChannel server = (ServerSocketChannel) sk.channel();
               doServerAccept(servers.get(server));
-            } else if(sk.isReadable()) {
-              final DatagramChannel server = (DatagramChannel) sk.channel();
-              final Server udpServer = servers.get(server);
-              udpServer.acceptChannel(server);
             }
           }
         }
@@ -196,6 +214,14 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
                 client.close();
                 ExceptionUtils.handleException(e);
               }
+            } else {
+              final Server server = servers.get(sk.channel());
+              if(server != null) {
+                if(sk.isReadable()) {
+                  final DatagramChannel dgc = (DatagramChannel) sk.channel();
+                  server.acceptChannel(dgc);
+                }
+              }
             }
           }
         }
@@ -223,7 +249,18 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
         if(isRunning() && ! writeSelector.selectedKeys().isEmpty()) {
           for(final SelectionKey sk: writeSelector.selectedKeys()) {
             final Client client = clients.get(sk.channel());
-            stats.addWrite(doClientWrite(client, writeSelector));
+            if(client != null) {
+              stats.addWrite(doClientWrite(client, writeSelector));
+            } else {
+              final Server server = servers.get(sk.channel());
+              if(server != null) {
+                if(server instanceof UDPServer) {
+                  UDPServer us = (UDPServer) server;
+                  us.doWrite();
+                  setUDPServerOperations(us, true);
+                }
+              }
+            }
           }
         }
         if(isRunning()) {

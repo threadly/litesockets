@@ -72,6 +72,22 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   }
 
   @Override
+  public void setUDPServerOperations(final UDPServer udpServer, final boolean enable) {
+    if(checkServer(udpServer)) {
+      if(enable) {
+        if(udpServer.needsWrite()) {
+          schedulerPool.execute(new AddToSelector(schedulerPool, udpServer, commonSelector, SelectionKey.OP_READ|SelectionKey.OP_WRITE));
+        } else {
+          schedulerPool.execute(new AddToSelector(schedulerPool, udpServer, commonSelector, SelectionKey.OP_READ));  
+        }
+      } else {
+        schedulerPool.execute(new AddToSelector(schedulerPool, udpServer, commonSelector, 0));
+      }
+      commonSelector.wakeup();
+    }
+  }
+
+  @Override
   protected void startupService() {
     commonSelector = openSelector();
     this.acceptSelector = commonSelector;
@@ -151,7 +167,18 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
                   }
                 } 
                 if(key.isWritable()) {
-                  stats.addWrite(doClientWrite(tmpClient, commonSelector));
+                  if(tmpClient != null){
+                    stats.addWrite(doClientWrite(tmpClient, commonSelector));
+                  } else {
+                    final Server server = servers.get(key.channel());
+                    if(server != null) {
+                      if(server instanceof UDPServer) {
+                        UDPServer us = (UDPServer) server;
+                        stats.addWrite(us.doWrite());
+                        setUDPServerOperations(us, true);
+                      }
+                    }
+                  }
                 }
               }
             }
