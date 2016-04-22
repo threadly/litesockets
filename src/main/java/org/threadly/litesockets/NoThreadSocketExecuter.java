@@ -70,25 +70,18 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
     }
     commonSelector.wakeup();
   }
-  
+
   @Override
-  public void startListening(final Server server) {
-    if(!checkServer(server)) {
-      return;
-    } else {
-      if(server.getServerType() == WireProtocol.TCP) {
-        schedulerPool.execute(new AddToSelector(schedulerPool, server, commonSelector, SelectionKey.OP_ACCEPT));
-      } else if(server.getServerType() == WireProtocol.UDP) {
-        if(server instanceof UDPServer) {
-          UDPServer s = (UDPServer) server;
-          if(s.needsWrite()) {
-            schedulerPool.execute(new AddToSelector(schedulerPool, server, commonSelector, SelectionKey.OP_WRITE|SelectionKey.OP_READ));
-          } else {
-            schedulerPool.execute(new AddToSelector(schedulerPool, server, commonSelector, SelectionKey.OP_READ));
-          }
+  public void setUDPServerOperations(final UDPServer udpServer, final boolean enable) {
+    if(checkServer(udpServer)) {
+      if(enable) {
+        if(udpServer.needsWrite()) {
+          schedulerPool.execute(new AddToSelector(schedulerPool, udpServer, commonSelector, SelectionKey.OP_READ|SelectionKey.OP_WRITE));
+        } else {
+          schedulerPool.execute(new AddToSelector(schedulerPool, udpServer, commonSelector, SelectionKey.OP_READ));  
         }
       } else {
-        throw new UnsupportedOperationException("Unknown Server WireProtocol!"+ server.getServerType());
+        schedulerPool.execute(new AddToSelector(schedulerPool, udpServer, commonSelector, 0));
       }
       commonSelector.wakeup();
     }
@@ -182,7 +175,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
                       if(server instanceof UDPServer) {
                         UDPServer us = (UDPServer) server;
                         stats.addWrite(us.doWrite());
-                        startListening(us);
+                        setUDPServerOperations(us, true);
                       }
                     }
                   }

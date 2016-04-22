@@ -52,6 +52,7 @@ public class FakeUDPServerClient implements CloseListener, Reader, ClientAccepto
     if(mbb != null) {
       mbb.add(bb);
     }
+    System.out.println("Got Read:"+mbb.remaining());
   }
 
   @Override

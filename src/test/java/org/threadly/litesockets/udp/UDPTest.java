@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.concurrent.ExecutionException;
@@ -16,6 +17,7 @@ import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.UDPClient;
 import org.threadly.litesockets.UDPServer;
+import org.threadly.litesockets.UDPServer.UDPFilterMode;
 import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.test.concurrent.TestCondition;
 
@@ -76,6 +78,113 @@ public class UDPTest {
     c.close();
     newServer.close();
   }
+ 
+  @Test
+  public void udpWhiteListTest() throws IOException, InterruptedException {
+    
+    int whitePort = PortUtils.findUDPPort();
+    FakeUDPServerClient whiteFC = new FakeUDPServerClient(SE);
+    UDPServer whiteServer = SE.createUDPServer("127.0.0.1", whitePort);
+    whiteServer.start();
+    whiteFC.AddUDPServer(whiteServer);
+    UDPClient whiteC = whiteServer.createUDPClient("127.0.0.1", port);
+    whiteFC.accept(whiteC);
+    
+    
+    int blackPort = PortUtils.findUDPPort();
+    FakeUDPServerClient blackFC = new FakeUDPServerClient(SE);
+    UDPServer blackServer = SE.createUDPServer("127.0.0.1", blackPort);
+    blackServer.start();
+    blackFC.AddUDPServer(blackServer);
+    UDPClient blackC = blackServer.createUDPClient("127.0.0.1", port);
+    blackFC.accept(blackC);
+    
+    server.setFilterMode(UDPFilterMode.WhiteList);
+    server.filterHost(new InetSocketAddress("127.0.0.1", whitePort));
+
+    for(int i=0; i<100; i++) {
+      blackC.write(ByteBuffer.wrap(GET.getBytes()));
+      assertEquals(0, serverFC.clientList.size());
+    }
+    assertEquals(0, serverFC.clientList.size());
+    
+    whiteC.write(ByteBuffer.wrap(GET.getBytes()));
+    
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clientList.size() == 1;
+      }
+    }.blockTillTrue(500);
+    
+    final UDPClient rc = serverFC.clientList.get(0);
+    
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clients.get(rc).remaining() > 0;
+      }
+    }.blockTillTrue(5000);
+    
+    System.out.println(serverFC.clients.get(rc).remaining());
+    
+    assertEquals(GET, serverFC.clients.get(rc).getAsString(serverFC.clients.get(rc).remaining()));
+    blackServer.close();
+    whiteServer.close();
+  }
+  
+  @Test
+  public void udpBlackListTest() throws IOException, InterruptedException {
+    
+    int whitePort = PortUtils.findUDPPort();
+    FakeUDPServerClient whiteFC = new FakeUDPServerClient(SE);
+    UDPServer whiteServer = SE.createUDPServer("127.0.0.1", whitePort);
+    whiteServer.start();
+    whiteFC.AddUDPServer(whiteServer);
+    UDPClient whiteC = whiteServer.createUDPClient("127.0.0.1", port);
+    whiteFC.accept(whiteC);
+    
+    
+    int blackPort = PortUtils.findUDPPort();
+    FakeUDPServerClient blackFC = new FakeUDPServerClient(SE);
+    UDPServer blackServer = SE.createUDPServer("127.0.0.1", blackPort);
+    blackServer.start();
+    blackFC.AddUDPServer(blackServer);
+    UDPClient blackC = blackServer.createUDPClient("127.0.0.1", port);
+    blackFC.accept(blackC);
+    
+    server.setFilterMode(UDPFilterMode.BlackList);
+    server.filterHost(new InetSocketAddress("127.0.0.1", whitePort));
+    
+    for(int i=0; i<100; i++) {
+      whiteC.write(ByteBuffer.wrap(GET.getBytes()));
+      assertEquals(0, serverFC.clientList.size());
+    }
+    
+    blackC.write(ByteBuffer.wrap(GET.getBytes()));
+    
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clientList.size() == 1;
+      }
+    }.blockTillTrue(500);
+    
+    final UDPClient rc = serverFC.clientList.get(0);
+    
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clients.get(rc).remaining() > 0;
+      }
+    }.blockTillTrue(5000);
+    
+    System.out.println(serverFC.clients.get(rc).remaining());
+    
+    assertEquals(GET, serverFC.clients.get(rc).getAsString(serverFC.clients.get(rc).remaining()));
+    blackServer.close();
+    whiteServer.close();
+  }
   
   
   @Test
@@ -118,6 +227,7 @@ public class UDPTest {
     for(int i=0; i<10; i++) {
       int newPort = PortUtils.findUDPPort();
       UDPServer newServer = SE.createUDPServer("localhost", newPort);
+      newServer.start();
       newFC.AddUDPServer(newServer);
       UDPClient c = newServer.createUDPClient("127.0.0.1", port);
       newFC.accept(c);
@@ -127,15 +237,19 @@ public class UDPTest {
       Thread.sleep(10);
       c.write(ByteBuffer.wrap(GET.getBytes()));
       Thread.sleep(10);
+      System.out.println("Used Memory:"
+          + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
     }
     
     new TestCondition(){
       @Override
       public boolean get() {
         System.out.println(serverFC.clientList.size()+":"+serverFC);
+        System.out.println("Used Memory:"
+            + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
         return serverFC.clientList.size() == 10;
       }
-    }.blockTillTrue(5000, 200);
+    }.blockTillTrue(50000, 100);
 
     new TestCondition(){
       @Override
@@ -146,9 +260,12 @@ public class UDPTest {
             test = false;
           }
         }
+        System.gc();
+        System.out.println("Used Memory:"
+            + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
         return test;
       }
-    }.blockTillTrue(500);
+    }.blockTillTrue(50000);
 
     for(int i=0; i<10; i++) {
       assertEquals(GET, serverFC.clients.get(serverFC.clientList.get(i)).getAsString(GET.getBytes().length));

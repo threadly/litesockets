@@ -282,12 +282,15 @@ public abstract class Client {
    */
   protected void addReadBuffer(final ByteBuffer bb) {
     addReadStats(bb.remaining());
+    int start;
+    int end;
     synchronized(readerLock) {
-      final int start = readBuffers.remaining();
+      start = readBuffers.remaining();
       readBuffers.add(bb);
-      if(this.readerListener.registeredListenerCount() > 0 && readBuffers.remaining() > 0 && start == 0){
-        callReader();
-      }
+      end = readBuffers.remaining();
+    }
+    if(end > 0 && start == 0){
+      callReader();
     }
   }
 

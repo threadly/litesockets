@@ -144,7 +144,6 @@ public class MergedByteBuffers {
 
     while(mbb.remaining() >= pattern.length-patPos) {
       prevMatched[patPos] = mbb.get();
-      //System.out.println(patPos+":"+bufPos+":"+mbb.remaining());
       if(pattern[patPos] == prevMatched[patPos]) {
         if(patPos == pattern.length-1) {
           return bufPos;
@@ -157,7 +156,6 @@ public class MergedByteBuffers {
           bb.position(1);
           bb.limit(patPos+1);
           if(bb.remaining() > 0) {
-            //System.out.println("-----"+bb.remaining()+":"+patPos+":"+bufPos);
             mbb.addFront(bb);
           }
           prevMatched = new byte[pattern.length];
@@ -414,6 +412,11 @@ public class MergedByteBuffers {
         removeFirstBuffer();
       }
     }
+  }
+  
+  @Override
+  public String toString() {
+    return "MergedByteBuffer size:"+currentSize+": queueSize"+availableBuffers.size()+": consumed:"+consumedSize;
   }
 
   /**

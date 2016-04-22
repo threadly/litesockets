@@ -107,6 +107,8 @@ public interface SocketExecuter extends Service {
    */
   public void stopListening(Server server);
   
+  public void setUDPServerOperations(UDPServer udpServer, boolean enable);
+  
   /**
    * <p>Get the count of {@link Client} on this SocketExecuter.</p>
    * 

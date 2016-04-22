@@ -1,12 +1,15 @@
 package org.threadly.litesockets;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectableChannel;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+
+import org.threadly.util.Pair;
 
 
 /**
@@ -23,17 +26,54 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class UDPServer extends Server {
   public static final int DEFAULT_FRAME_SIZE = 1500;
   
+  public static enum UDPFilterMode {WhiteList, BlackList};
+  
   private final ConcurrentHashMap<InetSocketAddress, UDPClient> clients = new ConcurrentHashMap<InetSocketAddress, UDPClient>();
-  private final ConcurrentLinkedQueue<WriteDataPair> writeQueue = new ConcurrentLinkedQueue<WriteDataPair>();
+  private final ConcurrentLinkedQueue<Pair<InetSocketAddress, ByteBuffer>> writeQueue = new ConcurrentLinkedQueue<Pair<InetSocketAddress, ByteBuffer>>();
+  private final ConcurrentHashMap<InetAddress, Integer> filter = new ConcurrentHashMap<InetAddress, Integer>();
   private final DatagramChannel channel;
+  private volatile UDPFilterMode filterMode = UDPFilterMode.BlackList;
   private volatile int frameSize = DEFAULT_FRAME_SIZE;
   private volatile ClientAcceptor clientAcceptor;
   
   protected UDPServer(final SocketExecuter sei, final String host, final int port) throws IOException {
     super(sei);
+    
     channel = DatagramChannel.open();
     channel.socket().bind(new InetSocketAddress(host, port));
     channel.configureBlocking(false);
+  }
+  
+  @Override
+  public void start() {
+    getSocketExecuter().setUDPServerOperations(this, true);
+  }
+  
+  @Override
+  public void stop() {
+    getSocketExecuter().setUDPServerOperations(this, false);
+  }
+  
+  /**
+   * Sets the UDPfilterMode for the server.  This allows us to white or black list IP/ports from being accepted.
+   * 
+   * NOTE: calling set on this also resets any hosts currently already in the filter!
+   * 
+   * @param fm the UDPFilterMode to use.
+   */
+  public void setFilterMode(UDPFilterMode fm) {
+    filterMode = fm;
+    filter.clear();
+  }
+  
+  /**
+   * Adds a host to the filter.  How this filter will apply depends on what the UDPFilterMode is set to in the UDPServer.
+   * A port number of 0 means we block/accept all ports for that host. 
+   * 
+   * @param isa the InetSocketAddress to use for the filter.
+   */
+  public void filterHost(InetSocketAddress isa) {
+    filter.put(isa.getAddress(), isa.getPort());
   }
   
   protected void setFrameSize(final int size) {
@@ -50,6 +90,17 @@ public class UDPServer extends Server {
       final ByteBuffer bb = ByteBuffer.allocate(frameSize);
       try {
         final InetSocketAddress isa = (InetSocketAddress)channel.receive(bb);
+        if(filterMode == UDPFilterMode.BlackList && filter.size() > 0) {
+          Integer port = filter.get(isa.getAddress());
+          if(port != null && (port == 0 || port == isa.getPort())) {
+            return;
+          }
+        } else if (filterMode == UDPFilterMode.WhiteList) {
+          Integer port = filter.get(isa.getAddress());
+          if(port == null || (port != 0 && port != isa.getPort())) {
+            return;
+          }
+        }
         bb.flip();
         getSocketExecuter().getThreadScheduler().execute(new NewDataRunnable(this, isa, bb));
       } catch (IOException e) {
@@ -93,10 +144,10 @@ public class UDPServer extends Server {
   }
   
   protected int doWrite() {
-    WriteDataPair wdp = writeQueue.poll();
+    Pair<InetSocketAddress, ByteBuffer> wdp = writeQueue.poll();
     if(wdp != null) {
       try {
-        return channel.send(wdp.bb, wdp.isa);
+        return channel.send(wdp.getRight(), wdp.getLeft());
       } catch (IOException e) {
         return 0;
       }
@@ -109,8 +160,8 @@ public class UDPServer extends Server {
   }
   
   protected void write(ByteBuffer bb, InetSocketAddress remoteAddress) throws IOException {
-    writeQueue.add(new WriteDataPair(remoteAddress, bb));
-    getSocketExecuter().startListening(this);
+    writeQueue.add(new Pair<InetSocketAddress, ByteBuffer>(remoteAddress, bb));
+    getSocketExecuter().setUDPServerOperations(this, true);
   }
   
   /**
@@ -164,20 +215,4 @@ public class UDPServer extends Server {
     }
     
   }
-  
-  /**
-   * 
-   * @author lwahlmeier
-   *
-   */
-  private static class WriteDataPair {
-    private final ByteBuffer bb;
-    private final InetSocketAddress isa;
-    
-    private WriteDataPair(InetSocketAddress isa, ByteBuffer bb) {
-      this.bb = bb;
-      this.isa = isa;
-    }
-  }
-
 }

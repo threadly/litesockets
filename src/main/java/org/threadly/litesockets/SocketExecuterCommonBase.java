@@ -106,16 +106,26 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   }
   
   protected boolean checkServer(final Server server) {
-    try{
-      checkRunning();
-    } catch(Exception e) {
-      return false;
-    }
-    if(server.isClosed() || server.getSocketExecuter() != this || !servers.containsKey(server.getSelectableChannel())) {
+    if(!isRunning() || server.isClosed() || server.getSocketExecuter() != this || !servers.containsKey(server.getSelectableChannel())) {
       servers.remove(server.getSelectableChannel());
       return false;
     }
     return true;
+  }
+  
+  
+  @Override
+  public void startListening(final Server server) {
+    if(!checkServer(server)) {
+      return;
+    } else {
+      if(server.getServerType() == WireProtocol.TCP) {
+        acceptScheduler.execute(new AddToSelector(acceptScheduler, server, acceptSelector, SelectionKey.OP_ACCEPT));
+        acceptSelector.wakeup();
+      } else {
+        throw new UnsupportedOperationException("Unknown Server WireProtocol!"+ server.getServerType());
+      }
+    }
   }
   
   @Override

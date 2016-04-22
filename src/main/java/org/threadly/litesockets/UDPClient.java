@@ -182,8 +182,8 @@ public class UDPClient extends Client {
     addReadStats(bb.remaining());
     synchronized(readerLock) {
       readBuffers.add(bb);
-      callReader();
     }
+    callReader();
   }
   
   @Override

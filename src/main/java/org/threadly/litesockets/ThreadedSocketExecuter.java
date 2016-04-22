@@ -78,7 +78,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   @Override
   protected void startupService() {
     super.startIfNotStarted();
-    
+
     acceptSelector = openSelector();
     readSelector = openSelector();
     writeSelector = openSelector();
@@ -99,7 +99,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
     closeSelector(localReadScheduler, readSelector);
     closeSelector(localWriteScheduler, writeSelector);
   }  
-  
+
   @Override
   public void setClientOperations(final Client client) {
     ArgumentVerifier.assertNotNull(client, "Client");
@@ -129,29 +129,25 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
     readSelector.wakeup();
     writeSelector.wakeup();
   }
-  
+
   @Override
-  public void startListening(final Server server) {
-    if(!checkServer(server)) {
-      return;
-    } else {
-      if(server.getServerType() == WireProtocol.TCP) {
-        acceptScheduler.execute(new AddToSelector(acceptScheduler, server, acceptSelector, SelectionKey.OP_ACCEPT));
-        acceptSelector.wakeup();
-      } else if(server.getServerType() == WireProtocol.UDP) {
-        readScheduler.execute(new AddToSelector(readScheduler, server, readSelector, SelectionKey.OP_READ));
+  public void setUDPServerOperations(final UDPServer udpServer, final boolean enable) {
+    if(checkServer(udpServer)) {
+      if(enable) {
+        readScheduler.execute(new AddToSelector(readScheduler, udpServer, readSelector, SelectionKey.OP_READ));
         readSelector.wakeup();
-        if(server instanceof UDPServer) {
-          UDPServer s = (UDPServer) server;
-          if(s.needsWrite()) {
-            writeScheduler.execute(new AddToSelector(writeScheduler, server, writeSelector, SelectionKey.OP_WRITE));
-          } else {
-            writeScheduler.execute(new AddToSelector(writeScheduler, server, writeSelector, 0));
-          }
+        if(udpServer.needsWrite()) {
+          writeScheduler.execute(new AddToSelector(writeScheduler, udpServer, writeSelector, SelectionKey.OP_WRITE));
+          writeSelector.wakeup();
+        } else {
+          writeScheduler.execute(new AddToSelector(writeScheduler, udpServer, writeSelector, 0));
           writeSelector.wakeup();
         }
       } else {
-        throw new UnsupportedOperationException("Unknown Server WireProtocol!"+ server.getServerType());
+        readScheduler.execute(new AddToSelector(readScheduler, udpServer, readSelector, 0));
+        writeScheduler.execute(new AddToSelector(writeScheduler, udpServer, writeSelector, 0));
+        readSelector.wakeup();
+        writeSelector.wakeup();
       }
     }
   }
@@ -261,7 +257,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
                 if(server instanceof UDPServer) {
                   UDPServer us = (UDPServer) server;
                   us.doWrite();
-                  startListening(us);
+                  setUDPServerOperations(us, true);
                 }
               }
             }
