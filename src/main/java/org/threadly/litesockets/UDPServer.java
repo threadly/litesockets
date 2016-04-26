@@ -188,7 +188,7 @@ public class UDPServer extends Server {
    * 
    * Set to null to remove it.
    * 
-   * @param udpReader the {@link UDPReader to use for this UDPServer.
+   * @param udpReader the {@link UDPReader} to use for this UDPServer.
    */
   public void setUDPReader(final UDPReader udpReader) {
     this.setUDPReader = udpReader;
