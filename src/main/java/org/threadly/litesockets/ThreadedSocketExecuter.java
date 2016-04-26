@@ -271,7 +271,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   }
 
   @Override
-  public Executor getExecutorFor(final Client obj) {
+  public Executor getExecutorFor(final Object obj) {
     return clientDistributer.getSubmitterForKey(obj);
   }
 }

@@ -202,7 +202,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   }
 
   @Override
-  public Executor getExecutorFor(final Client obj) {
+  public Executor getExecutorFor(final Object obj) {
     return localNoThreadScheduler;
   }
 }

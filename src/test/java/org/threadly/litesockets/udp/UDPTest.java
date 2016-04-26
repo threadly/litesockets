@@ -18,6 +18,7 @@ import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.UDPClient;
 import org.threadly.litesockets.UDPServer;
 import org.threadly.litesockets.UDPServer.UDPFilterMode;
+import org.threadly.litesockets.UDPServer.UDPReader;
 import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.test.concurrent.TestCondition;
 
@@ -48,6 +49,58 @@ public class UDPTest {
     System.gc();
     System.out.println("Used Memory:"
         + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
+  }
+  
+  
+  @Test
+  public void simpleSetReader() throws IOException {
+    int newPort = PortUtils.findUDPPort();
+    FakeUDPServerClient newFC = new FakeUDPServerClient(SE);
+    UDPServer newServer = SE.createUDPServer("localhost", newPort);
+    newFC.AddUDPServer(newServer);
+    UDPClient c = newServer.createUDPClient("127.0.0.1", port);
+    newFC.accept(c);
+    
+    server.setUDPReader(new UDPReader() {
+      @Override
+      public boolean onUDPRead(ByteBuffer bb, InetSocketAddress isa) {
+        return false;
+      }});
+    
+    c.write(ByteBuffer.wrap(GET.getBytes()));
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clientList.size() == 0;
+      }
+    }.blockTillTrue(5000);
+    
+    server.setUDPReader(new UDPReader() {
+      @Override
+      public boolean onUDPRead(ByteBuffer bb, InetSocketAddress isa) {
+        return true;
+      }});
+    
+    c.write(ByteBuffer.wrap(GET.getBytes()));
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clientList.size() == 1;
+      }
+    }.blockTillTrue(5000);
+    
+    final UDPClient rc = serverFC.clientList.get(0);
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clients.get(rc).remaining() > 0;
+      }
+    }.blockTillTrue(5000);
+    
+    assertEquals(GET, serverFC.clients.get(rc).getAsString(serverFC.clients.get(rc).remaining()));
+    newServer.close();
+    c.close();
+    newServer.close();
   }
   
   @Test

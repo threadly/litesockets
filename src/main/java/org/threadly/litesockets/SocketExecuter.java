@@ -76,10 +76,10 @@ public interface SocketExecuter extends Service {
   /**
    * This allows you to get the {@link Executor} for a specified object.
    * 
-   * @param obj The Client whose {@link Executor} you are looking for
+   * @param obj The Object whose {@link Executor} you are looking for
    * @return the {@link Executor} for that object.
    */
-  public Executor getExecutorFor(Client obj);
+  public Executor getExecutorFor(Object obj);
   
   /**
    * This is called when the a clients state needs to be rechecked.  It will cause the SocketExecuter to 

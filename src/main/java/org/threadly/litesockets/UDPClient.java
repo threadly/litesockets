@@ -1,11 +1,11 @@
 package org.threadly.litesockets;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.Executor;
 
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
@@ -143,10 +143,7 @@ public class UDPClient extends Client {
   public ListenableFuture<?> write(final ByteBuffer bb) {
     addWriteStats(bb.remaining());
     if(!closed.get()) {
-      try {
-        udpServer.write(bb, remoteAddress);
-      } catch (IOException e) {
-      }
+      return udpServer.write(bb, remoteAddress);
     }
     return COMPLETED_FUTURE;
   }
@@ -200,6 +197,11 @@ public class UDPClient extends Client {
       se.setClientOperations(this);
     }
     return mbb;
+  }
+  
+  @Override
+  public Executor getClientsThreadExecutor() {
+    return se.getExecutorFor(remoteAddress);
   }
 
   /**
