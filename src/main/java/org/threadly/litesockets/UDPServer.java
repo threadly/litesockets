@@ -85,11 +85,21 @@ public class UDPServer extends Server {
     filter.put(isa.getAddress(), isa.getPort());
   }
 
-  protected void setFrameSize(final int size) {
+  /**
+   * Sets the frame size for this UDPServer.  This will also set it on all clients that are spawned from this server.
+   * 
+   * @param size the frame size in bytes.
+   */
+  public void setFrameSize(final int size) {
     frameSize = size;
   }
 
-  protected int getFrameSize() {
+  /**
+   * Gets the frame size for this UDPServer.
+   * 
+   * @param size the frame size in bytes.
+   */
+  public int getFrameSize() {
     return frameSize;
   }
 
