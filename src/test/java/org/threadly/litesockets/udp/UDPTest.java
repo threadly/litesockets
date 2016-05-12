@@ -51,7 +51,6 @@ public class UDPTest {
         + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
   }
   
-  
   @Test
   public void simpleSetReader() throws IOException {
     int newPort = PortUtils.findUDPPort();

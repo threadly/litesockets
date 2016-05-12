@@ -28,6 +28,12 @@ import org.threadly.util.Pair;
 public class UDPServer extends Server {
   public static final int DEFAULT_FRAME_SIZE = 1500;
 
+  /**
+   * UDPFilter enum.
+   * 
+   * @author lwahlmeier
+   *
+   */
   public static enum UDPFilterMode {WhiteList, BlackList};
 
   private final ConcurrentHashMap<InetSocketAddress, UDPClient> clients = new ConcurrentHashMap<InetSocketAddress, UDPClient>();
