@@ -97,7 +97,7 @@ public class UDPServer extends Server {
   /**
    * Gets the frame size for this UDPServer.
    * 
-   * @param size the frame size in bytes.
+   * @return the max allowed UDP frame size.
    */
   public int getFrameSize() {
     return frameSize;
