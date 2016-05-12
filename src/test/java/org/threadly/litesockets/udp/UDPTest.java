@@ -13,6 +13,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
+import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.UDPClient;
@@ -52,7 +53,7 @@ public class UDPTest {
   }
   
   @Test
-  public void simpleSetReader() throws IOException {
+  public void simpleSetReader() throws IOException, InterruptedException, ExecutionException {
     int newPort = PortUtils.findUDPPort();
     FakeUDPServerClient newFC = new FakeUDPServerClient(SE);
     UDPServer newServer = SE.createUDPServer("localhost", newPort);
@@ -60,13 +61,18 @@ public class UDPTest {
     UDPClient c = newServer.createUDPClient("127.0.0.1", port);
     newFC.accept(c);
     
+    final SettableListenableFuture<Boolean> slf = new SettableListenableFuture<Boolean>();
+    
     server.setUDPReader(new UDPReader() {
       @Override
       public boolean onUDPRead(ByteBuffer bb, InetSocketAddress isa) {
+        slf.setResult(true);
         return false;
       }});
     
     c.write(ByteBuffer.wrap(GET.getBytes()));
+    
+    slf.get();
     new TestCondition(){
       @Override
       public boolean get() {
