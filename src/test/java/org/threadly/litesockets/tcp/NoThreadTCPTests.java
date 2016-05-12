@@ -52,8 +52,8 @@ public class NoThreadTCPTests extends TCPTests {
   }
   
   @Test
-  public void manyClientsMemoryTest() throws Exception {
-   super.manyClientsMemoryTest(); 
+  public void clientBlockingWriter() throws Exception {
+   super.clientBlockingWriter(); 
   }
   
 }

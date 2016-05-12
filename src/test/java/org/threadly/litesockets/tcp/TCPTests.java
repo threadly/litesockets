@@ -273,7 +273,8 @@ public class TCPTests {
     new TestCondition(){
       @Override
       public boolean get() {
-        System.out.println(client.canRead()+":"+serverFC.getClientsBuffer(client).remaining());
+        System.out.println(client.canRead());
+        System.out.println(serverFC.getClientsBuffer(client).remaining());
         return serverFC.getClientsBuffer(client).remaining() == bb.remaining()*100;
       }
     }.blockTillTrue(5000, 1000);

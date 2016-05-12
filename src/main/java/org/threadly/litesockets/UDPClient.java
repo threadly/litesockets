@@ -36,7 +36,7 @@ public class UDPClient extends Client {
   
 
   protected UDPClient(final InetSocketAddress sa, final UDPServer server) {
-    super(server.getSocketExecuter());
+    super(server.getSocketExecuterCommonBase());
     this.remoteAddress = sa;
     udpServer = server;
   }
@@ -269,5 +269,16 @@ public class UDPClient extends Client {
     public int getUdpFrameSize() {
       return udpServer.getFrameSize();
     }
+  }
+
+  @Override
+  protected void doSocketRead() {
+
+  }
+
+  @Override
+  protected void doSocketWrite() {
+    // TODO Auto-generated method stub
+    
   }
 }

@@ -158,7 +158,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
               } else {
                 if (key.isReadable()) {
                   if(tmpClient != null){
-                    stats.addRead(doClientRead(tmpClient, commonSelector));
+                    doClientRead(tmpClient, commonSelector);
                   } else {
                     final Server server = servers.get(key.channel());
                     if(server != null && server.getServerType() == WireProtocol.UDP) {
@@ -168,7 +168,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
                 } 
                 if(key.isWritable()) {
                   if(tmpClient != null){
-                    stats.addWrite(doClientWrite(tmpClient, commonSelector));
+                    doClientWrite(tmpClient, commonSelector);
                   } else {
                     final Server server = servers.get(key.channel());
                     if(server != null) {

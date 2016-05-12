@@ -1,4 +1,4 @@
-package org.threadly.litesockets.utils;
+package org.threadly.litesockets;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -23,10 +23,9 @@ import org.junit.Before;
 import org.junit.Test;
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
-import org.threadly.litesockets.Client;
-import org.threadly.litesockets.NoThreadSocketExecuter;
-import org.threadly.litesockets.SocketExecuter;
-import org.threadly.litesockets.WireProtocol;
+import org.threadly.litesockets.utils.MergedByteBuffers;
+import org.threadly.litesockets.utils.SSLProcessor;
+import org.threadly.litesockets.utils.SSLUtils;
 
 public class SSLProcessorTests {
   static final String STRING = "hello";
@@ -43,7 +42,7 @@ public class SSLProcessorTests {
     LARGE_STRING = sb.toString();
     LARGE_STRINGBB = ByteBuffer.wrap(LARGE_STRING.getBytes());
   }
-  SocketExecuter SE;
+  SocketExecuterCommonBase SE;
   TrustManager[] myTMs = new TrustManager [] {new SSLUtils.FullTrustManager() };
   KeyStore KS;
   KeyManagerFactory kmf;
@@ -226,7 +225,7 @@ public class SSLProcessorTests {
     MergedByteBuffers writeBuffers = new MergedByteBuffers(false);
     SSLProcessor sp;
 
-    public FakeClient(SocketExecuter se) {
+    public FakeClient(SocketExecuterCommonBase se) {
       super(se);
     }
     
@@ -344,6 +343,18 @@ public class SSLProcessorTests {
     public ClientOptions clientOptions() {
       // TODO Auto-generated method stub
       return null;
+    }
+
+    @Override
+    protected void doSocketRead() {
+      // TODO Auto-generated method stub
+      
+    }
+
+    @Override
+    protected void doSocketWrite() {
+      // TODO Auto-generated method stub
+      
     }
     
   }

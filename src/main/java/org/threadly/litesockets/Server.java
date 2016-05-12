@@ -18,12 +18,12 @@ import org.threadly.concurrent.event.ListenerHelper;
  */
 public abstract class Server {
   
-  private final SocketExecuter sei;
+  protected final SocketExecuterCommonBase sei;
   private final AtomicBoolean closed = new AtomicBoolean(false);
   private volatile ClientAcceptor clientAcceptor;
   private volatile ListenerHelper<ServerCloseListener> closer = ListenerHelper.build(ServerCloseListener.class);
   
-  protected Server(final SocketExecuter sei) {
+  protected Server(final SocketExecuterCommonBase sei) {
     this.sei = sei;
   }
   

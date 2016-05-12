@@ -27,7 +27,7 @@ public class TCPServer extends Server {
    * @param port The port to use for the listen port.
    * @throws IOException This is throw if for any reason we can't create the listen port.
    */
-  protected TCPServer(final SocketExecuter se, final String host, final int port) throws IOException {
+  protected TCPServer(final SocketExecuterCommonBase se, final String host, final int port) throws IOException {
     super(se);
     socket = ServerSocketChannel.open();
     socket.socket().setReuseAddress(true);
@@ -41,7 +41,7 @@ public class TCPServer extends Server {
    * @param server The {@link ServerSocketChannel} to be used by this TCPServer. 
    * @throws IOException  If anything is wrong with the provided {@link ServerSocketChannel} this will be thrown.
    */
-  protected TCPServer(final SocketExecuter se, final ServerSocketChannel server) throws IOException{
+  protected TCPServer(final SocketExecuterCommonBase se, final ServerSocketChannel server) throws IOException{
     super(se);
     server.configureBlocking(false);
     socket = server;

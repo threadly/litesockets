@@ -61,7 +61,7 @@ public abstract class Client {
   protected static final ByteBuffer EMPTY_BYTEBUFFER = ByteBuffer.allocate(0);
 
   protected final MergedByteBuffers readBuffers = new MergedByteBuffers(false);
-  protected final SocketExecuter se;
+  protected final SocketExecuterCommonBase se;
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
   protected final Object readerLock = new Object();
   protected final Object writerLock = new Object();
@@ -75,7 +75,7 @@ public abstract class Client {
   protected volatile int newReadBufferSize = NEW_READ_BUFFER_SIZE;
   private ByteBuffer readByteBuffer = EMPTY_BYTEBUFFER;
 
-  public Client(final SocketExecuter se) {
+  public Client(final SocketExecuterCommonBase se) {
     this.se = se;
   }
 
@@ -282,13 +282,12 @@ public abstract class Client {
    */
   protected void addReadBuffer(final ByteBuffer bb) {
     addReadStats(bb.remaining());
+    se.addReadAmount(bb.remaining());
     int start;
     int end;
-    synchronized(readerLock) {
-      start = readBuffers.remaining();
-      readBuffers.add(bb);
-      end = readBuffers.remaining();
-    }
+    start = readBuffers.remaining();
+    readBuffers.add(bb);
+    end = readBuffers.remaining();
     if(end > 0 && start == 0){
       callReader();
     }
@@ -407,10 +406,7 @@ public abstract class Client {
    * @return a {@link MergedByteBuffers} of the current read data for this client.
    */
   public MergedByteBuffers getRead() {
-    MergedByteBuffers mbb = null;
-    synchronized(readerLock) {
-      mbb = readBuffers.duplicateAndClean();
-    }
+    MergedByteBuffers mbb = readBuffers.duplicateAndClean();
     if(mbb.remaining() >= maxBufferSize) {
       se.setClientOperations(this);
     }
@@ -440,6 +436,9 @@ public abstract class Client {
   public SimpleByteStats getStats() {
     return stats;
   }
+  
+  protected abstract void doSocketRead();
+  protected abstract void doSocketWrite();
 
   /**
    * Implementation of the SimpleByteStats.

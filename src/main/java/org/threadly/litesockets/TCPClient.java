@@ -20,6 +20,7 @@ import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SSLProcessor;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.Clock;
+import org.threadly.util.ExceptionUtils;
 import org.threadly.util.Pair;
 
 
@@ -38,6 +39,8 @@ public class TCPClient extends Client {
   private final TCPSocketOptions tso = new TCPSocketOptions();
   protected final AtomicBoolean startedConnection = new AtomicBoolean(false);
   protected final SettableListenableFuture<Boolean> connectionFuture = new SettableListenableFuture<Boolean>(false);
+  protected final ReadRunnable readRunnable = new ReadRunnable();
+  protected final WriteRunnable writeRunnable = new WriteRunnable();
   protected final SocketChannel channel;
   protected final InetSocketAddress remoteAddress;
   
@@ -56,7 +59,7 @@ public class TCPClient extends Client {
    * @param port The port to connect this client too.
    * @throws IOException - This is thrown if there are any problems making the socket.
    */
-  protected TCPClient(final SocketExecuter sei, final String host, final int port) throws IOException {
+  protected TCPClient(final SocketExecuterCommonBase sei, final String host, final int port) throws IOException {
     super(sei);
     remoteAddress = new InetSocketAddress(host, port);
     channel = SocketChannel.open();
@@ -71,7 +74,7 @@ public class TCPClient extends Client {
    * @param channel the {@link SocketChannel} to use for this client.
    * @throws IOException if there is anything wrong with the {@link SocketChannel} this will be thrown.
    */
-  protected TCPClient(final SocketExecuter sei, final SocketChannel channel) throws IOException {
+  protected TCPClient(final SocketExecuterCommonBase sei, final SocketChannel channel) throws IOException {
     super(sei);
     if(! channel.isOpen()) {
       throw new ClosedChannelException();
@@ -201,6 +204,16 @@ public class TCPClient extends Client {
     }
     return mbb;
   }
+  
+  @Override
+  protected void doSocketRead() {
+    this.getClientsThreadExecutor().execute(readRunnable);
+  }
+  
+  @Override
+  protected void doSocketWrite() {
+    this.getClientsThreadExecutor().execute(writeRunnable);
+  }
 
   @Override
   public ListenableFuture<?> write(final ByteBuffer bb) {
@@ -318,6 +331,52 @@ public class TCPClient extends Client {
       return sslProcessor.doHandShake();
     }
     throw new IllegalStateException("Must Set the SSLEngine before starting Encryption!");
+  }
+  
+  private class WriteRunnable implements Runnable {
+
+    @Override
+    public void run() {
+      int wrote = 0;
+        try {
+          wrote = channel.write(getWriteBuffer());
+          if(wrote > 0) {
+            reduceWrite(wrote);
+            se.addWriteAmount(wrote);
+          }
+          se.setClientOperations(TCPClient.this);
+        } catch(Exception e) {
+          close();
+          ExceptionUtils.handleException(e);
+        }
+    }
+    
+  }
+  
+  private class ReadRunnable implements Runnable {
+
+    @Override
+    public void run() {
+      ByteBuffer readByteBuffer = provideReadByteBuffer();
+      final int origPos = readByteBuffer.position();
+      int size = 0;
+      try {
+         size = channel.read(readByteBuffer);
+         if(size < 0) {
+           close();
+         } else if(size > 0) {
+           readByteBuffer.position(origPos);
+           final ByteBuffer resultBuffer = readByteBuffer.slice();
+           readByteBuffer.position(origPos+size);
+           resultBuffer.limit(size);
+           addReadBuffer(resultBuffer);
+           se.setClientOperations(TCPClient.this);
+         }
+      } catch (IOException e) {
+        close();
+        ExceptionUtils.handleException(e);
+      } 
+    }
   }
   
   /**

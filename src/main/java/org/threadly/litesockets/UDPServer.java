@@ -46,7 +46,7 @@ public class UDPServer extends Server {
   private volatile int frameSize = DEFAULT_FRAME_SIZE;
   private volatile ClientAcceptor clientAcceptor;
 
-  protected UDPServer(final SocketExecuter sei, final String host, final int port) throws IOException {
+  protected UDPServer(final SocketExecuterCommonBase sei, final String host, final int port) throws IOException {
     super(sei);
     channel = DatagramChannel.open();
     channel.socket().bind(new InetSocketAddress(host, port));
@@ -181,6 +181,10 @@ public class UDPServer extends Server {
 
   protected boolean needsWrite() {
     return !writeQueue.isEmpty();
+  }
+  
+  protected SocketExecuterCommonBase getSocketExecuterCommonBase() {
+    return sei;
   }
 
   /**

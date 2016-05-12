@@ -1,7 +1,6 @@
 package org.threadly.litesockets;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectableChannel;
@@ -55,6 +54,14 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     this.acceptScheduler = acceptScheduler;
     this.readScheduler = readScheduler;
     this.writeScheduler = writeScheduler;
+  }
+  
+  protected void addReadAmount(int size) {
+    stats.addRead(size);
+  }
+  
+  protected void addWriteAmount(int size) {
+    stats.addWrite(size);
   }
   
   protected void checkRunning() {
@@ -227,63 +234,33 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     }
   }
 
-  protected static int doClientWrite(final Client client, final Selector selector) {
-    int wrote = 0;
+  protected static void doClientWrite(final Client client, final Selector selector) {
     if(client != null) {
       try {
-        wrote = client.getChannel().write(client.getWriteBuffer());
-        if(wrote > 0) {
-          client.reduceWrite(wrote);
-        }
         final SelectionKey sk = client.getChannel().keyFor(selector);
-        if(! client.canWrite() && (sk.interestOps() & SelectionKey.OP_WRITE) == SelectionKey.OP_WRITE) {
+
+        if((sk.interestOps() & SelectionKey.OP_WRITE) == SelectionKey.OP_WRITE) {
           client.getChannel().register(selector, sk.interestOps() - SelectionKey.OP_WRITE);
-        } else {
-          client.getChannel().register(selector, sk.interestOps());
         }
+        client.doSocketWrite();
       } catch(Exception e) {
         client.close();
         ExceptionUtils.handleException(e);
       }
     }
-    return wrote;
-  }
-  
-  private static int doRead(ByteBuffer bb, SocketChannel sc) throws IOException {
-    return sc.read(bb);
   }
 
-  protected static int doClientRead(final Client client, final Selector selector) {
-    int read = 0;
+  protected static void doClientRead(final Client client, final Selector selector) {
     if(client != null) {
+      final SelectionKey sk = client.getChannel().keyFor(selector);
       try {
-        final ByteBuffer readByteBuffer = client.provideReadByteBuffer();
-        final int origPos = readByteBuffer.position();
-        read = doRead(readByteBuffer, client.getChannel());
-        if(read < 0) {
-          client.close();
-        } else if( read > 0){
-          readByteBuffer.position(origPos);
-          final ByteBuffer resultBuffer = readByteBuffer.slice();
-          readByteBuffer.position(origPos+read);
-          resultBuffer.limit(read);
-          client.addReadBuffer(resultBuffer);
-          final SelectionKey sk = client.getChannel().keyFor(selector);
-          if(! client.canRead() && (sk.interestOps() & SelectionKey.OP_READ) == SelectionKey.OP_READ) {
-            client.getChannel().register(selector, sk.interestOps() - SelectionKey.OP_READ);
-          } else {
-            client.getChannel().register(selector, sk.interestOps());
-          }
+        if((sk.interestOps() & SelectionKey.OP_READ) == SelectionKey.OP_READ) {
+          client.getChannel().register(selector, sk.interestOps() - SelectionKey.OP_READ);
         }
-      } catch(Exception e) {
+        client.doSocketRead();
+      } catch (ClosedChannelException e) {
         client.close();
-        ExceptionUtils.handleException(e);
       }
-    }
-    if(read >= 0) {
-      return read;
-    } else {
-      return 0;
     }
   }
 

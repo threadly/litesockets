@@ -208,7 +208,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
                   sk.cancel();
                   setClientOperations(client);
                 } else {
-                  stats.addRead(doClientRead(client, readSelector));
+                  doClientRead(client, readSelector);
                 }
               } catch(CancelledKeyException e) {
                 client.close();
@@ -250,7 +250,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
           for(final SelectionKey sk: writeSelector.selectedKeys()) {
             final Client client = clients.get(sk.channel());
             if(client != null) {
-              stats.addWrite(doClientWrite(client, writeSelector));
+              doClientWrite(client, writeSelector);
             } else {
               final Server server = servers.get(sk.channel());
               if(server != null) {
