@@ -76,7 +76,7 @@ public interface SocketExecuter extends Service {
   /**
    * This allows you to get the {@link SubmitterExecutor} for a specified object.
    * 
-   * @param obj The Object whose {@link SubmmiterExecutor} you are looking for
+   * @param obj The Object whose {@link SubmitterExecutor} you are looking for
    * @return the {@link SubmitterExecutor} for that object.
    */
   public SubmitterExecutor getExecutorFor(Object obj);
