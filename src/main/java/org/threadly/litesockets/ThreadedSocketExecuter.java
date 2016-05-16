@@ -4,14 +4,14 @@ import java.nio.channels.CancelledKeyException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
 import org.threadly.concurrent.ConfigurableThreadFactory;
-import org.threadly.concurrent.KeyDistributedExecutor;
-import org.threadly.concurrent.ScheduledExecutorServiceWrapper;
 import org.threadly.concurrent.SingleThreadScheduler;
+import org.threadly.concurrent.SubmitterExecutor;
 import org.threadly.concurrent.SubmitterScheduler;
+import org.threadly.concurrent.wrapper.KeyDistributedExecutor;
+import org.threadly.concurrent.wrapper.compatibility.ScheduledExecutorServiceWrapper;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.ExceptionUtils;
 
@@ -271,7 +271,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   }
 
   @Override
-  public Executor getExecutorFor(final Object obj) {
-    return clientDistributer.getSubmitterForKey(obj);
+  public SubmitterExecutor getExecutorFor(final Object obj) {
+    return clientDistributer.getExecutorForKey(obj);
   }
 }
