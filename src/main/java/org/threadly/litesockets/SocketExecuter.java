@@ -3,8 +3,8 @@ package org.threadly.litesockets;
 import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.concurrent.Executor;
 
+import org.threadly.concurrent.SubmitterExecutor;
 import org.threadly.concurrent.SubmitterScheduler;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.utils.SimpleByteStats;
@@ -74,12 +74,12 @@ public interface SocketExecuter extends Service {
   public TCPClient createTCPClient(SocketChannel sc) throws IOException;
   
   /**
-   * This allows you to get the {@link Executor} for a specified object.
+   * This allows you to get the {@link SubmitterExecutor} for a specified object.
    * 
-   * @param obj The Object whose {@link Executor} you are looking for
-   * @return the {@link Executor} for that object.
+   * @param obj The Object whose {@link SubmitterExecutor} you are looking for
+   * @return the {@link SubmitterExecutor} for that object.
    */
-  public Executor getExecutorFor(Object obj);
+  public SubmitterExecutor getExecutorFor(Object obj);
   
   /**
    * This is called when the a clients state needs to be rechecked.  It will cause the SocketExecuter to 
