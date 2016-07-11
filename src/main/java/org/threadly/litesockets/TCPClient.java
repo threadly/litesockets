@@ -146,13 +146,19 @@ public class TCPClient extends Client {
     if(setClose()) {
       se.setClientOperations(this);
       final ClosedChannelException cce = new ClosedChannelException();
-      synchronized(writerLock) {
-        for(final Pair<Long, SettableListenableFuture<Long>> p: this.writeFutures) {
-          p.getRight().setFailure(cce);
-        }
-        writeFutures.clear();
-        writeBuffers.discard(this.writeBuffers.remaining());
-      }
+      this.getClientsThreadExecutor().execute(new Runnable() {
+
+        @Override
+        public void run() {
+          synchronized(writerLock) {
+            for(final Pair<Long, SettableListenableFuture<Long>> p: writeFutures) {
+              p.getRight().setFailure(cce);
+            }
+            writeFutures.clear();
+            writeBuffers.discard(writeBuffers.remaining());
+          }
+        }});
+
       try {
         channel.socket().close();
         channel.close();

@@ -158,6 +158,9 @@ public class SSLProcessor {
         tmpBB.limit(newBB.position());
         mbb.add(tmpBB);
       }
+      if(client.isClosed()) {
+        break;
+      }
     }
     writeBuffer = null;
     if(gotFinished && finishedHandshake.compareAndSet(false, true)) {
