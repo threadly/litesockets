@@ -21,7 +21,8 @@ public abstract class Server {
   protected final SocketExecuterCommonBase sei;
   private final AtomicBoolean closed = new AtomicBoolean(false);
   private volatile ClientAcceptor clientAcceptor;
-  private volatile ListenerHelper<ServerCloseListener> closer = ListenerHelper.build(ServerCloseListener.class);
+  private volatile ListenerHelper<ServerCloseListener> closer = 
+      new ListenerHelper<ServerCloseListener>(ServerCloseListener.class);
   
   protected Server(final SocketExecuterCommonBase sei) {
     this.sei = sei;

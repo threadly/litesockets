@@ -67,8 +67,9 @@ public abstract class Client {
   protected final Object writerLock = new Object();
   protected final ClientByteStats stats = new ClientByteStats();
   protected final AtomicBoolean closed = new AtomicBoolean(false);
-  protected final ListenerHelper<Reader> readerListener = ListenerHelper.build(Reader.class);
-  protected final ListenerHelper<CloseListener> closerListener = ListenerHelper.build(CloseListener.class);
+  protected final ListenerHelper<Reader> readerListener = new ListenerHelper<Reader>(Reader.class);
+  protected final ListenerHelper<CloseListener> closerListener = 
+      new ListenerHelper<CloseListener>(CloseListener.class);
   protected volatile boolean useNativeBuffers = false;
   protected volatile boolean keepReadBuffer = true;
   protected volatile int maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;

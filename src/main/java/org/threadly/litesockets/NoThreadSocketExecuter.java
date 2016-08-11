@@ -6,9 +6,9 @@ import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.util.concurrent.Executor;
 
 import org.threadly.concurrent.NoThreadScheduler;
+import org.threadly.concurrent.SubmitterExecutor;
 import org.threadly.util.ArgumentVerifier;
 
 /**
@@ -137,8 +137,9 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   public void select(final int delay) {
     ArgumentVerifier.assertNotNegative(delay, "delay");
     checkRunning();
-    localNoThreadScheduler.tick(null);
     try {
+      commonSelector.selectNow();  //We have to do this before we tick for windows
+      localNoThreadScheduler.tick(null);
       if(delay == 0) {
         commonSelector.selectNow();
       } else {
@@ -202,7 +203,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   }
 
   @Override
-  public Executor getExecutorFor(final Object obj) {
+  public SubmitterExecutor getExecutorFor(final Object obj) {
     return localNoThreadScheduler;
   }
 }

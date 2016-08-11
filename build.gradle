@@ -1,5 +1,6 @@
 apply from: 'build.shared'
 apply plugin: 'jacoco'
+apply plugin: 'eclipse'
 
 test {
   jacoco {
