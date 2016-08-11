@@ -137,8 +137,9 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   public void select(final int delay) {
     ArgumentVerifier.assertNotNegative(delay, "delay");
     checkRunning();
-    localNoThreadScheduler.tick(null);
     try {
+      commonSelector.selectNow();  //We have to do this before we tick for windows
+      localNoThreadScheduler.tick(null);
       if(delay == 0) {
         commonSelector.selectNow();
       } else {
