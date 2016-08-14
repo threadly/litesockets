@@ -35,17 +35,6 @@ import org.threadly.util.Clock;
 public abstract class Client {
 
   /**
-   * SocketOptions that can be set set on Clients.
-   * 
-   * @author lwahlmeier
-   * @deprecated this is deprecated in favor of {@link ClientOptions}
-   */
-  @Deprecated
-  public static enum SocketOption {
-    TCP_NODELAY, SEND_BUFFER_SIZE, RECV_BUFFER_SIZE, UDP_FRAME_SIZE, USE_NATIVE_BUFFERS
-  }
-
-  /**
    * Default max buffer size (64k).  Read and write buffers are independent of each other.
    */
   protected static final int DEFAULT_MAX_BUFFER_SIZE = 65536;
@@ -153,17 +142,6 @@ public abstract class Client {
    * @return false if the client has been connected, true if it has not connected and the timeout limit has been reached.
    */
   public abstract boolean hasConnectionTimedOut();
-
-  /**
-   * <p>This lets you set lower level socket options for this client.  Mainly Buffer sizes and no delay options.</p>
-   * 
-   * @param so The {@link SocketOption} to set for the client.
-   * @param value The value for the socket option (1 for on, 0 for off).
-   * @return True if the option was set, false if not.
-   * @deprecated use the {@link #clientOptions()} call.
-   */
-  @Deprecated
-  public abstract boolean setSocketOption(SocketOption so, int value);
 
   public abstract ClientOptions clientOptions();
 

@@ -28,7 +28,6 @@ import org.threadly.util.Pair;
  * A Simple TCP client.
  *   
  */
-@SuppressWarnings("deprecation")
 public class TCPClient extends Client {
   protected static final int DEFAULT_SOCKET_TIMEOUT = 10000;
   protected static final int MIN_WRITE_BUFFER_SIZE = 8192;
@@ -292,30 +291,6 @@ public class TCPClient extends Client {
     return "TCPClient:FROM:"+getLocalSocketAddress()+":TO:"+getRemoteSocketAddress();
   }
 
-  @Override
-  public boolean setSocketOption(final SocketOption so, final int value) {
-    try{
-      switch(so) {
-      case TCP_NODELAY: {
-          return tso.setTcpNoDelay(value > 0);
-      }
-      case SEND_BUFFER_SIZE: {
-        return tso.setSocketSendBuffer(value);
-      }
-      case RECV_BUFFER_SIZE: {
-        return tso.setSocketRecvBuffer(value);
-      }
-      case USE_NATIVE_BUFFERS: {
-        return tso.setNativeBuffers(value > 0);
-      }
-      default:
-        return false;
-      }
-    } catch(Exception e) {
-    }
-    return false;
-  }
-  
   @Override
   public ClientOptions clientOptions() {
     return tso;

@@ -25,7 +25,6 @@ import org.threadly.util.Clock;
  *  on the socket.
  *  
  */
-@SuppressWarnings("deprecation")
 public class UDPClient extends Client {
   protected static final ListenableFuture<Boolean> COMPLETED_FUTURE = FutureUtils.immediateResultFuture(true);
   
@@ -151,22 +150,6 @@ public class UDPClient extends Client {
   @Override
   public void setConnectionTimeout(final int timeout) {
     //No connection to Timeout
-  }
-
-  @Override
-  public boolean setSocketOption(final SocketOption so, final int value) {
-    try{
-      if(so == SocketOption.UDP_FRAME_SIZE) {
-        this.udpServer.setFrameSize(value);
-        return true;        
-      } else if (so == SocketOption.USE_NATIVE_BUFFERS) {
-        this.useNativeBuffers = value == 1;
-        return true;
-      }
-    } catch(Exception e) {
-
-    }
-    return false;
   }
 
   @Override
