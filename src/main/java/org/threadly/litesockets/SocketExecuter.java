@@ -3,6 +3,7 @@ package org.threadly.litesockets;
 import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.logging.Logger;
 
 import org.threadly.concurrent.SubmitterExecutor;
 import org.threadly.concurrent.SubmitterScheduler;
@@ -148,4 +149,13 @@ public interface SocketExecuter extends Service {
    * @param delay The delay time in Millis to wait for the {@link ListenableFuture} to finish.
    */
   public void watchFuture(ListenableFuture<?> lf, long delay);
+  
+  
+  public static void addDebugLogger(Logger logger) {
+    SocketExecuterCommonBase.debugLoggers.addListener(logger);
+  }
+  
+  public static void removeDebugLogger(Logger logger) {
+    SocketExecuterCommonBase.debugLoggers.removeListener(logger);
+  }
 }

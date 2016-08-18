@@ -10,8 +10,10 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.logging.Logger;
 
 import org.threadly.concurrent.SubmitterScheduler;
+import org.threadly.concurrent.event.ListenerHelper;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.WatchdogCache;
 import org.threadly.litesockets.utils.SimpleByteStats;
@@ -24,6 +26,7 @@ import org.threadly.util.ExceptionUtils;
  *  This is a common base class for the Threaded and NoThread SocketExecuters. 
  */
 abstract class SocketExecuterCommonBase extends AbstractService implements SocketExecuter {
+  protected static final ListenerHelper<Logger> debugLoggers = new ListenerHelper<Logger>(Logger.class);
   protected static final int WATCHDOG_CLEANUP_TIME = 30000;
   protected final SubmitterScheduler acceptScheduler;
   protected final SubmitterScheduler readScheduler;
@@ -54,6 +57,22 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     this.acceptScheduler = acceptScheduler;
     this.readScheduler = readScheduler;
     this.writeScheduler = writeScheduler;
+  }
+  
+  public static void addDebugLogger(Logger logger) {
+    debugLoggers.addListener(logger);
+  }
+  
+  public static void removeDebugLogger(Logger logger) {
+    debugLoggers.removeListener(logger);
+  }
+  
+  protected void logDebug(String msg) {
+    debugLoggers.call().info(msg);
+  }
+  
+  protected void logDebug(String msg, Throwable t) {
+    debugLoggers.call().info(msg+"\n" + ExceptionUtils.stackToString(t));
   }
   
   protected void addReadAmount(int size) {
@@ -198,7 +217,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         try {
           selector.close();
         } catch (IOException e) {
-          ExceptionUtils.handleException(e);
+          debugLoggers.call().info("Exception closing Selector\n"+ExceptionUtils.stackToString(e));
         }
       }});
     selector.wakeup();
@@ -214,7 +233,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         }
       } catch (IOException e) {
         server.close();
-        ExceptionUtils.handleException(e);
+        debugLoggers.call().info("Exception doing select on server: "+server+"\n"+ExceptionUtils.stackToString(e));
       }
     }
   }
@@ -230,7 +249,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     } catch(IOException e) {
       client.close();
       client.setConnectionStatus(e);
-      ExceptionUtils.handleException(e);
+      debugLoggers.call().info("Exception connecting client: "+client+"\n"+ExceptionUtils.stackToString(e));
     }
   }
 
@@ -245,7 +264,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         client.doSocketWrite();
       } catch(Exception e) {
         client.close();
-        ExceptionUtils.handleException(e);
+        debugLoggers.call().info("Exception writting to client: "+client+"\n"+ExceptionUtils.stackToString(e));
       }
     }
   }
@@ -260,6 +279,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         client.doSocketRead();
       } catch (ClosedChannelException e) {
         client.close();
+        debugLoggers.call().info("Exception client: "+client+" was closed while reading from socket\n"+ExceptionUtils.stackToString(e));
       }
     }
   }
@@ -297,8 +317,10 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
           localSelector.wakeup();
           localClient.getChannel().register(localSelector, registerType);
         } catch (CancelledKeyException e) {
+          debugLoggers.call().info("Exception key cancelled on client: "+localClient+" while adding to selector\n"+ExceptionUtils.stackToString(e));
           exec.execute(this);
         } catch (ClosedChannelException e) {
+          debugLoggers.call().info("Exception channel closed on client: "+localClient+" while adding to selector\n"+ExceptionUtils.stackToString(e));
           localClient.close();
         }
       }
@@ -310,6 +332,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
           localServer.getSelectableChannel().register(localSelector, registerType);
         } catch (ClosedChannelException e) {
           localServer.close();
+          debugLoggers.call().info("Exception channel closed on client: "+localServer+" while adding to selector\n"+ExceptionUtils.stackToString(e));
         }
       }
     }

@@ -2,6 +2,7 @@ package org.threadly.litesockets.udp;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -135,11 +136,143 @@ public class UDPTest {
     newServer.close();
     c.close();
     newServer.close();
+  }  
+  
+  
+  @Test
+  public void simpleUDPTestNativeBuffers() throws IOException {
+    int newPort = PortUtils.findUDPPort();
+    FakeUDPServerClient newFC = new FakeUDPServerClient(SE);
+    UDPServer newServer = SE.createUDPServer("localhost", newPort);
+    newFC.AddUDPServer(newServer);
+    UDPClient c = newServer.createUDPClient("127.0.0.1", port);
+    c.clientOptions().setNativeBuffers(true);
+    c.clientOptions().setReducedReadAllocations(false);
+    newFC.accept(c);
+    c.write(ByteBuffer.wrap(GET.getBytes()));
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clientList.size() == 1;
+      }
+    }.blockTillTrue(5000);
+    final UDPClient rc = serverFC.clientList.get(0);
+    rc.clientOptions().setNativeBuffers(true);
+    rc.clientOptions().setReducedReadAllocations(false);
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clients.get(rc).remaining() > 0;
+      }
+    }.blockTillTrue(5000);
+    System.out.println(serverFC.clients.get(rc).remaining());
+    assertEquals(GET, serverFC.clients.get(rc).getAsString(serverFC.clients.get(rc).remaining()));
+    newServer.close();
+    c.close();
+    newServer.close();
+  }
+  
+  @Test
+  public void udpReadBufferAllocation() throws IOException {
+    int newPort = PortUtils.findUDPPort();
+    FakeUDPServerClient newFC = new FakeUDPServerClient(SE);
+    UDPServer newServer = SE.createUDPServer("localhost", newPort);
+    newFC.AddUDPServer(newServer);
+    UDPClient c = newServer.createUDPClient("127.0.0.1", port);
+    c.clientOptions().setReducedReadAllocations(false);
+    newFC.accept(c);
+    c.write(ByteBuffer.wrap(GET.getBytes()));
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clientList.size() == 1;
+      }
+    }.blockTillTrue(5000);
+    final UDPClient rc = serverFC.clientList.get(0);
+    rc.clientOptions().setReducedReadAllocations(false);
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clients.get(rc).remaining() > 0;
+      }
+    }.blockTillTrue(5000);
+    System.out.println(serverFC.clients.get(rc).remaining());
+    assertEquals(GET, serverFC.clients.get(rc).getAsString(serverFC.clients.get(rc).remaining()));
+    newServer.close();
+    c.close();
+    newServer.close();
+  }
+  
+  @Test
+  public void udpRecvSocketSize() throws IOException {
+    int newPort = PortUtils.findUDPPort();
+    FakeUDPServerClient newFC = new FakeUDPServerClient(SE);
+    UDPServer newServer = SE.createUDPServer("localhost", newPort);
+    newFC.AddUDPServer(newServer);
+    UDPClient c = newServer.createUDPClient("127.0.0.1", port);
+    assertFalse(c.clientOptions().setSocketRecvBuffer(1));
+    assertTrue(c.clientOptions().setSocketRecvBuffer(4096));
+    assertEquals(4096, c.clientOptions().getSocketRecvBuffer());
+    
+    newFC.accept(c);
+    c.write(ByteBuffer.wrap(GET.getBytes()));
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clientList.size() == 1;
+      }
+    }.blockTillTrue(5000);
+    final UDPClient rc = serverFC.clientList.get(0);
+    rc.clientOptions().setReducedReadAllocations(false);
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clients.get(rc).remaining() > 0;
+      }
+    }.blockTillTrue(5000);
+    System.out.println(serverFC.clients.get(rc).remaining());
+    assertEquals(GET, serverFC.clients.get(rc).getAsString(serverFC.clients.get(rc).remaining()));
+    newServer.close();
+    c.close();
+    newServer.close();
+  }
+  
+  @Test
+  public void udpSendSocketSize() throws IOException {
+    int newPort = PortUtils.findUDPPort();
+    FakeUDPServerClient newFC = new FakeUDPServerClient(SE);
+    UDPServer newServer = SE.createUDPServer("localhost", newPort);
+    newFC.AddUDPServer(newServer);
+    UDPClient c = newServer.createUDPClient("127.0.0.1", port);
+    assertFalse(c.clientOptions().setSocketSendBuffer(1));
+    assertTrue(c.clientOptions().setSocketSendBuffer(4096));
+    assertEquals(4096, c.clientOptions().getSocketSendBuffer());
+    
+    newFC.accept(c);
+    c.write(ByteBuffer.wrap(GET.getBytes()));
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clientList.size() == 1;
+      }
+    }.blockTillTrue(5000);
+    final UDPClient rc = serverFC.clientList.get(0);
+    rc.clientOptions().setReducedReadAllocations(false);
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clients.get(rc).remaining() > 0;
+      }
+    }.blockTillTrue(5000);
+    System.out.println(serverFC.clients.get(rc).remaining());
+    assertEquals(GET, serverFC.clients.get(rc).getAsString(serverFC.clients.get(rc).remaining()));
+    newServer.close();
+    c.close();
+    newServer.close();
   }
  
   @Test
   public void udpWhiteListTest() throws IOException, InterruptedException {
-    
     int whitePort = PortUtils.findUDPPort();
     FakeUDPServerClient whiteFC = new FakeUDPServerClient(SE);
     UDPServer whiteServer = SE.createUDPServer("127.0.0.1", whitePort);

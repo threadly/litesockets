@@ -73,6 +73,7 @@ public class TCPTests {
     serverFC = null;
     Runtime.getRuntime().gc();
     Runtime.getRuntime().gc();
+    server.stop();
     SE.stopIfRunning();
     PS.shutdownNow();
     server.stop();
@@ -83,11 +84,15 @@ public class TCPTests {
   }
 
   @Test(expected=IllegalStateException.class)
-  public void writeClosedSocket() throws IOException, InterruptedException, ExecutionException, TimeoutException {
+  public void writeClosedSocket() throws Throwable {
     final TCPClient client = SE.createTCPClient("localhost", port);
     client.connect().get(5000, TimeUnit.MILLISECONDS);
     client.close();
-    client.write(SMALL_TEXT_BUFFER.duplicate());
+    try {
+      client.write(SMALL_TEXT_BUFFER.duplicate()).get();
+    } catch(Exception e) {
+      throw e.getCause();
+    }
   }
   
   
@@ -126,6 +131,58 @@ public class TCPTests {
     assertFalse(client.clientOptions().getTcpNoDelay());
     
     server.close();
+  }
+  
+  @Test
+  public void noPreReaderTest() throws IOException, InterruptedException, ExecutionException, TimeoutException {
+    final TCPClient client = SE.createTCPClient("localhost", port);
+    final FakeTCPServerClient clientFC = new FakeTCPServerClient();
+    clientFC.addTCPClient(client);
+    client.connect();
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.getNumberOfClients() == 1;
+      }
+    }.blockTillTrue(5000);
+
+    final TCPClient sclient = serverFC.getClientAt(0);
+    sclient.setReader(null);
+    client.write(SMALL_TEXT_BUFFER.duplicate()).get(5, TimeUnit.SECONDS);
+    sclient.setReader(serverFC);
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.getClientsBuffer(sclient).remaining() == SMALL_TEXT_BUFFER.remaining();
+      }
+    }.blockTillTrue(5000);
+
+    sclient.write(SMALL_TEXT_BUFFER.duplicate());
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        boolean test = false;
+        try {
+          test = clientFC.getClientsBuffer(client).remaining() == SMALL_TEXT_BUFFER.remaining();
+        } catch(Exception e) {
+
+        }
+        return test;
+      }
+    }.blockTillTrue(1000);
+
+    client.close();
+    SE.setClientOperations(sclient);
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        System.out.println(sclient.isClosed()+":"+client.isClosed());
+        SE.setClientOperations(client);
+        return sclient.isClosed() && client.isClosed();
+      }
+    }.blockTillTrue(10000, 100);
+    server.close();
+
   }
   
   @Test
@@ -177,6 +234,112 @@ public class TCPTests {
     }.blockTillTrue(10000, 100);
     server.close();
 
+  }
+  
+  @Test
+  public void simpleWriteTestPerReadAllocation() throws IOException, InterruptedException {
+    final TCPClient client = SE.createTCPClient("localhost", port);
+    client.clientOptions().setReducedReadAllocations(false);
+    final FakeTCPServerClient clientFC = new FakeTCPServerClient();
+    clientFC.addTCPClient(client);
+    client.connect();
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.getNumberOfClients() == 1;
+      }
+    }.blockTillTrue(5000);
+
+    final TCPClient sclient = serverFC.getClientAt(0);
+    sclient.clientOptions().setReducedReadAllocations(false);
+    client.write(SMALL_TEXT_BUFFER.duplicate());
+    //System.out.println("1");
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.getClientsBuffer(sclient).remaining() == SMALL_TEXT_BUFFER.remaining();
+      }
+    }.blockTillTrue(5000);
+
+    sclient.write(SMALL_TEXT_BUFFER.duplicate());
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        boolean test = false;
+        try {
+          test = clientFC.getClientsBuffer(client).remaining() == SMALL_TEXT_BUFFER.remaining();
+        } catch(Exception e) {
+
+        }
+        return test;
+      }
+    }.blockTillTrue(1000);
+
+    client.close();
+    SE.setClientOperations(sclient);
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        System.out.println(sclient.isClosed()+":"+client.isClosed());
+        SE.setClientOperations(client);
+        return sclient.isClosed() && client.isClosed();
+      }
+    }.blockTillTrue(10000, 100);
+    server.close();
+  }
+  
+  @Test
+  public void simpleWriteTestNativeBuffers() throws IOException, InterruptedException {
+    final TCPClient client = SE.createTCPClient("localhost", port);
+    client.clientOptions().setNativeBuffers(true);
+    client.clientOptions().setReducedReadAllocations(false);
+    final FakeTCPServerClient clientFC = new FakeTCPServerClient();
+    clientFC.addTCPClient(client);
+    client.connect();
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.getNumberOfClients() == 1;
+      }
+    }.blockTillTrue(5000);
+
+    final TCPClient sclient = serverFC.getClientAt(0);
+    sclient.clientOptions().setNativeBuffers(true);
+    sclient.clientOptions().setReducedReadAllocations(false);
+    client.write(SMALL_TEXT_BUFFER.duplicate());
+    //System.out.println("1");
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.getClientsBuffer(sclient).remaining() == SMALL_TEXT_BUFFER.remaining();
+      }
+    }.blockTillTrue(5000);
+
+    sclient.write(SMALL_TEXT_BUFFER.duplicate());
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        boolean test = false;
+        try {
+          test = clientFC.getClientsBuffer(client).remaining() == SMALL_TEXT_BUFFER.remaining();
+        } catch(Exception e) {
+
+        }
+        return test;
+      }
+    }.blockTillTrue(1000);
+
+    client.close();
+    SE.setClientOperations(sclient);
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        System.out.println(sclient.isClosed()+":"+client.isClosed());
+        SE.setClientOperations(client);
+        return sclient.isClosed() && client.isClosed();
+      }
+    }.blockTillTrue(10000, 100);
+    server.close();
   }
 
   @Test
@@ -254,7 +417,7 @@ public class TCPTests {
   public void clientBlockingWriter() throws Exception {
     final ByteBuffer bb = ByteBuffer.wrap("TEST111".getBytes());
     final TCPClient client = SE.createTCPClient("localhost", port);
-    client.setMaxBufferSize(2);
+    client.clientOptions().setMaxClientReadBuffer(2);
     serverFC.addTCPClient(client);
     new TestCondition(){
       @Override
@@ -263,7 +426,7 @@ public class TCPTests {
       }
     }.blockTillTrue(5000);
     TCPClient c2 = serverFC.getClientAt(1);
-    c2.setMaxBufferSize(2);
+    c2.clientOptions().setMaxClientReadBuffer(2);
     ArrayList<ListenableFuture<?>> lfl = new ArrayList<ListenableFuture<?>>(); 
     for(int i=0; i<100; i++) {
       lfl.add(c2.write(bb.duplicate()));
@@ -298,7 +461,7 @@ public class TCPTests {
     System.out.println("1");
     ByteBuffer bb = ByteBuffer.wrap(text.toString().getBytes());
     final TCPClient client = SE.createTCPClient("localhost", port);
-    client.setMaxBufferSize(2);
+    client.clientOptions().setMaxClientReadBuffer(2);
     client.setReader(new Reader() {
       @Override
       public void onRead(Client client) {
@@ -314,8 +477,8 @@ public class TCPTests {
       }
     }.blockTillTrue(5000, 100);
     System.out.println("4");
-    final TCPClient c2 = serverFC.getClientAt(0);    
-    c2.setMaxBufferSize(60000);
+    final TCPClient c2 = serverFC.getClientAt(0);
+    c2.clientOptions().setMaxClientReadBuffer(60000);
     System.out.println("5");
     c2.write(bb.duplicate());
     System.out.println("6");
@@ -596,14 +759,14 @@ public class TCPTests {
     }
     assertFalse(sc.canRead());
     assertFalse(tc.canRead());
-    assertTrue(sc.getReadBufferSize() >= sc.getMaxBufferSize());
-    assertTrue(tc.getReadBufferSize() >= tc.getMaxBufferSize());
+    assertTrue(sc.getReadBufferSize() >= sc.clientOptions().getMaxClientReadBuffer());
+    assertTrue(tc.getReadBufferSize() >= sc.clientOptions().getMaxClientReadBuffer());
     SE.setClientOperations(sc);
     SE.setClientOperations(tc);
     assertFalse(sc.canRead());
     assertFalse(tc.canRead());
-    assertTrue(sc.getReadBufferSize() >= sc.getMaxBufferSize());
-    assertTrue(tc.getReadBufferSize() >= tc.getMaxBufferSize());
+    assertTrue(sc.getReadBufferSize() >= sc.clientOptions().getMaxClientReadBuffer());
+    assertTrue(tc.getReadBufferSize() >= sc.clientOptions().getMaxClientReadBuffer());
   }
   
   @Test

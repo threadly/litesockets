@@ -6,7 +6,6 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.net.Socket;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
@@ -249,13 +248,6 @@ public class SSLProcessorTests {
       return false;
     }
 
-    @Deprecated
-    @Override
-    public boolean setSocketOption(SocketOption so, int value) {
-      // TODO Auto-generated method stub
-      return false;
-    }
-
     @Override
     public ListenableFuture<Boolean> connect() {
       // TODO Auto-generated method stub
@@ -305,12 +297,6 @@ public class SSLProcessorTests {
 
     @Override
     public WireProtocol getProtocol() {
-      // TODO Auto-generated method stub
-      return null;
-    }
-
-    @Override
-    protected Socket getSocket() {
       // TODO Auto-generated method stub
       return null;
     }

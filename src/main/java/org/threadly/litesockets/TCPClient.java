@@ -2,7 +2,6 @@ package org.threadly.litesockets;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
@@ -14,6 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLSession;
 
+import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.utils.MergedByteBuffers;
@@ -32,6 +32,8 @@ public class TCPClient extends Client {
   protected static final int DEFAULT_SOCKET_TIMEOUT = 10000;
   protected static final int MIN_WRITE_BUFFER_SIZE = 8192;
   protected static final int MAX_COMBINED_WRITE_BUFFER_SIZE = 65536;
+  private static final ListenableFuture<Long> closedFuture = FutureUtils.immediateFailureFuture(new IllegalStateException("Connection is Closed"));
+  private static final ListenableFuture<Long> finishedFuture = FutureUtils.immediateResultFuture(0L);
 
   private final MergedByteBuffers writeBuffers = new MergedByteBuffers();
   private final Deque<Pair<Long, SettableListenableFuture<Long>>> writeFutures = new ArrayDeque<Pair<Long, SettableListenableFuture<Long>>>();
@@ -43,6 +45,7 @@ public class TCPClient extends Client {
   protected final SocketChannel channel;
   protected final InetSocketAddress remoteAddress;
   
+  private volatile ListenableFuture<Long> lastWriteFuture = finishedFuture;
   private volatile ByteBuffer currentWriteBuffer = ByteBuffer.allocate(0);
   private volatile SSLProcessor sslProcessor;
   
@@ -139,11 +142,6 @@ public class TCPClient extends Client {
   }
 
   @Override
-  protected Socket getSocket() {
-    return channel.socket();
-  }
-
-  @Override
   public void close() {
     if(setClose()) {
       se.setClientOperations(this);
@@ -188,20 +186,6 @@ public class TCPClient extends Client {
   }
 
   @Override
-  public int getMaxBufferSize() {
-    return this.maxBufferSize;
-  }
-
-  @Override
-  public void setMaxBufferSize(final int size) {
-    ArgumentVerifier.assertNotNegative(size, "size");
-    maxBufferSize = size;
-    if(channel.isConnected()) {
-      this.se.setClientOperations(this);
-    }
-  }
-  
-  @Override
   public MergedByteBuffers getRead() {
     MergedByteBuffers mbb = super.getRead();
     if(sslProcessor != null && sslProcessor.handShakeStarted() && mbb.remaining() > 0) {
@@ -223,10 +207,10 @@ public class TCPClient extends Client {
   @Override
   public ListenableFuture<?> write(final ByteBuffer bb) {
     if(isClosed()) {
-      throw new IllegalStateException("Cannot write to closed client!");
+      return closedFuture;
     }
     synchronized(writerLock) {
-      final boolean needNotify = ! canWrite();
+      final boolean needNotify = !canWrite();
       final SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>(false);
       if(sslProcessor != null && sslProcessor.handShakeStarted()) {
         writeBuffers.add(sslProcessor.encrypt(bb));
@@ -234,11 +218,11 @@ public class TCPClient extends Client {
         writeBuffers.add(bb);
       }
       writeFutures.add(new Pair<Long, SettableListenableFuture<Long>>(writeBuffers.getTotalConsumedBytes()+writeBuffers.remaining(), slf));
+      lastWriteFuture = slf;
       if(needNotify && se != null && channel.isConnected()) {
         se.setClientOperations(this);
       }
-      
-      return slf;
+      return lastWriteFuture;
     }
   }
 

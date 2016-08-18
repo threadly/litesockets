@@ -163,6 +163,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
           acceptSelector.selectedKeys().clear();
           acceptSelector.select();
         } catch (Exception e) {
+          debugLoggers.call().info("Exception while doing select!\n"+ExceptionUtils.stackToString(e));
           stopIfRunning();
           return;
         } 
@@ -195,6 +196,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
           readSelector.selectedKeys().clear();
           readSelector.select();
         } catch (Exception e) {
+          debugLoggers.call().info("Exception while doing select!\n"+ExceptionUtils.stackToString(e));
           stopIfRunning();
           return;
         }
@@ -212,7 +214,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
                 }
               } catch(CancelledKeyException e) {
                 client.close();
-                ExceptionUtils.handleException(e);
+                debugLoggers.call().info("Exception doing operations on client: "+client+" closing client\n"+ExceptionUtils.stackToString(e));
               }
             } else {
               final Server server = servers.get(sk.channel());
@@ -243,6 +245,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
           writeSelector.selectedKeys().clear();
           writeSelector.select();
         } catch (Exception e) {
+          debugLoggers.call().info("Exception while doing select!\n"+ExceptionUtils.stackToString(e));
           stopIfRunning();
           return;
         }

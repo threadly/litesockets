@@ -1,7 +1,6 @@
 package org.threadly.litesockets;
 
 import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
@@ -39,6 +38,43 @@ public class UDPClient extends Client {
     this.remoteAddress = sa;
     udpServer = server;
   }
+  
+  @Override
+  protected void doSocketRead() {
+  }
+
+  @Override
+  protected void doSocketWrite() {
+  }
+  
+  @Override
+  protected void setConnectionStatus(final Throwable t) {
+    //UDP has no "connection"
+  }
+
+  @Override
+  protected ByteBuffer getWriteBuffer() {
+    return null;
+  }
+
+  @Override
+  protected void reduceWrite(final int size) {
+    //UDPClient does not have pending writes to reduce
+  }
+  
+  @Override
+  protected void addReadBuffer(final ByteBuffer bb) {
+    addReadStats(bb.remaining());
+    synchronized(readerLock) {
+      readBuffers.add(bb);
+    }
+    callReader();
+  }
+
+  @Override
+  protected SocketChannel getChannel() {
+    return null;
+  }
 
   @Override
   public boolean equals(final Object o) {
@@ -54,16 +90,6 @@ public class UDPClient extends Client {
   @Override
   public int hashCode() {
     return remoteAddress.hashCode() * udpServer.getSelectableChannel().hashCode();
-  }
-
-  @Override
-  protected SocketChannel getChannel() {
-    return null;
-  }
-
-  @Override
-  protected Socket getSocket() {
-    return null;
   }
 
   @Override
@@ -94,16 +120,6 @@ public class UDPClient extends Client {
   }
 
   @Override
-  protected ByteBuffer getWriteBuffer() {
-    return null;
-  }
-
-  @Override
-  protected void reduceWrite(final int size) {
-    //UDPClient does not have pending writes to reduce
-  }
-
-  @Override
   public boolean hasConnectionTimedOut() {
     return false;
   }
@@ -116,11 +132,6 @@ public class UDPClient extends Client {
   @Override
   public int getTimeout() {
     return 0;
-  }
-
-  @Override
-  protected void setConnectionStatus(final Throwable t) {
-    //UDP has no "connection"
   }
 
   @Override
@@ -158,15 +169,6 @@ public class UDPClient extends Client {
   }
   
   @Override
-  protected void addReadBuffer(final ByteBuffer bb) {
-    addReadStats(bb.remaining());
-    synchronized(readerLock) {
-      readBuffers.add(bb);
-    }
-    callReader();
-  }
-  
-  @Override
   public MergedByteBuffers getRead() {
     MergedByteBuffers mbb = new MergedByteBuffers();
     int start = 0;
@@ -198,8 +200,8 @@ public class UDPClient extends Client {
     public boolean setSocketSendBuffer(int size) {
       int prev = getSocketSendBuffer();
       try {
-        udpServer.getSelectableChannel().socket().getSendBufferSize();
-        if(prev != getSocketSendBuffer()) {
+        udpServer.getSelectableChannel().socket().setSendBufferSize(size);
+        if(size != getSocketSendBuffer()) {
           udpServer.setFrameSize(prev);
           return false;
         }
@@ -222,8 +224,8 @@ public class UDPClient extends Client {
     public boolean setSocketRecvBuffer(int size) {
       int prev = getSocketRecvBuffer();
       try {
-        udpServer.getSelectableChannel().socket().getReceiveBufferSize();
-        if(prev != getSocketRecvBuffer()) {
+        udpServer.getSelectableChannel().socket().setReceiveBufferSize(size);
+        if(size != getSocketRecvBuffer()) {
           udpServer.setFrameSize(prev);
           return false;
         }
@@ -254,14 +256,4 @@ public class UDPClient extends Client {
     }
   }
 
-  @Override
-  protected void doSocketRead() {
-
-  }
-
-  @Override
-  protected void doSocketWrite() {
-    // TODO Auto-generated method stub
-    
-  }
 }
