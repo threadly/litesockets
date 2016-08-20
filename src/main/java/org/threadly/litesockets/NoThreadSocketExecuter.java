@@ -107,8 +107,12 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
     if(commonSelector != null && commonSelector.isOpen()) {
       closeSelector(schedulerPool, commonSelector);
     }
-    if(localNoThreadScheduler.hasTaskReadyToRun()) {
-      localNoThreadScheduler.tick(null);
+    while(localNoThreadScheduler.hasTaskReadyToRun()) {
+      try {
+        localNoThreadScheduler.tick(null);
+      } catch(Exception e) {
+        
+      }
     }
     clients.clear();
     servers.clear();

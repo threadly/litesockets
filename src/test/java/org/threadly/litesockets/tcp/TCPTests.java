@@ -34,6 +34,7 @@ import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.test.concurrent.TestCondition;
 
 
+
 public class TCPTests {
   private static final String OS = System.getProperty("os.name").toLowerCase();
   public static final String SMALL_TEXT = "TEST111";
@@ -682,7 +683,7 @@ public class TCPTests {
   
   @Test(expected=ExecutionException.class)
   public void tcpBadAddress() throws IOException, InterruptedException, ExecutionException {
-    TCPClient client = SE.createTCPClient("2.0.0.256", port);
+    TCPClient client = SE.createTCPClient("296.296.296.295", port);
     client.setConnectionTimeout(1000);
     client.connect().get();
   }

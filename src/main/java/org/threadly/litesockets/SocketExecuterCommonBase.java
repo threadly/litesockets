@@ -13,7 +13,6 @@ import java.util.concurrent.Executor;
 import java.util.logging.Logger;
 
 import org.threadly.concurrent.SubmitterScheduler;
-import org.threadly.concurrent.event.ListenerHelper;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.WatchdogCache;
 import org.threadly.litesockets.utils.SimpleByteStats;
@@ -26,8 +25,8 @@ import org.threadly.util.ExceptionUtils;
  *  This is a common base class for the Threaded and NoThread SocketExecuters. 
  */
 abstract class SocketExecuterCommonBase extends AbstractService implements SocketExecuter {
-  protected static final ListenerHelper<Logger> debugLoggers = new ListenerHelper<Logger>(Logger.class);
-  protected static final int WATCHDOG_CLEANUP_TIME = 30000;
+  
+  private final Logger log = Logger.getLogger(this.getClass().toString());
   protected final SubmitterScheduler acceptScheduler;
   protected final SubmitterScheduler readScheduler;
   protected final SubmitterScheduler writeScheduler;
@@ -36,6 +35,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   protected final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
   protected final SocketExecuterByteStats stats = new SocketExecuterByteStats();
   protected final WatchdogCache dogCache;
+  protected volatile boolean verboseLogging = false;
   protected Selector readSelector;
   protected Selector writeSelector;
   protected Selector acceptSelector;
@@ -48,6 +48,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
       final SubmitterScheduler readScheduler, 
       final SubmitterScheduler writeScheduler, 
       final SubmitterScheduler ssi) {
+    log.setParent(Logger.getGlobal());
     ArgumentVerifier.assertNotNull(ssi, "ThreadScheduler");    
     ArgumentVerifier.assertNotNull(acceptScheduler, "Accept Scheduler");
     ArgumentVerifier.assertNotNull(readScheduler, "Read Scheduler");
@@ -58,37 +59,21 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     this.readScheduler = readScheduler;
     this.writeScheduler = writeScheduler;
   }
-  
-  public static void addDebugLogger(Logger logger) {
-    debugLoggers.addListener(logger);
-  }
-  
-  public static void removeDebugLogger(Logger logger) {
-    debugLoggers.removeListener(logger);
-  }
-  
-  protected void logDebug(String msg) {
-    debugLoggers.call().info(msg);
-  }
-  
-  protected void logDebug(String msg, Throwable t) {
-    debugLoggers.call().info(msg+"\n" + ExceptionUtils.stackToString(t));
-  }
-  
+
   protected void addReadAmount(int size) {
     stats.addRead(size);
   }
-  
+
   protected void addWriteAmount(int size) {
     stats.addWrite(size);
   }
-  
+
   protected void checkRunning() {
     if(!isRunning()) {
       throw new IllegalStateException("SocketExecuter is not running!");
     }
   }
-  
+
   @Override
   public TCPClient createTCPClient(final String host, final int port) throws IOException {
     checkRunning();
@@ -96,8 +81,8 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     clients.put(((Client)tc).getChannel(), tc);
     return tc;
   }
-  
-  
+
+
   @Override
   public TCPClient createTCPClient(final SocketChannel sc) throws IOException {
     checkRunning();
@@ -106,7 +91,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     this.setClientOperations(tc);
     return tc;
   }
-  
+
   @Override
   public TCPServer createTCPServer(final String host, final int port) throws IOException {
     checkRunning();
@@ -114,7 +99,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     servers.put(ts.getSelectableChannel(), ts);
     return ts;
   }
-  
+
   @Override
   public TCPServer createTCPServer(final ServerSocketChannel ssc) throws IOException {
     checkRunning();
@@ -122,7 +107,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     servers.put(ts.getSelectableChannel(), ts);
     return ts;
   }
-  
+
   @Override
   public UDPServer createUDPServer(final String host, final int port) throws IOException {
     checkRunning();
@@ -130,7 +115,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     servers.put(us.getSelectableChannel(), us);
     return us;
   }
-  
+
   protected boolean checkServer(final Server server) {
     if(!isRunning() || server.isClosed() || server.getSocketExecuter() != this || !servers.containsKey(server.getSelectableChannel())) {
       servers.remove(server.getSelectableChannel());
@@ -138,8 +123,8 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     }
     return true;
   }
-  
-  
+
+
   @Override
   public void startListening(final Server server) {
     if(!checkServer(server)) {
@@ -153,7 +138,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
       }
     }
   }
-  
+
   @Override
   public void stopListening(final Server server) {
     if(!checkServer(server)) {
@@ -172,7 +157,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
       }
     }
   }
-  
+
   @Override
   public int getClientCount() {
     return clients.size();
@@ -192,7 +177,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   public SimpleByteStats getStats() {
     return stats;
   }
-  
+
   protected SocketExecuterByteStats writeableStats() {
     return stats;
   }
@@ -210,20 +195,20 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     }
   }
 
-  protected static void closeSelector(final SubmitterScheduler scheduler, final Selector selector) {
+  protected void closeSelector(final SubmitterScheduler scheduler, final Selector selector) {
     scheduler.execute(new Runnable() {
       @Override
       public void run() {
         try {
           selector.close();
         } catch (IOException e) {
-          debugLoggers.call().info("Exception closing Selector\n"+ExceptionUtils.stackToString(e));
+          ExceptionUtils.handleException(e);
         }
       }});
     selector.wakeup();
   }
 
-  protected static void doServerAccept(final Server server) {
+  protected void doServerAccept(final Server server) {
     if(server != null) {
       try {
         final SocketChannel client = ((ServerSocketChannel)server.getSelectableChannel()).accept();
@@ -233,12 +218,12 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         }
       } catch (IOException e) {
         server.close();
-        debugLoggers.call().info("Exception doing select on server: "+server+"\n"+ExceptionUtils.stackToString(e));
+        ExceptionUtils.handleException(e);
       }
     }
   }
 
-  protected static void doClientConnect(final Client client, final Selector selector) {
+  protected void doClientConnect(final Client client, final Selector selector) {
     if(client == null) {
       return;
     }
@@ -249,11 +234,11 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     } catch(IOException e) {
       client.close();
       client.setConnectionStatus(e);
-      debugLoggers.call().info("Exception connecting client: "+client+"\n"+ExceptionUtils.stackToString(e));
+      ExceptionUtils.handleException(e);
     }
   }
 
-  protected static void doClientWrite(final Client client, final Selector selector) {
+  protected void doClientWrite(final Client client, final Selector selector) {
     if(client != null) {
       try {
         final SelectionKey sk = client.getChannel().keyFor(selector);
@@ -264,12 +249,12 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         client.doSocketWrite();
       } catch(Exception e) {
         client.close();
-        debugLoggers.call().info("Exception writting to client: "+client+"\n"+ExceptionUtils.stackToString(e));
+        ExceptionUtils.handleException(e);
       }
     }
   }
 
-  protected static void doClientRead(final Client client, final Selector selector) {
+  protected void doClientRead(final Client client, final Selector selector) {
     if(client != null) {
       final SelectionKey sk = client.getChannel().keyFor(selector);
       try {
@@ -279,7 +264,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         client.doSocketRead();
       } catch (ClosedChannelException e) {
         client.close();
-        debugLoggers.call().info("Exception client: "+client+" was closed while reading from socket\n"+ExceptionUtils.stackToString(e));
+        ExceptionUtils.handleException(e);
       }
     }
   }
@@ -310,29 +295,29 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
       localSelector = selector;
       this.registerType = registerType;
     }
-    
+
     private void runClient() {
       if(!localClient.isClosed()) {
         try {
           localSelector.wakeup();
           localClient.getChannel().register(localSelector, registerType);
         } catch (CancelledKeyException e) {
-          debugLoggers.call().info("Exception key cancelled on client: "+localClient+" while adding to selector\n"+ExceptionUtils.stackToString(e));
+          ExceptionUtils.handleException(e);
           exec.execute(this);
         } catch (ClosedChannelException e) {
-          debugLoggers.call().info("Exception channel closed on client: "+localClient+" while adding to selector\n"+ExceptionUtils.stackToString(e));
+          ExceptionUtils.handleException(e);
           localClient.close();
         }
       }
     }
-    
+
     private void runServer() {
       if(!localServer.isClosed()) {
         try {
           localServer.getSelectableChannel().register(localSelector, registerType);
         } catch (ClosedChannelException e) {
+          ExceptionUtils.handleException(e);
           localServer.close();
-          debugLoggers.call().info("Exception channel closed on client: "+localServer+" while adding to selector\n"+ExceptionUtils.stackToString(e));
         }
       }
     }

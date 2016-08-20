@@ -144,7 +144,7 @@ public abstract class Client {
    * This allows you to set/get client options for this client connection.  Not all options can
    * be set for every client.
    * 
-   * @return a {@link #ClientOptions) object to set/get options for this client.
+   * @return a {@link ClientOptions} object to set/get options for this client.
    */
   public abstract ClientOptions clientOptions();
 
@@ -339,7 +339,7 @@ public abstract class Client {
   /**
    * <p>This sets the Reader for the client.  Once set data received on the socket will be callback 
    * on this Reader to be processed.  If no reader is set before connecting the client read data will just
-   * queue up till we hit the {@link #getMaxBufferSize()} size, then will be flushed to the first Reader added.</p>
+   * queue up till we hit the the max buffer size</p>
    * 
    * @param reader the {@link Reader} callback to set for this client.
    */

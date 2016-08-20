@@ -145,11 +145,10 @@ public class TCPClient extends Client {
   public void close() {
     if(setClose()) {
       se.setClientOperations(this);
-      final ClosedChannelException cce = new ClosedChannelException();
       this.getClientsThreadExecutor().execute(new Runnable() {
-
         @Override
         public void run() {
+          final ClosedChannelException cce = new ClosedChannelException();
           synchronized(writerLock) {
             for(final Pair<Long, SettableListenableFuture<Long>> p: writeFutures) {
               p.getRight().setFailure(cce);
@@ -158,7 +157,6 @@ public class TCPClient extends Client {
             writeBuffers.discard(writeBuffers.remaining());
           }
         }});
-
       try {
         channel.socket().close();
         channel.close();
@@ -311,11 +309,10 @@ public class TCPClient extends Client {
           }
           se.setClientOperations(TCPClient.this);
         } catch(Exception e) {
-          close();
           ExceptionUtils.handleException(e);
+          close();
         }
     }
-    
   }
   
   private class ReadRunnable implements Runnable {
@@ -338,8 +335,8 @@ public class TCPClient extends Client {
            se.setClientOperations(TCPClient.this);
          }
       } catch (IOException e) {
-        close();
         ExceptionUtils.handleException(e);
+        close();
       } 
     }
   }

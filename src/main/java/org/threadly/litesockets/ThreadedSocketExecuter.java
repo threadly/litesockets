@@ -103,7 +103,13 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   @Override
   public void setClientOperations(final Client client) {
     ArgumentVerifier.assertNotNull(client, "Client");
-    if(!clients.containsKey(client.getChannel()) || client.isClosed()) {
+    if(!clients.containsKey(client.getChannel())) {
+      clients.remove(client.getChannel());
+      return;
+    }
+    if(client.isClosed()) {
+      writeScheduler.execute(new AddToSelector(writeScheduler, client, writeSelector, 0));
+      readScheduler.execute(new AddToSelector(readScheduler, client, readSelector, 0));
       clients.remove(client.getChannel());
       return;
     }
@@ -163,7 +169,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
           acceptSelector.selectedKeys().clear();
           acceptSelector.select();
         } catch (Exception e) {
-          debugLoggers.call().info("Exception while doing select!\n"+ExceptionUtils.stackToString(e));
+          ExceptionUtils.handleException(e);
           stopIfRunning();
           return;
         } 
@@ -196,7 +202,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
           readSelector.selectedKeys().clear();
           readSelector.select();
         } catch (Exception e) {
-          debugLoggers.call().info("Exception while doing select!\n"+ExceptionUtils.stackToString(e));
+          ExceptionUtils.handleException(e);
           stopIfRunning();
           return;
         }
@@ -214,7 +220,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
                 }
               } catch(CancelledKeyException e) {
                 client.close();
-                debugLoggers.call().info("Exception doing operations on client: "+client+" closing client\n"+ExceptionUtils.stackToString(e));
+                ExceptionUtils.handleException(e);
               }
             } else {
               final Server server = servers.get(sk.channel());
@@ -245,7 +251,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
           writeSelector.selectedKeys().clear();
           writeSelector.select();
         } catch (Exception e) {
-          debugLoggers.call().info("Exception while doing select!\n"+ExceptionUtils.stackToString(e));
+          ExceptionUtils.handleException(e);
           stopIfRunning();
           return;
         }

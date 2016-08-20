@@ -55,5 +55,4 @@ public class NoThreadTCPTests extends TCPTests {
   public void clientBlockingWriter() throws Exception {
    super.clientBlockingWriter(); 
   }
-  
 }
