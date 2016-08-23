@@ -33,7 +33,6 @@ public class TCPClient extends Client {
   protected static final int MIN_WRITE_BUFFER_SIZE = 8192;
   protected static final int MAX_COMBINED_WRITE_BUFFER_SIZE = 65536;
   private static final ListenableFuture<Long> closedFuture = FutureUtils.immediateFailureFuture(new IllegalStateException("Connection is Closed"));
-  private static final ListenableFuture<Long> finishedFuture = FutureUtils.immediateResultFuture(0L);
 
   private final MergedByteBuffers writeBuffers = new MergedByteBuffers();
   private final Deque<Pair<Long, SettableListenableFuture<Long>>> writeFutures = new ArrayDeque<Pair<Long, SettableListenableFuture<Long>>>();
@@ -45,7 +44,7 @@ public class TCPClient extends Client {
   protected final SocketChannel channel;
   protected final InetSocketAddress remoteAddress;
   
-  private volatile ListenableFuture<Long> lastWriteFuture = finishedFuture;
+  private volatile ListenableFuture<Long> lastWriteFuture = FINISHED_FUTURE;
   private volatile ByteBuffer currentWriteBuffer = ByteBuffer.allocate(0);
   private volatile SSLProcessor sslProcessor;
   
@@ -222,6 +221,10 @@ public class TCPClient extends Client {
       }
       return lastWriteFuture;
     }
+  }
+  
+  public ListenableFuture<?> lastWriteFuture() {
+    return lastWriteFuture;
   }
 
   @Override

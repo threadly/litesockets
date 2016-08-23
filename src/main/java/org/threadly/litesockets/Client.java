@@ -7,6 +7,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.concurrent.event.ListenerHelper;
+import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
@@ -50,6 +51,8 @@ public abstract class Client {
    * Simple empty ByteBuffer to use when passing a ByteBuffer of 0 length.
    */
   protected static final ByteBuffer EMPTY_BYTEBUFFER = ByteBuffer.allocate(0);
+  
+  protected static final ListenableFuture<Long> FINISHED_FUTURE = FutureUtils.immediateResultFuture(0L);
 
   protected final MergedByteBuffers readBuffers = new MergedByteBuffers(false);
   protected final SocketExecuterCommonBase se;
@@ -205,6 +208,8 @@ public abstract class Client {
    * @return A {@link ListenableFuture} that will be completed once the data has been fully written to the socket.
    */
   public abstract ListenableFuture<?> write(ByteBuffer bb);
+  
+  public abstract ListenableFuture<?> lastWriteFuture();
 
   /**
    * <p>Closes this client.  Reads can still occur after this it called.  {@link CloseListener#onClose(Client)} will still be

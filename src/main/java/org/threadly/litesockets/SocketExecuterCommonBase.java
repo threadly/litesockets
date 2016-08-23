@@ -302,10 +302,8 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
           localSelector.wakeup();
           localClient.getChannel().register(localSelector, registerType);
         } catch (CancelledKeyException e) {
-          ExceptionUtils.handleException(e);
           exec.execute(this);
         } catch (ClosedChannelException e) {
-          ExceptionUtils.handleException(e);
           localClient.close();
         }
       }

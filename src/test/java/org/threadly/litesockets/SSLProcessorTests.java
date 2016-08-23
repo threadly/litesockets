@@ -342,6 +342,12 @@ public class SSLProcessorTests {
       // TODO Auto-generated method stub
       
     }
+
+    @Override
+    public ListenableFuture<?> lastWriteFuture() {
+      // TODO Auto-generated method stub
+      return null;
+    }
     
   }
   

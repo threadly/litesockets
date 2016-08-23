@@ -195,7 +195,7 @@ public class UDPServer extends Server {
    * @param remoteAddress the remote host/port to write too.
    * @return a {@link ListenableFuture} that will be completed once the ByteBuffer for this write is put on the socket.
    */
-  public ListenableFuture<?> write(final ByteBuffer bb, final InetSocketAddress remoteAddress) {
+  public ListenableFuture<Long> write(final ByteBuffer bb, final InetSocketAddress remoteAddress) {
     SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>();
     this.writeFutures.add(slf);
     writeQueue.add(new Pair<InetSocketAddress, ByteBuffer>(remoteAddress, bb));
