@@ -21,10 +21,11 @@
         <p class="view"><a href="https://github.com/threadly/litesockets">View the Project on GitHub <small>threadly/litesockets</small></a></p>
 
         <ul>
-          <li><a href="javadocs/release-1.0.0/index.html">Current stable <strong>Javadocs</strong></a></li>
+          <li><a href="javadocs/release-3.2.6/index.html">Current stable <strong>Javadocs</strong></a></li>
           <li><a href="https://github.com/threadly/litesockets/wiki">View <strong>Wiki</strong></a></li>
           <li><a href="https://github.com/threadly/litesockets">View On <strong>GitHub</strong></a></li>
         </ul>
+          <a href="javadocs/">Previous version Documentation</a>
 
       </header>
       <section>
@@ -40,9 +41,97 @@ litesockets is a light weight multithreaded socket library which relies heavily 
 <a id="designer-templates" class="anchor" href="#designer-templates" aria-hidden="true">
 <span class="octicon octicon-link"></span>
 </a>News:</h3>
+<p>
+<b>2016-10-17 - 3.2.6 released!</b><br/>
+Simple upgrade of threadly to take advantage of improvements and bug fixes.
+</p>
+<p>
+<b>2016-07-11 - 3.2.4 released!</b><br/>
+Minor fix in NoThreadScheduler with UDP Sockets on windows.
+</p>
 
-<p>2015-03-04 - 1.0.0 release tagged! All base functionality is working well &gt;90% code coverage.  Will update the website once jars are made and published.
+<p>
+<b>2016-07-11 - 3.2.3 released!</b><br/>
+<ul>
+<li>Fixed issue with SSLProcessor getting into an infinite loop.</li>
+<li>Fixed issue with close call blocking in certain cases.</li>
+</ul>
+</p>
 
+<p>
+<b>2016-05-12 - 3.1.0 released!</b><br/>
+Some pretty signification changes in this release. Mostly around UDPServer/client and Client/socket Options.
+<ul>
+<li>SocketOperations ENUM deprecated in favor of a ClientOptions object.</li>
+<li>Every client now has a clientOptions() method that allows you to set client and socket options for the client.</li>
+<li>UDPServer now supports white and black listing remote end points. This allows you to suppress getting a new client from a UDP end point we dont want to deal with anymore.</li>
+<li>Some minor bugs around UDP Reads where fixed</li>
+<li>Moved UDP writes to use the same queuing system as TCP, so we now will wait for the socket to say it can write before we attempt to write a UDP packet.</li>
+<li>Added very very basic support for using PEM files for certs. Base64 was needed for this.</li>
+<li>fixed up unit tests to work on windows</li>
+<li>UDPServer operations now happen on read and write selector.</li>
+<li>speed improvments in MergedByteBuffers.indexOf</li>
+</ul>
+</p>
+<p>
+<b>2015-12-07 - 3.0.1 released!</b><br/>
+Updated minimum required version of threadly to 4.4.1 to get its bug fixes.
+</p>
+<p>
+<b>2015-11-16 - 3.0.1 released!</b><br/>
+This release includes some needed bug fixes:
+<ul>
+<li>Writing data after starting an SSL handshake but before finishing it caused problems. This was really only a major issue with the NoThreadSocketExecuter.</li>
+<li>TransactionalByteBuffers had a rollback issue if feed in buffers with a position/limit that where not 0/eob.</li>
+</ul>
+</p>
+<p>
+<b>2015-11-11 - 3.0.0 released!</b><br/>
+New major version.<br/>
+
+Changes:<br/>
+<ul>
+<li>Completely re-factored API.</li>
+<li>SSL Client/Server removed. TCP Client/Server now can have ssl params set.</li>
+<li>Clients/Servers are tied to a simple SocketExecuter Instance.</li>
+<li>threadly 4.4.0 is minimum required version.</li>
+<li>Support for setting certain low level socket options</li>
+<li>Writes where simplified, there is now only 1 call, but you have to watch how big the write buffer gets on your own.</li>
+<li>Writes now also return a ListenableFuture to let you know when its on the wire.</li>
+</ul>
+</p>
+<p>
+<b>2015-07-27 - 2.1.0 released!</b><br/>
+This is mainly a change to use the new threadly 4+ apis. In addition there has been a few minor bug fixes and work to reduce code duplication.
+</p>
+<p>
+<b>2015-05-13 - 2.0.0 released!</b><br/>
+This was a pretty big refactor of litesockets. Here are the key main changes:
+<ul>
+<li>Clients no longer have to establish a connection before being added to the SocketExecuter</li>
+<li>SSL handshakes in SSLClient now happen in the SocketExecuter</li>
+<li>TLS handshakes in SSLClient can now be delayed until called allowing plain communication before encrypting.</li>
+<li>SocketExecuters now track byteStats.</li>
+<li>Generic profiler server added.</li>
+<li>Connection timeouts happen asynchronously.</li>
+<li>API docs greatly improved.</li>
+<li>More standard thread Executor and Scheduler Interfaces used.</li>
+</ul>
+</p>
+<p>
+<b>2015-03-20 - 1.1.0 released!</b><br/>
+The main change to this release was to allow SSLClient to connect w/o doing a handshake. The api change should be backwards compatible. Now there is just a new boolean on the SSLClient constructor doHandShake, aswell as 2 new methods isEncrypted() and doHandShake().
+</p>
+<p>
+<b>2015-03-16 - 1.0.2 released!</b></br> 
+Simple enhancement to NoThreadSocketExecuter, you can now interrupt the .select(delay) when needed. This is useful for things like shutdown and execing something on the same thread that does not have to do with Sockets.<br/>
+
+Fixed an issue in the NoThreadSocketExecuter where a client that gets closed while being selected on can cause a canceledKeyException.</br>
+
+Fixed an issue when connecting SSLClient to a TCP connections where the handshake loops indefinitely and does not time out.</br>
+</p>
+<p>
+<b>2015-03-04 - 1.0.0 release tagged!</b><br/> All base functionality is working well &gt;90% code coverage.  Will update the website once jars are made and published.
 </p>
 
       </section>
