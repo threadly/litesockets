@@ -160,22 +160,29 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
     public void run() {
       if(isRunning()) {
         try {
-          acceptSelector.selectedKeys().clear();
-          acceptSelector.select();
-        } catch (Exception e) {
-          stopIfRunning();
-          return;
-        } 
-        if(isRunning()) {
-          for(final SelectionKey sk: acceptSelector.selectedKeys()) {
-            if(sk.isAcceptable()) {
-              final ServerSocketChannel server = (ServerSocketChannel) sk.channel();
-              doServerAccept(servers.get(server));
-            }
+          handleAccept();
+        } finally {
+          if(isRunning()) {
+            acceptScheduler.execute(this);
           }
         }
-        if(isRunning()) {
-          acceptScheduler.execute(this);
+      }
+    }
+    
+    private void handleAccept() {
+      try {
+        acceptSelector.selectedKeys().clear();
+        acceptSelector.select();
+      } catch (Exception e) {
+        stopIfRunning();
+        return;
+      } 
+      if(isRunning()) {
+        for(final SelectionKey sk: acceptSelector.selectedKeys()) {
+          if(sk.isAcceptable()) {
+            final ServerSocketChannel server = (ServerSocketChannel) sk.channel();
+            doServerAccept(servers.get(server));
+          }
         }
       }
     }
@@ -188,45 +195,52 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
     @Override
     public void run() {
       if(isRunning()) {
-        if(readThreadID == 0) {
-          readThreadID = Thread.currentThread().getId();
-        }
         try {
-          readSelector.selectedKeys().clear();
-          readSelector.select();
-        } catch (Exception e) {
-          stopIfRunning();
-          return;
+          handleRead();
+        } finally {
+          if(isRunning()) {
+            readScheduler.execute(this);
+          }
         }
-        if(isRunning() && ! readSelector.selectedKeys().isEmpty()) {
-          for(final SelectionKey sk: readSelector.selectedKeys()) {
-            final Client client = clients.get(sk.channel());
-            if(client != null) {
-              try {
-                if(sk.isConnectable()) {
-                  doClientConnect(client, readSelector);
-                  sk.cancel();
-                  setClientOperations(client);
-                } else {
-                  stats.addRead(doClientRead(client, readSelector));
-                }
-              } catch(CancelledKeyException e) {
-                client.close();
-                ExceptionUtils.handleException(e);
+      }
+    }
+    
+    private void handleRead() {
+      if(readThreadID == 0) {
+        readThreadID = Thread.currentThread().getId();
+      }
+      try {
+        readSelector.selectedKeys().clear();
+        readSelector.select();
+      } catch (Exception e) {
+        stopIfRunning();
+        return;
+      }
+      if(isRunning() && ! readSelector.selectedKeys().isEmpty()) {
+        for(final SelectionKey sk: readSelector.selectedKeys()) {
+          final Client client = clients.get(sk.channel());
+          if(client != null) {
+            try {
+              if(sk.isConnectable()) {
+                doClientConnect(client, readSelector);
+                sk.cancel();
+                setClientOperations(client);
+              } else {
+                stats.addRead(doClientRead(client, readSelector));
               }
-            } else {
-              final Server server = servers.get(sk.channel());
-              if(server != null) {
-                if(sk.isReadable()) {
-                  final DatagramChannel dgc = (DatagramChannel) sk.channel();
-                  server.acceptChannel(dgc);
-                }
+            } catch(CancelledKeyException e) {
+              client.close();
+              ExceptionUtils.handleException(e);
+            }
+          } else {
+            final Server server = servers.get(sk.channel());
+            if(server != null) {
+              if(sk.isReadable()) {
+                final DatagramChannel dgc = (DatagramChannel) sk.channel();
+                server.acceptChannel(dgc);
               }
             }
           }
-        }
-        if(isRunning()) {
-          readScheduler.execute(this);
         }
       }
     }
@@ -240,31 +254,38 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
     public void run() {
       if(isRunning()) {
         try {
-          writeSelector.selectedKeys().clear();
-          writeSelector.select();
-        } catch (Exception e) {
-          stopIfRunning();
-          return;
+          handleWrite();
+        } finally {
+          if(isRunning()) {
+            writeScheduler.execute(this);
+          }
         }
-        if(isRunning() && ! writeSelector.selectedKeys().isEmpty()) {
-          for(final SelectionKey sk: writeSelector.selectedKeys()) {
-            final Client client = clients.get(sk.channel());
-            if(client != null) {
-              stats.addWrite(doClientWrite(client, writeSelector));
-            } else {
-              final Server server = servers.get(sk.channel());
-              if(server != null) {
-                if(server instanceof UDPServer) {
-                  UDPServer us = (UDPServer) server;
-                  us.doWrite();
-                  setUDPServerOperations(us, true);
-                }
+      }
+    }
+    
+    private void handleWrite() {
+      try {
+        writeSelector.selectedKeys().clear();
+        writeSelector.select();
+      } catch (Exception e) {
+        stopIfRunning();
+        return;
+      }
+      if(isRunning() && ! writeSelector.selectedKeys().isEmpty()) {
+        for(final SelectionKey sk: writeSelector.selectedKeys()) {
+          final Client client = clients.get(sk.channel());
+          if(client != null) {
+            stats.addWrite(doClientWrite(client, writeSelector));
+          } else {
+            final Server server = servers.get(sk.channel());
+            if(server != null) {
+              if(server instanceof UDPServer) {
+                UDPServer us = (UDPServer) server;
+                us.doWrite();
+                setUDPServerOperations(us, true);
               }
             }
           }
-        }
-        if(isRunning()) {
-          writeScheduler.execute(this);
         }
       }
     }
