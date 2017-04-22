@@ -5,7 +5,7 @@ apply plugin: 'eclipse'
 test {
   jacoco {
     excludes = ['**/package-info**','**/*Test']
-    destinationFile = file("$buildDir/reports/jacoco/test.exec")
+//    destinationFile = file("$buildDir/reports/jacoco/test.exec")
   }
 }
 
