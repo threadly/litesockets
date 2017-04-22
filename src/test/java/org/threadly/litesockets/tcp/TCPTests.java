@@ -117,8 +117,9 @@ public class TCPTests {
     }
     
     client.close();
-    
+    Thread.sleep(100);
     assertEquals(-1, client.clientOptions().getSocketRecvBuffer());
+    
     assertEquals(-1, client.clientOptions().getSocketSendBuffer());
     assertFalse(client.clientOptions().setSocketSendBuffer(16384));
     assertFalse(client.clientOptions().setSocketRecvBuffer(16384));
