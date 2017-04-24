@@ -1,5 +1,6 @@
 package org.threadly.litesockets;
 
+import java.io.Closeable;
 import java.nio.channels.SelectableChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -16,7 +17,7 @@ import org.threadly.concurrent.event.ListenerHelper;
  * 
  *
  */
-public abstract class Server {
+public abstract class Server implements Closeable {
   
   private final SocketExecuter sei;
   private final AtomicBoolean closed = new AtomicBoolean(false);

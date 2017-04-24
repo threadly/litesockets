@@ -147,7 +147,6 @@ public class TCPClient extends Client {
       se.setClientOperations(this);
       final ClosedChannelException cce = new ClosedChannelException();
       this.getClientsThreadExecutor().execute(new Runnable() {
-
         @Override
         public void run() {
           synchronized(writerLock) {
@@ -158,15 +157,7 @@ public class TCPClient extends Client {
             writeBuffers.discard(writeBuffers.remaining());
           }
         }});
-
-      try {
-        channel.socket().close();
-        channel.close();
-      } catch (IOException e) {
-        //we dont care
-      } finally {
-        this.callClosers();
-      }
+      this.callClosers();
     }
   }
 

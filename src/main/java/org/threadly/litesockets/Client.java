@@ -1,5 +1,6 @@
 package org.threadly.litesockets;
 
+import java.io.Closeable;
 import java.net.Socket;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
@@ -32,7 +33,7 @@ import org.threadly.util.Clock;
  * @author lwahlmeier
  *
  */
-public abstract class Client {
+public abstract class Client implements Closeable {
 
   /**
    * SocketOptions that can be set set on Clients.

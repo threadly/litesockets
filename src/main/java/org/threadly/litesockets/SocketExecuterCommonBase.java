@@ -56,13 +56,13 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     this.readScheduler = readScheduler;
     this.writeScheduler = writeScheduler;
   }
-  
+
   protected void checkRunning() {
     if(!isRunning()) {
       throw new IllegalStateException("SocketExecuter is not running!");
     }
   }
-  
+
   @Override
   public TCPClient createTCPClient(final String host, final int port) throws IOException {
     checkRunning();
@@ -70,8 +70,8 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     clients.put(((Client)tc).getChannel(), tc);
     return tc;
   }
-  
-  
+
+
   @Override
   public TCPClient createTCPClient(final SocketChannel sc) throws IOException {
     checkRunning();
@@ -80,7 +80,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     this.setClientOperations(tc);
     return tc;
   }
-  
+
   @Override
   public TCPServer createTCPServer(final String host, final int port) throws IOException {
     checkRunning();
@@ -88,7 +88,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     servers.put(ts.getSelectableChannel(), ts);
     return ts;
   }
-  
+
   @Override
   public TCPServer createTCPServer(final ServerSocketChannel ssc) throws IOException {
     checkRunning();
@@ -96,7 +96,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     servers.put(ts.getSelectableChannel(), ts);
     return ts;
   }
-  
+
   @Override
   public UDPServer createUDPServer(final String host, final int port) throws IOException {
     checkRunning();
@@ -104,7 +104,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     servers.put(us.getSelectableChannel(), us);
     return us;
   }
-  
+
   protected boolean checkServer(final Server server) {
     if(!isRunning() || server.isClosed() || server.getSocketExecuter() != this || !servers.containsKey(server.getSelectableChannel())) {
       servers.remove(server.getSelectableChannel());
@@ -112,8 +112,8 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     }
     return true;
   }
-  
-  
+
+
   @Override
   public void startListening(final Server server) {
     if(!checkServer(server)) {
@@ -127,7 +127,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
       }
     }
   }
-  
+
   @Override
   public void stopListening(final Server server) {
     if(!checkServer(server)) {
@@ -146,7 +146,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
       }
     }
   }
-  
+
   @Override
   public int getClientCount() {
     return clients.size();
@@ -166,7 +166,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   public SimpleByteStats getStats() {
     return stats;
   }
-  
+
   protected SocketExecuterByteStats writeableStats() {
     return stats;
   }
@@ -248,7 +248,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     }
     return wrote;
   }
-  
+
   private static int doRead(ByteBuffer bb, SocketChannel sc) throws IOException {
     return sc.read(bb);
   }
@@ -287,6 +287,26 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     }
   }
 
+  protected static class RemoveFromSelector implements Runnable {
+
+    private final Selector selector;
+    private final Client client;
+
+    public RemoveFromSelector(Selector selector, Client client) {
+      this.client = client;
+      this.selector = selector;
+    }
+
+    @Override
+    public void run() {
+      SelectionKey sk = client.getChannel().keyFor(selector);
+      if(sk != null) {
+        sk.cancel();
+      }
+    }
+
+  }
+
   /**
    * This class is a helper runnable to generically add SelectableChannels to a selector for certain operations.
    * 
@@ -313,7 +333,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
       localSelector = selector;
       this.registerType = registerType;
     }
-    
+
     private void runClient() {
       if(!localClient.isClosed()) {
         try {
@@ -326,7 +346,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         }
       }
     }
-    
+
     private void runServer() {
       if(!localServer.isClosed()) {
         try {
