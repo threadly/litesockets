@@ -291,12 +291,12 @@ public abstract class Client implements Closeable {
   }
 
   /**
-   * <p> This returns this clients {@link Executor}.</p>
+   * <p> This returns this clients {@link SubmitterExecutor}.</p>
    * 
-   * <p> Its worth noting that operations done on this {@link Executor} can/will block Read callbacks on the 
+   * <p> Its worth noting that operations done on this {@link SubmitterExecutor} can/will block Read callbacks on the 
    * client, but it does provide you the ability to execute things on the clients read thread.</p>
    * 
-   * @return The {@link Executor} for the client.
+   * @return The {@link SubmitterExecutor} for the client.
    */
   public SubmitterExecutor getClientsThreadExecutor() {
     return clientExecutor;
