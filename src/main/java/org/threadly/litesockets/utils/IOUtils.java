@@ -41,7 +41,7 @@ public class IOUtils {
   public static final ListenableFuture<Long> FINISHED_LONG_FUTURE = FutureUtils.immediateResultFuture(0L);
 
   
-  public static void closeQuitly(Closeable closer) {
+  public static void closeQuietly(Closeable closer) {
     try {
       if(closer != null) {
         closer.close();
@@ -49,10 +49,6 @@ public class IOUtils {
     } catch(Throwable t) {
       
     }
-  }
-  
-  public static InputStream makeClientInputStream(Client c) {
-    return null;
   }
   
   public static class ClientOutputStream extends OutputStream {

@@ -152,7 +152,7 @@ public class UDPServer extends Server {
   @Override
   public void close() {
     if(setClosed()) {
-      IOUtils.closeQuitly(channel);
+      IOUtils.closeQuietly(channel);
       this.callClosers();
     }
   }

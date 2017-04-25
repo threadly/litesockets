@@ -98,10 +98,10 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   @Override
   protected void shutdownService() {
     for(final Client client: clients.values()) {
-      IOUtils.closeQuitly(client);
+      IOUtils.closeQuietly(client);
     }
     for(final Server server: servers.values()) {
-      IOUtils.closeQuitly(server);
+      IOUtils.closeQuietly(server);
     }
     closeSelector(localAcceptScheduler, acceptSelector);
     closeSelector(localReadScheduler, readSelector);
@@ -124,7 +124,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
         FutureUtils.makeCompleteFuture(Arrays.asList(lf, lf2)).addListener(new Runnable() {
           @Override
           public void run() {
-            IOUtils.closeQuitly(client.getChannel());
+            IOUtils.closeQuietly(client.getChannel());
           }});
       } else if(!client.getChannel().isConnected() && client.getChannel().isConnectionPending()) {
         readScheduler.execute(new AddToSelector(readScheduler, client, readSelector, SelectionKey.OP_CONNECT));
@@ -230,7 +230,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
                   doClientRead(client, readSelector);
                 }
               } catch(CancelledKeyException e) {
-                IOUtils.closeQuitly(client);
+                IOUtils.closeQuietly(client);
                 ExceptionUtils.handleException(e);
               }
             } else {
