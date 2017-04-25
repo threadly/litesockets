@@ -128,7 +128,8 @@ public class TCPClient extends Client {
     if(! startedConnection.get() || channel.isConnected()) {
       return false;
     }
-    return Clock.accurateForwardProgressingMillis() > connectExpiresAt; 
+    return Clock.lastKnownForwardProgressingMillis() > connectExpiresAt || 
+             Clock.accurateForwardProgressingMillis() > connectExpiresAt; 
   }
   
   @Override
