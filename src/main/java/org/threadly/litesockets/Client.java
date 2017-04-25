@@ -7,8 +7,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.concurrent.event.ListenerHelper;
-import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
+import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.ArgumentVerifier;
@@ -34,26 +34,6 @@ import org.threadly.util.Clock;
  */
 public abstract class Client {
 
-  /**
-   * Default max buffer size (64k).  Read and write buffers are independent of each other.
-   */
-  protected static final int DEFAULT_MAX_BUFFER_SIZE = 65536;
-  /**
-   * When we hit the minimum read buffer size we will create a new one of this size (64k).
-   */
-  protected static final int NEW_READ_BUFFER_SIZE = 65536;
-  /**
-   * Minimum allowed readBuffer (4k).  If the readBuffer is lower then this we will create a new one.
-   */
-  protected static final int MIN_READ_BUFFER_SIZE = 4096;
-
-  /**
-   * Simple empty ByteBuffer to use when passing a ByteBuffer of 0 length.
-   */
-  protected static final ByteBuffer EMPTY_BYTEBUFFER = ByteBuffer.allocate(0);
-  
-  protected static final ListenableFuture<Long> FINISHED_FUTURE = FutureUtils.immediateResultFuture(0L);
-
   protected final MergedByteBuffers readBuffers = new MergedByteBuffers(false);
   protected final SocketExecuterCommonBase se;
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
@@ -65,9 +45,9 @@ public abstract class Client {
   protected final ListenerHelper<CloseListener> closerListener = new ListenerHelper<CloseListener>(CloseListener.class);
   protected volatile boolean useNativeBuffers = false;
   protected volatile boolean keepReadBuffer = true;
-  protected volatile int maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;
-  protected volatile int newReadBufferSize = NEW_READ_BUFFER_SIZE;
-  private ByteBuffer readByteBuffer = EMPTY_BYTEBUFFER;
+  protected volatile int maxBufferSize = IOUtils.DEFAULT_CLIENT_MAX_BUFFER_SIZE;
+  protected volatile int newReadBufferSize = IOUtils.DEFAULT_CLIENT_READ_BUFFER_SIZE;
+  private ByteBuffer readByteBuffer = IOUtils.EMPTY_BYTEBUFFER;
 
   public Client(final SocketExecuterCommonBase se) {
     this.se = se;
@@ -237,7 +217,7 @@ public abstract class Client {
    */
   protected ByteBuffer provideReadByteBuffer() {
     if(keepReadBuffer) {
-      if(readByteBuffer.remaining() < MIN_READ_BUFFER_SIZE) {
+      if(readByteBuffer.remaining() < IOUtils.DEFAULT_MIN_CLIENT_READ_BUFFER_SIZE) {
         if(useNativeBuffers) {
           readByteBuffer = ByteBuffer.allocateDirect(newReadBufferSize);
         } else {
@@ -636,7 +616,7 @@ public abstract class Client {
     public boolean setReducedReadAllocations(boolean enabled) {
       keepReadBuffer = enabled;
       if(!keepReadBuffer) {
-        readByteBuffer = EMPTY_BYTEBUFFER;
+        readByteBuffer = IOUtils.EMPTY_BYTEBUFFER;
       }
       return true;
     }

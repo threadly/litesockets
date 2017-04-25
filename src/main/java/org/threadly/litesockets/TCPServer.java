@@ -9,6 +9,8 @@ import java.nio.channels.SocketChannel;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 
+import org.threadly.litesockets.utils.IOUtils;
+
 /**
  * A Simple TCP server.
  * 
@@ -56,13 +58,8 @@ public class TCPServer extends Server {
   public void close() {
     if(this.setClosed()) {
       getSocketExecuter().stopListening(this);
-      try {
-        socket.close();
-      } catch (IOException e) {
-        //We dont care
-      } finally {
-        callClosers();
-      }
+      IOUtils.closeQuitly(socket);
+      callClosers();
     }
   }
 

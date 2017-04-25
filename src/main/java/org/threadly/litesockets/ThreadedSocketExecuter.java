@@ -65,6 +65,10 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
    * @param exec the {@link ScheduledExecutorService} to be used for client/server callbacks.
    */
   public ThreadedSocketExecuter(final SubmitterScheduler exec) {
+    this(exec, Integer.MAX_VALUE);
+  }
+  
+  public ThreadedSocketExecuter(final SubmitterScheduler exec, int maxTasksPerCycle) {
     super(new SingleThreadScheduler(new ConfigurableThreadFactory("SocketAccept", false, true, Thread.currentThread().getPriority(), null, null)),
         new SingleThreadScheduler(new ConfigurableThreadFactory("SocketReader", false, true, Thread.currentThread().getPriority(), null, null)),
         new SingleThreadScheduler(new ConfigurableThreadFactory("SocketWriter", false, true, Thread.currentThread().getPriority(), null, null)),

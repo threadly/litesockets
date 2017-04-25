@@ -21,7 +21,7 @@ import org.threadly.util.Clock;
 public class SocketExecuterTests {
   PriorityScheduler PS;
   int port;
-  ThreadedSocketExecuter SE;
+  SocketExecuter SE;
   
   @Before
   public void start() {
@@ -87,14 +87,21 @@ public class SocketExecuterTests {
         return clients.size() == clientCount && SE.getClientCount() == clientCount*2;
       }
     }.blockTillTrue(10000);
+    
     assertEquals(clientCount*2, SE.getClientCount());
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return SE.getServerCount() == clientCount+1;
+      }
+    }.blockTillTrue(10000);
+    
     assertEquals(clientCount+1, SE.getServerCount());
     synchronized(clients) {
       for(TCPClient c: clients) {
         c.connect().get();
       }
     }
-    System.out.println("SE Clients:"+SE.getClientCount()+":"+SE.readSelector.keys().size());
     
     synchronized(clients) {
       System.out.println("connected:"+clients.size());
@@ -124,14 +131,15 @@ public class SocketExecuterTests {
     server.setClientAcceptor(serverFC);
     server.addCloseListener(serverFC);
     server.start();
-    SE.acceptScheduler.equals(new Runnable() {
-      @Override
-      public void run() {
-        try {
-          SE.acceptSelector.close();
-        } catch (IOException e) {
-        }        
-      }});
+//    if(SE == ThreadedSocketExecuter)
+//    SE.acceptScheduler.equals(new Runnable() {
+//      @Override
+//      public void run() {
+//        try {
+//          SE.acceptSelector.close();
+//        } catch (IOException e) {
+//        }        
+//      }});
 
     
   }

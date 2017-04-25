@@ -8,6 +8,7 @@ import java.util.concurrent.Executor;
 
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
+import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.util.Clock;
 
@@ -32,7 +33,7 @@ public class UDPClient extends Client {
   protected final InetSocketAddress remoteAddress;
   protected final UDPServer udpServer;
   
-  private volatile ListenableFuture<Long> lastWriteFuture = FINISHED_FUTURE;
+  private volatile ListenableFuture<Long> lastWriteFuture = IOUtils.FINISHED_LONG_FUTURE;
   
 
   protected UDPClient(final InetSocketAddress sa, final UDPServer server) {

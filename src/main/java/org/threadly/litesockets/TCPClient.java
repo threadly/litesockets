@@ -16,6 +16,7 @@ import javax.net.ssl.SSLSession;
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
+import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SSLProcessor;
 import org.threadly.util.ArgumentVerifier;
@@ -44,7 +45,7 @@ public class TCPClient extends Client {
   protected final SocketChannel channel;
   protected final InetSocketAddress remoteAddress;
   
-  private volatile ListenableFuture<Long> lastWriteFuture = FINISHED_FUTURE;
+  private volatile ListenableFuture<Long> lastWriteFuture = IOUtils.FINISHED_LONG_FUTURE;
   private volatile ByteBuffer currentWriteBuffer = ByteBuffer.allocate(0);
   private volatile SSLProcessor sslProcessor;
   
@@ -156,14 +157,9 @@ public class TCPClient extends Client {
             writeBuffers.discard(writeBuffers.remaining());
           }
         }});
-      try {
-        channel.socket().close();
-        channel.close();
-      } catch (IOException e) {
-        //we dont care
-      } finally {
-        this.callClosers();
-      }
+      IOUtils.closeQuitly(channel.socket());
+      IOUtils.closeQuitly(channel);
+      this.callClosers();
     }
   }
 

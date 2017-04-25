@@ -15,6 +15,7 @@ import java.util.logging.Logger;
 import org.threadly.concurrent.SubmitterScheduler;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.WatchdogCache;
+import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.AbstractService;
 import org.threadly.util.ArgumentVerifier;
@@ -184,6 +185,20 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
 
   @Override
   public void watchFuture(final ListenableFuture<?> lf, final long delay) {
+    System.out.println(schedulerPool);
+    schedulerPool.schedule(new Runnable(){
+
+      @Override
+      public void run() {
+        System.out.println("Ran!");    
+      }}, delay);
+    
+    schedulerPool.execute(new Runnable(){
+
+      @Override
+      public void run() {
+        System.out.println("Ran!");    
+      }});
     dogCache.watch(lf, delay);
   }
 
@@ -199,11 +214,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     scheduler.execute(new Runnable() {
       @Override
       public void run() {
-        try {
-          selector.close();
-        } catch (IOException e) {
-          ExceptionUtils.handleException(e);
-        }
+        IOUtils.closeQuitly(selector);
       }});
     selector.wakeup();
   }
@@ -268,7 +279,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
       }
     }
   }
-
+  
   /**
    * This class is a helper runnable to generically add SelectableChannels to a selector for certain operations.
    * 

@@ -6,6 +6,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -13,6 +15,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -29,6 +32,7 @@ import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.TCPClient;
 import org.threadly.litesockets.TCPServer;
 import org.threadly.litesockets.ThreadedSocketExecuter;
+import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.test.concurrent.TestCondition;
@@ -72,12 +76,12 @@ public class TCPTests {
   @After
   public void stop() throws Exception{
     serverFC = null;
-    Runtime.getRuntime().gc();
-    Runtime.getRuntime().gc();
     server.stop();
     SE.stopIfRunning();
     PS.shutdownNow();
     server.stop();
+    Runtime.getRuntime().gc();
+    Runtime.getRuntime().gc();
     System.gc();
     System.out.println("Used Memory:"
         + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
@@ -235,6 +239,51 @@ public class TCPTests {
     }.blockTillTrue(10000, 100);
     server.close();
 
+  }
+  
+  @Test
+  public void simpleTest() throws IOException, InterruptedException {
+    final TCPClient client = SE.createTCPClient("localhost", port);
+    client.connect();
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.getNumberOfClients() == 1;
+      }
+    }.blockTillTrue(5000);
+    final TCPClient sclient = serverFC.getClientAt(0);
+    InputStream is = new IOUtils.ClientInputStream(client);
+    OutputStream os = new IOUtils.ClientOutputStream(sclient);
+    final MergedByteBuffers mbb = new MergedByteBuffers();
+    PS.execute(new Runnable() {
+      @Override
+      public void run() {
+        int len = 0;
+        while(len >=0) {
+          try {
+            byte[] ba = new byte[SMALL_TEXT_BUFFER.remaining()];
+            len = is.read(ba);
+            mbb.add(ByteBuffer.wrap(ba));
+          } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+          }
+        }
+      }});
+    for(int i=0; i<10000; i++) {
+      os.write(SMALL_TEXT_BUFFER.array());
+    }
+   
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return mbb.remaining() == SMALL_TEXT_BUFFER.remaining() * 10000;
+      }
+    }.blockTillTrue(5000);
+    client.close();    
+    int len = is.read();
+    assertEquals(-1, len);
+    
   }
   
   @Test
@@ -699,7 +748,7 @@ public class TCPTests {
     System.out.println(lf.isCancelled());
     System.out.println(lf.isDone());
     while(!lf.isCancelled() || !lf.isDone()) {
-      Thread.sleep(1);
+      Thread.sleep(10);
     }
     System.out.println(lf.isCancelled());
     System.out.println(lf.isDone());

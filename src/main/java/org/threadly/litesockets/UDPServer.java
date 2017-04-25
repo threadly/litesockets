@@ -11,6 +11,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
+import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.util.Pair;
 
 
@@ -151,14 +152,8 @@ public class UDPServer extends Server {
   @Override
   public void close() {
     if(setClosed()) {
-      try {
-        getSocketExecuter().stopListening(this);
-        channel.close();
-      } catch (IOException e) {
-        //Dont Care
-      } finally {
-        this.callClosers();
-      }
+      IOUtils.closeQuitly(channel);
+      this.callClosers();
     }
   }
 
