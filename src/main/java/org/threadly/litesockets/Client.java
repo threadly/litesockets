@@ -43,8 +43,8 @@ public abstract class Client implements Closeable {
   protected final Object writerLock = new Object();
   protected final ClientByteStats stats = new ClientByteStats();
   protected final AtomicBoolean closed = new AtomicBoolean(false);
-  protected final ListenerHelper<Reader> readerListener = new ListenerHelper<Reader>(Reader.class);
   protected final ListenerHelper<CloseListener> closerListener = new ListenerHelper<CloseListener>(CloseListener.class);
+  protected volatile Runnable readerCaller = null;
   protected volatile boolean useNativeBuffers = false;
   protected volatile boolean keepReadBuffer = true;
   protected volatile int maxBufferSize = IOUtils.DEFAULT_CLIENT_MAX_BUFFER_SIZE;
@@ -247,7 +247,10 @@ public abstract class Client implements Closeable {
     this.closerListener.call().onClose(this);
   }
   protected void callReader() {
-    this.readerListener.call().onRead(this);
+    Runnable readerCaller = this.readerCaller;
+    if (readerCaller != null) {
+      getClientsThreadExecutor().execute(readerCaller);
+    }
   }
 
   /**
@@ -319,11 +322,7 @@ public abstract class Client implements Closeable {
    */
   public void addCloseListener(final CloseListener closer) {
     if(closed.get()) {
-      getClientsThreadExecutor().execute(new Runnable() {
-        @Override
-        public void run() {
-          closer.onClose(Client.this);
-        }});      
+      getClientsThreadExecutor().execute(() -> closer.onClose(Client.this));      
     } else {
       closerListener.addListener(closer, this.getClientsThreadExecutor());
     }
@@ -338,12 +337,13 @@ public abstract class Client implements Closeable {
    */
   public void setReader(final Reader reader) {
     if(! closed.get()) {
-      readerListener.clearListeners();
-      if(reader != null) {
-        readerListener.addListener(reader, this.getClientsThreadExecutor());
+      if (reader == null) {
+        readerCaller = null;
+      } else {
         synchronized(readerLock) {
-          if(this.getReadBufferSize() > 0) {
-            readerListener.call().onRead(this);
+          readerCaller = () -> reader.onRead(this);
+          if (this.getReadBufferSize() > 0) {
+            callReader();
           }
         }
       }
