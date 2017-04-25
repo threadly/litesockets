@@ -4,9 +4,9 @@ import java.io.Closeable;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.threadly.concurrent.SubmitterExecutor;
 import org.threadly.concurrent.event.ListenerHelper;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.utils.IOUtils;
@@ -37,13 +37,14 @@ public abstract class Client implements Closeable {
 
   protected final MergedByteBuffers readBuffers = new MergedByteBuffers(false);
   protected final SocketExecuterCommonBase se;
+  protected final SubmitterExecutor clientExecutor;
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
   protected final Object readerLock = new Object();
   protected final Object writerLock = new Object();
   protected final ClientByteStats stats = new ClientByteStats();
   protected final AtomicBoolean closed = new AtomicBoolean(false);
-  protected final ListenerHelper<Reader> readerListener = new ListenerHelper<Reader>(Reader.class);
   protected final ListenerHelper<CloseListener> closerListener = new ListenerHelper<CloseListener>(CloseListener.class);
+  protected volatile Runnable readerCaller = null;
   protected volatile boolean useNativeBuffers = false;
   protected volatile boolean keepReadBuffer = true;
   protected volatile int maxBufferSize = IOUtils.DEFAULT_CLIENT_MAX_BUFFER_SIZE;
@@ -52,6 +53,12 @@ public abstract class Client implements Closeable {
 
   public Client(final SocketExecuterCommonBase se) {
     this.se = se;
+    this.clientExecutor = se.getExecutorFor(this);
+  }
+  
+  protected Client(final SocketExecuterCommonBase se, final SubmitterExecutor clientExecutor) {
+    this.se = se;
+    this.clientExecutor = clientExecutor;
   }
 
   /**
@@ -240,7 +247,10 @@ public abstract class Client implements Closeable {
     this.closerListener.call().onClose(this);
   }
   protected void callReader() {
-    this.readerListener.call().onRead(this);
+    Runnable readerCaller = this.readerCaller;
+    if (readerCaller != null) {
+      getClientsThreadExecutor().execute(readerCaller);
+    }
   }
 
   /**
@@ -284,15 +294,15 @@ public abstract class Client implements Closeable {
   }
 
   /**
-   * <p> This returns this clients {@link Executor}.</p>
+   * <p> This returns this clients {@link SubmitterExecutor}.</p>
    * 
-   * <p> Its worth noting that operations done on this {@link Executor} can/will block Read callbacks on the 
+   * <p> Its worth noting that operations done on this {@link SubmitterExecutor} can/will block Read callbacks on the 
    * client, but it does provide you the ability to execute things on the clients read thread.</p>
    * 
-   * @return The {@link Executor} for the client.
+   * @return The {@link SubmitterExecutor} for the client.
    */
-  public Executor getClientsThreadExecutor() {
-    return se.getExecutorFor(this);
+  public SubmitterExecutor getClientsThreadExecutor() {
+    return clientExecutor;
   }
 
   /**
@@ -312,11 +322,7 @@ public abstract class Client implements Closeable {
    */
   public void addCloseListener(final CloseListener closer) {
     if(closed.get()) {
-      getClientsThreadExecutor().execute(new Runnable() {
-        @Override
-        public void run() {
-          closer.onClose(Client.this);
-        }});      
+      getClientsThreadExecutor().execute(() -> closer.onClose(Client.this));      
     } else {
       closerListener.addListener(closer, this.getClientsThreadExecutor());
     }
@@ -331,12 +337,13 @@ public abstract class Client implements Closeable {
    */
   public void setReader(final Reader reader) {
     if(! closed.get()) {
-      readerListener.clearListeners();
-      if(reader != null) {
-        readerListener.addListener(reader, this.getClientsThreadExecutor());
+      if (reader == null) {
+        readerCaller = null;
+      } else {
         synchronized(readerLock) {
-          if(this.getReadBufferSize() > 0) {
-            readerListener.call().onRead(this);
+          readerCaller = () -> reader.onRead(this);
+          if (this.getReadBufferSize() > 0) {
+            callReader();
           }
         }
       }

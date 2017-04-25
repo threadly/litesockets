@@ -26,7 +26,7 @@ public class MergedByteBuffers {
   public static final int UNSIGNED_SHORT_MASK = 0xffff;
   public static final long UNSIGNED_INT_MASK = 0xffffffffL;
 
-  protected final ArrayDeque<ByteBuffer> availableBuffers = new ArrayDeque<ByteBuffer>();
+  protected final ArrayDeque<ByteBuffer> availableBuffers = new ArrayDeque<ByteBuffer>(8);
   protected final boolean markReadOnly;
   protected int currentSize;
   protected long consumedSize;
@@ -306,7 +306,7 @@ public class MergedByteBuffers {
    */
   public ByteBuffer pop() {
     if (currentSize == 0) {
-      return ByteBuffer.allocate(0);
+      return IOUtils.EMPTY_BYTEBUFFER;
     }
     return pull(availableBuffers.peekFirst().remaining());
   }
@@ -320,7 +320,7 @@ public class MergedByteBuffers {
   public ByteBuffer pull(final int size) {
     ArgumentVerifier.assertNotNegative(size, "size");
     if (size == 0) {
-      return ByteBuffer.allocate(0);
+      return IOUtils.EMPTY_BYTEBUFFER;
     }
     if (currentSize < size) {
       throw new BufferUnderflowException();

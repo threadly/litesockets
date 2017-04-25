@@ -58,7 +58,7 @@ public class TCPServer extends Server {
   public void close() {
     if(this.setClosed()) {
       getSocketExecuter().stopListening(this);
-      IOUtils.closeQuitly(socket);
+      IOUtils.closeQuietly(socket);
       callClosers();
     }
   }

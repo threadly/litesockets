@@ -15,7 +15,6 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -38,7 +37,6 @@ import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.test.concurrent.TestCondition;
-
 
 
 public class TCPTests {
@@ -87,7 +85,6 @@ public class TCPTests {
     System.gc();
     System.out.println("Used Memory:"
         + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
-    
   }
 
   @Test(expected=IllegalStateException.class)
@@ -101,7 +98,6 @@ public class TCPTests {
       throw e.getCause();
     }
   }
-  
   
   @Test
   public void setClientOptions() throws IOException, InterruptedException, ExecutionException, TimeoutException {
@@ -195,7 +191,6 @@ public class TCPTests {
       }
     }.blockTillTrue(10000, 100);
     server.close();
-
   }
   
   @Test
@@ -246,7 +241,6 @@ public class TCPTests {
       }
     }.blockTillTrue(10000, 100);
     server.close();
-
   }
   
   @Test
@@ -273,7 +267,6 @@ public class TCPTests {
             len = is.read(ba);
             mbb.add(ByteBuffer.wrap(ba));
           } catch (IOException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
           }
         }
@@ -450,7 +443,6 @@ public class TCPTests {
     server.close();
   }
 
-  
   @Test
   public void serverCreate1() throws IOException {
     server.close();
@@ -665,7 +657,6 @@ public class TCPTests {
     assertEquals(serverFC.getClientsBuffer(cf).getAsString(serverFC.getClientsBuffer(cf).remaining()), SMALL_TEXT);
   }
   
-  
   @Test
   public void clientLateReadStart() throws IOException, InterruptedException {
     final TCPClient client = SE.createTCPClient("localhost", port);
@@ -762,7 +753,6 @@ public class TCPTests {
     System.out.println(lf.isCancelled());
     System.out.println(lf.isDone());
     //assertTrue(lf.isCancelled());
-    
   }
   
   @Test(expected=ConnectException.class)

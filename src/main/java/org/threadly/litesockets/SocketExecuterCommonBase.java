@@ -200,7 +200,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     scheduler.execute(new Runnable() {
       @Override
       public void run() {
-        IOUtils.closeQuitly(selector);
+        IOUtils.closeQuietly(selector);
       }});
     selector.wakeup();
   }
@@ -215,7 +215,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
           client = ((ServerSocketChannel)server.getSelectableChannel()).accept();
         }
       } catch (IOException e) {
-        IOUtils.closeQuitly(server);
+        IOUtils.closeQuietly(server);
         ExceptionUtils.handleException(e);
       }
     }
@@ -230,7 +230,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         client.setConnectionStatus(null);
       }
     } catch(IOException e) {
-      IOUtils.closeQuitly(client);
+      IOUtils.closeQuietly(client);
       client.setConnectionStatus(e);
       ExceptionUtils.handleException(e);
     }
@@ -246,7 +246,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         }
         client.doSocketWrite();
       } catch(Exception e) {
-        IOUtils.closeQuitly(client);
+        IOUtils.closeQuietly(client);
         ExceptionUtils.handleException(e);
       }
     }
@@ -261,7 +261,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         }
         client.doSocketRead();
       } catch (ClosedChannelException e) {
-        IOUtils.closeQuitly(client);
+        IOUtils.closeQuietly(client);
         ExceptionUtils.handleException(e);
       }
     }
@@ -322,7 +322,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         } catch (CancelledKeyException e) {
           exec.execute(this);
         } catch (ClosedChannelException e) {
-          IOUtils.closeQuitly(localClient);
+          IOUtils.closeQuietly(localClient);
         }
       }
     }
@@ -333,7 +333,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
           localServer.getSelectableChannel().register(localSelector, registerType);
         } catch (ClosedChannelException e) {
           ExceptionUtils.handleException(e);
-          IOUtils.closeQuitly(localServer);
+          IOUtils.closeQuietly(localServer);
         }
       }
     }

@@ -66,7 +66,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
       schedulerPool.submit(new RemoveFromSelector(commonSelector, client)).addListener(new Runnable() {
         @Override
         public void run() {
-          IOUtils.closeQuitly(client.getChannel());
+          IOUtils.closeQuietly(client.getChannel());
         }});
 
     } else if(client.getChannel().isConnectionPending()) {
@@ -111,10 +111,10 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   protected void shutdownService() {
     commonSelector.wakeup();
     for(final Client client: clients.values()) {
-      IOUtils.closeQuitly(client);
+      IOUtils.closeQuietly(client);
     }
     for(final Server server: servers.values()) {
-      IOUtils.closeQuitly(server);
+      IOUtils.closeQuietly(server);
     }
     if(commonSelector != null && commonSelector.isOpen()) {
       closeSelector(schedulerPool, commonSelector);
@@ -153,8 +153,11 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   public void select(final int delay) {
     ArgumentVerifier.assertNotNegative(delay, "delay");
     checkRunning();
-    long startTime = Clock.accurateForwardProgressingMillis();
-    while(Clock.accurateForwardProgressingMillis()- startTime <= delay && isRunning() && !wakeUp) {
+    long startTime = delay == 0 ? -1 : Clock.accurateForwardProgressingMillis();
+    do {
+      if (wakeUp) {
+        break;
+      }
       try {
         commonSelector.selectNow();  //We have to do this before we tick for windows
         localNoThreadScheduler.tick(null);
@@ -213,7 +216,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
       } catch (NullPointerException e) {
         //There is a bug in some JVMs around this where the select() can throw an NPE from native code.
       }
-    }
+    } while ((delay == 0 ? 0 : Clock.accurateForwardProgressingMillis()) - startTime <= delay && isRunning());
     wakeUp = false;
   }
 

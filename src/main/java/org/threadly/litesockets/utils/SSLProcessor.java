@@ -39,7 +39,6 @@ public class SSLProcessor {
    * 
    */
   public static final int PREALLOCATE_BUFFER_MULTIPLIER = 3;
-  private static final ByteBuffer EMPTY_BYTEBUFFER = ByteBuffer.allocate(0);
 
   private final AtomicBoolean finishedHandshake = new AtomicBoolean(false); 
   private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
@@ -81,7 +80,7 @@ public class SSLProcessor {
       try {
         ssle.beginHandshake();
         if(ssle.getHandshakeStatus() == NEED_WRAP) {
-          client.write(EMPTY_BYTEBUFFER);
+          client.write(IOUtils.EMPTY_BYTEBUFFER);
         }
         client.getClientsSocketExecuter().watchFuture(handshakeFuture, client.getTimeout());
       } catch (SSLException e) {
@@ -166,7 +165,7 @@ public class SSLProcessor {
     if(gotFinished && finishedHandshake.compareAndSet(false, true)) {
       handshakeFuture.setResult(ssle.getSession());
       if(tempBuffers.remaining() > 0) {
-        mbb.add(encrypt(EMPTY_BYTEBUFFER));
+        mbb.add(encrypt(IOUtils.EMPTY_BYTEBUFFER));
       }
     }
     return mbb;
@@ -218,7 +217,7 @@ public class SSLProcessor {
     if(this.finishedHandshake.compareAndSet(false, true)){
       handshakeFuture.setResult(ssle.getSession());
       if(tempBuffers.remaining() > 0) {
-        client.write(EMPTY_BYTEBUFFER); //make the client write to flush tempBuffers
+        client.write(IOUtils.EMPTY_BYTEBUFFER); //make the client write to flush tempBuffers
       }
     }
   }
@@ -236,7 +235,7 @@ public class SSLProcessor {
       runTasks();
     } break;
     case NEED_WRAP: {
-      client.write(EMPTY_BYTEBUFFER);
+      client.write(IOUtils.EMPTY_BYTEBUFFER);
     } break;
 
     default: {
