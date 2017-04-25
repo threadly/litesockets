@@ -6,6 +6,7 @@ import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 
@@ -18,7 +19,7 @@ import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.util.ArgumentVerifier;
 
 public class HashedSocketExecuter extends SocketExecuterCommonBase {
-  private final ConcurrentHashMap<Integer, SelectorThread> clientSelectors = new ConcurrentHashMap<>();
+  private final ArrayList<SelectorThread> clientSelectors = new ArrayList<>();
   private final KeyDistributedExecutor clientDistributer;
   private final int selectors;
   
@@ -119,7 +120,7 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
   @Override
   protected void startupService() {
     for(int i=0; i<selectors; i++) {
-      clientSelectors.put(i, new SelectorThread(i));
+      clientSelectors.add(new SelectorThread(i));
     }
   }
 
@@ -131,7 +132,7 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
     for(final Server server: servers.values()) {
       IOUtils.closeQuietly(server);
     }
-    for(SelectorThread st: clientSelectors.values()) {
+    for(SelectorThread st: clientSelectors) {
       closeSelector(st.scheduler, st.selector);
       st.selector.wakeup();
     }

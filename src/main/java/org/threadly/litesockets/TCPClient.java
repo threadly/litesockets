@@ -44,11 +44,11 @@ public class TCPClient extends Client {
   protected final WriteRunnable writeRunnable = new WriteRunnable();
   protected final SocketChannel channel;
   protected final InetSocketAddress remoteAddress;
-  
+
   private volatile ListenableFuture<Long> lastWriteFuture = IOUtils.FINISHED_LONG_FUTURE;
   private volatile ByteBuffer currentWriteBuffer = IOUtils.EMPTY_BYTEBUFFER;
   private volatile SSLProcessor sslProcessor;
-  
+
   protected volatile int maxConnectionTime = DEFAULT_SOCKET_TIMEOUT;
   protected volatile long connectExpiresAt = -1;
 
@@ -89,13 +89,13 @@ public class TCPClient extends Client {
     remoteAddress = (InetSocketAddress) channel.socket().getRemoteSocketAddress();
     startedConnection.set(true);
   }
-  
+
   @Override
   public void setConnectionTimeout(final int timeout) {
     ArgumentVerifier.assertGreaterThanZero(timeout, "Timeout");
     this.maxConnectionTime = timeout;
   }
-  
+
   @Override
   public ListenableFuture<Boolean> connect(){
     if(startedConnection.compareAndSet(false, true)) {
@@ -111,7 +111,7 @@ public class TCPClient extends Client {
     }
     return connectionFuture;
   }
-  
+
   @Override
   protected void setConnectionStatus(final Throwable t) {
     if(t == null) {
@@ -122,16 +122,16 @@ public class TCPClient extends Client {
       }
     }
   }
-  
+
   @Override
   public boolean hasConnectionTimedOut() {
     if(! startedConnection.get() || channel.isConnected()) {
       return false;
     }
     return Clock.lastKnownForwardProgressingMillis() > connectExpiresAt || 
-             Clock.accurateForwardProgressingMillis() > connectExpiresAt; 
+        Clock.accurateForwardProgressingMillis() > connectExpiresAt; 
   }
-  
+
   @Override
   public int getTimeout() {
     return maxConnectionTime;
@@ -185,12 +185,12 @@ public class TCPClient extends Client {
     }
     return mbb;
   }
-  
+
   @Override
   protected void doSocketRead() {
     this.getClientsThreadExecutor().execute(readRunnable);
   }
-  
+
   @Override
   protected void doSocketWrite() {
     this.getClientsThreadExecutor().execute(writeRunnable);
@@ -217,7 +217,7 @@ public class TCPClient extends Client {
       return lastWriteFuture;
     }
   }
-  
+
   public ListenableFuture<?> lastWriteFuture() {
     return lastWriteFuture;
   }
@@ -265,7 +265,7 @@ public class TCPClient extends Client {
   public InetSocketAddress getLocalSocketAddress() {
     return (InetSocketAddress) channel.socket().getLocalSocketAddress();
   }
-  
+
   @Override
   public String toString() {
     return "TCPClient:FROM:"+getLocalSocketAddress()+":TO:"+getRemoteSocketAddress();
@@ -275,100 +275,114 @@ public class TCPClient extends Client {
   public ClientOptions clientOptions() {
     return tso;
   }
-  
+
   public void setSSLEngine(final SSLEngine ssle) {
     sslProcessor = new SSLProcessor(this, ssle);
   }
-  
+
   public boolean isEncrypted() {
     if(sslProcessor == null) {
       return false;
     }
     return sslProcessor.isEncrypted();
   }
-  
+
   public ListenableFuture<SSLSession> startSSL() {
     if(sslProcessor != null) { 
       return sslProcessor.doHandShake();
     }
     throw new IllegalStateException("Must Set the SSLEngine before starting Encryption!");
   }
-  
+
   private class WriteRunnable implements Runnable {
 
     @Override
     public void run() {
+      if(isClosed()) {
+        return;
+      }
       int wrote = 0;
-        try {
-          wrote = channel.write(getWriteBuffer());
-          while(wrote > 0) {
-            reduceWrite(wrote);
-            se.addWriteAmount(wrote);
+      try {
+        wrote = channel.write(getWriteBuffer());
+        while(wrote > 0) {
+          reduceWrite(wrote);
+          se.addWriteAmount(wrote);
+          if(canWrite()) {
             wrote = channel.write(getWriteBuffer());
+          } else {
+            break;
           }
-          se.setClientOperations(TCPClient.this);
-        } catch(Exception e) {
-          ExceptionUtils.handleException(e);
-          close();
         }
+        se.setClientOperations(TCPClient.this);
+      } catch(Exception e) {
+        ExceptionUtils.handleException(e);
+        close();
+      }
     }
   }
-  
+
   private class ReadRunnable implements Runnable {
 
     @Override
     public void run() {
+      if(isClosed()) {
+        return;
+      }
       ByteBuffer readByteBuffer = provideReadByteBuffer();
       final int origPos = readByteBuffer.position();
       int size = 0;
       try {
-         size = channel.read(readByteBuffer);
-         while(size > 0) {
-           readByteBuffer.position(origPos);
-           final ByteBuffer resultBuffer = readByteBuffer.slice();
-           readByteBuffer.position(origPos+size);
-           resultBuffer.limit(size);
-           addReadBuffer(resultBuffer);
-           size = channel.read(readByteBuffer);
-         }
-         if(size < 0) {
-           close();
-         } else {
-           se.setClientOperations(TCPClient.this);
-         }
+        size = channel.read(readByteBuffer);
+        while(size > 0) {
+          readByteBuffer.position(origPos);
+          final ByteBuffer resultBuffer = readByteBuffer.slice();
+          readByteBuffer.position(origPos+size);
+          resultBuffer.limit(size);
+          addReadBuffer(resultBuffer);
+          if(canRead()) {
+            size = channel.read(readByteBuffer);
+          } else {
+            break;
+          }
+        }
+        if(size < 0) {
+          close();
+        } else {
+          se.setClientOperations(TCPClient.this);
+        }
       } catch (IOException e) {
         ExceptionUtils.handleException(e);
         close();
       } 
     }
   }
-  
+
   /**
    * 
    * @author lwahlmeier
    *
    */
   private class TCPSocketOptions extends BaseClientOptions {
-    
+
     @Override
     public boolean setTcpNoDelay(boolean enabled) {
-        try {
-          channel.socket().setTcpNoDelay(enabled);
-          return true;
-        } catch (SocketException e) {
-          return false;
-        }
+      try {
+        channel.socket().setTcpNoDelay(enabled);
+        return true;
+      } catch (SocketException e) {
+        return false;
+      }
     }
-    
+
     @Override
     public boolean getTcpNoDelay() {
-        try {
-          return channel.socket().getTcpNoDelay();
-        } catch (SocketException e) {
-          return false;
-        }
+      try {
+        return channel.socket().getTcpNoDelay();
+      } catch (SocketException e) {
+        return false;
+      }
     }
-    
+
     @Override
     public boolean setSocketSendBuffer(int size) {
       try {
@@ -384,7 +398,7 @@ public class TCPClient extends Client {
         return false;
       }
     }
-    
+
     @Override
     public int getSocketSendBuffer() {
       try {
@@ -393,7 +407,7 @@ public class TCPClient extends Client {
         return -1;
       }
     }
-    
+
     @Override
     public boolean setSocketRecvBuffer(int size) {
       try {
@@ -409,7 +423,7 @@ public class TCPClient extends Client {
         return false;
       }
     }
-    
+
     @Override
     public int getSocketRecvBuffer() {
       try {
