@@ -208,10 +208,11 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   protected void doServerAccept(final Server server) {
     if(server != null) {
       try {
-        final SocketChannel client = ((ServerSocketChannel)server.getSelectableChannel()).accept();
-        if(client != null) {
+        SocketChannel client = ((ServerSocketChannel)server.getSelectableChannel()).accept();
+        while(client != null) {
           client.configureBlocking(false);
           server.acceptChannel(client);
+          client = ((ServerSocketChannel)server.getSelectableChannel()).accept();
         }
       } catch (IOException e) {
         IOUtils.closeQuitly(server);
