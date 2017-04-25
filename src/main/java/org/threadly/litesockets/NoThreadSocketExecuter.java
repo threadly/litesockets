@@ -153,8 +153,15 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   public void select(final int delay) {
     ArgumentVerifier.assertNotNegative(delay, "delay");
     checkRunning();
-    long startTime = Clock.accurateForwardProgressingMillis();
-    while(Clock.accurateForwardProgressingMillis()- startTime <= delay && isRunning() && !wakeUp) {
+    long startTime = 0;
+    boolean runOnce = false;
+    if(delay == 0) {
+      runOnce = true;
+    } else {
+      startTime = Clock.accurateForwardProgressingMillis();
+    }
+    
+    while(isRunning() && !wakeUp && (runOnce || Clock.accurateForwardProgressingMillis() - startTime <= delay)) {
       try {
         commonSelector.selectNow();  //We have to do this before we tick for windows
         localNoThreadScheduler.tick(null);
@@ -212,6 +219,9 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
         //We do nothing here because the next loop should not happen now.
       } catch (NullPointerException e) {
         //There is a bug in some JVMs around this where the select() can throw an NPE from native code.
+      }
+      if(runOnce) {
+        break;
       }
     }
     wakeUp = false;

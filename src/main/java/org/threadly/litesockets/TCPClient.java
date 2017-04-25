@@ -300,9 +300,10 @@ public class TCPClient extends Client {
       int wrote = 0;
         try {
           wrote = channel.write(getWriteBuffer());
-          if(wrote > 0) {
+          while(wrote > 0) {
             reduceWrite(wrote);
             se.addWriteAmount(wrote);
+            wrote = channel.write(getWriteBuffer());
           }
           se.setClientOperations(TCPClient.this);
         } catch(Exception e) {
@@ -321,14 +322,17 @@ public class TCPClient extends Client {
       int size = 0;
       try {
          size = channel.read(readByteBuffer);
-         if(size < 0) {
-           close();
-         } else if(size > 0) {
+         while(size > 0) {
            readByteBuffer.position(origPos);
            final ByteBuffer resultBuffer = readByteBuffer.slice();
            readByteBuffer.position(origPos+size);
            resultBuffer.limit(size);
            addReadBuffer(resultBuffer);
+           size = channel.read(readByteBuffer);
+         }
+         if(size < 0) {
+           close();
+         } else {
            se.setClientOperations(TCPClient.this);
          }
       } catch (IOException e) {

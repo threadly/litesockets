@@ -67,13 +67,6 @@ public class IOUtils {
         @Override
         public void onClose(Client client) {
           isClosed = true;
-          synchronized(c) {
-            try {
-              this.notifyAll();
-            } catch(Throwable t) {
-              
-            }
-          }
         }
       });
       lastWriteFuture = c.lastWriteFuture();

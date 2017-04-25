@@ -496,10 +496,11 @@ public class TCPTests {
       @Override
       public boolean get() {
         System.out.println(client.canRead());
+        System.out.println(c2.getWriteBufferSize());
         System.out.println(serverFC.getClientsBuffer(client).remaining());
         return serverFC.getClientsBuffer(client).remaining() == bb.remaining()*100;
       }
-    }.blockTillTrue(5000, 1000);
+    }.blockTillTrue(5000, 100);
     c2.close();
     new TestCondition(){
       @Override
