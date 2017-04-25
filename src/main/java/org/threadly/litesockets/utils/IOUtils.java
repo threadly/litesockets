@@ -12,6 +12,7 @@ import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.CloseListener;
 import org.threadly.litesockets.Client.Reader;
+import org.threadly.util.ExceptionUtils;
 
 public class IOUtils {
   
@@ -63,11 +64,11 @@ public class IOUtils {
         @Override
         public void onClose(Client client) {
           isClosed = true;
-          synchronized(c) {
+          synchronized(this) {
             try {
               this.notifyAll();
             } catch(Throwable t) {
-              
+              ExceptionUtils.handleException(t);
             }
           }
         }
@@ -86,7 +87,7 @@ public class IOUtils {
           try {
             lastWriteFuture.get(1000, TimeUnit.MILLISECONDS);
           } catch (Exception e) {
-            e.printStackTrace();
+            ExceptionUtils.handleException(e);
           }
         }
       }
@@ -102,7 +103,7 @@ public class IOUtils {
           try {
             lastWriteFuture.get(1000, TimeUnit.MILLISECONDS);
           } catch (Exception e) {
-            e.printStackTrace();
+            ExceptionUtils.handleException(e);
           }
         }
       }
