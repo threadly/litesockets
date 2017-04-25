@@ -5,7 +5,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
@@ -52,6 +55,24 @@ public class IOUtils {
     }
   }
   
+  private static void blockWriteFuture(ListenableFuture<?> writeFuture) throws IOException {
+    try {
+      writeFuture.get(1000, TimeUnit.MILLISECONDS);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IOException(e);
+    } catch (ExecutionException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof IOException) {
+        throw (IOException)cause;
+      } else {
+        throw new IOException(cause);
+      }
+    } catch (CancellationException | TimeoutException e) {
+      throw new IOException(e);
+    }
+  }
+  
   public static class ClientOutputStream extends OutputStream {
     
     private final Client c;
@@ -64,13 +85,6 @@ public class IOUtils {
         @Override
         public void onClose(Client client) {
           isClosed = true;
-          synchronized(this) {
-            try {
-              this.notifyAll();
-            } catch(Throwable t) {
-              ExceptionUtils.handleException(t);
-            }
-          }
         }
       });
       lastWriteFuture = c.lastWriteFuture();
@@ -84,11 +98,7 @@ public class IOUtils {
           lastWriteFuture = c.write(bb);
           return;
         } else {
-          try {
-            lastWriteFuture.get(1000, TimeUnit.MILLISECONDS);
-          } catch (Exception e) {
-            ExceptionUtils.handleException(e);
-          }
+          blockWriteFuture(lastWriteFuture);
         }
       }
     }
@@ -100,15 +110,10 @@ public class IOUtils {
           lastWriteFuture = c.write(ByteBuffer.wrap(new byte[]{(byte) arg0}));
           return;
         } else {
-          try {
-            lastWriteFuture.get(1000, TimeUnit.MILLISECONDS);
-          } catch (Exception e) {
-            ExceptionUtils.handleException(e);
-          }
+          blockWriteFuture(lastWriteFuture);
         }
       }
     }
-    
   }
   
   public static class ClientInputStream extends InputStream {
@@ -139,7 +144,8 @@ public class IOUtils {
                 try {
                   currentBB.wait();
                 } catch (InterruptedException e) {
-                  e.printStackTrace();
+                  Thread.currentThread().interrupt();
+                  ExceptionUtils.handleException(e);
                 }
               }
             }
@@ -164,8 +170,9 @@ public class IOUtils {
             } else {
               try {
                 currentBB.wait(1000);
-              } catch (Exception e) {
-
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                ExceptionUtils.handleException(e);
               }
             }
           }
@@ -188,7 +195,8 @@ public class IOUtils {
               try {
                 this.wait(1000);
               } catch (InterruptedException e) {
-
+                Thread.currentThread().interrupt();
+                ExceptionUtils.handleException(e);
               }
             }
           }

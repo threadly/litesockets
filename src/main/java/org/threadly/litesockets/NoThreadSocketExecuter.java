@@ -216,7 +216,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
       } catch (NullPointerException e) {
         //There is a bug in some JVMs around this where the select() can throw an NPE from native code.
       }
-    } while ((delay == 0 ? Clock.lastKnownForwardProgressingMillis() : Clock.accurateForwardProgressingMillis()) - startTime <= delay && isRunning());
+    } while ((delay == 0 ? 0 : Clock.accurateForwardProgressingMillis()) - startTime <= delay && isRunning());
     wakeUp = false;
   }
 
