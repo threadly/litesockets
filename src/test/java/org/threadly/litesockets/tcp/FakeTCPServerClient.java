@@ -59,7 +59,7 @@ public class FakeTCPServerClient implements Reader, CloseListener, ClientAccepto
 
   @Override
   public void onClose(Client client) {
-    System.out.println("Closed!");
+    System.out.println("Client Closed!");
     map.remove((TCPClient)client);
     synchronized(clients) {
       clients.remove((TCPClient) client);

@@ -9,7 +9,9 @@ import java.nio.channels.Selector;
 
 import org.threadly.concurrent.NoThreadScheduler;
 import org.threadly.concurrent.SubmitterExecutor;
+import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.util.ArgumentVerifier;
+import org.threadly.util.Clock;
 
 /**
  * <p>The NoThreadSocketExecuter is a simpler implementation of a {@link SocketExecuter} 
@@ -29,6 +31,7 @@ import org.threadly.util.ArgumentVerifier;
 public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   private final NoThreadScheduler localNoThreadScheduler;
   private Selector commonSelector;
+  private volatile boolean wakeUp = false;
 
   /**
    * Constructs a NoThreadSocketExecuter.  {@link #start()} must still be called before using it.
@@ -46,18 +49,27 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
    */
   public void wakeup() {
     if(commonSelector != null && commonSelector.isOpen()) {
+      wakeUp = true;
       commonSelector.wakeup();
+
     }
   }
 
   @Override
   public void setClientOperations(final Client client) {
     ArgumentVerifier.assertNotNull(client, "Client");
-    if(!clients.containsKey(client.getChannel()) || client.isClosed()) {
-      clients.remove(client.getChannel());
+    if(!clients.containsKey(client.getChannel())) {
       return;
     }
-    if(client.getChannel().isConnectionPending()) {
+    if(client.isClosed()) {
+      clients.remove(client.getChannel());
+      schedulerPool.submit(new RemoveFromSelector(commonSelector, client)).addListener(new Runnable() {
+        @Override
+        public void run() {
+          IOUtils.closeQuitly(client.getChannel());
+        }});
+
+    } else if(client.getChannel().isConnectionPending()) {
       schedulerPool.execute(new AddToSelector(schedulerPool, client, commonSelector, SelectionKey.OP_CONNECT));
     } else if(client.canWrite() && client.canRead()) {
       schedulerPool.execute(new AddToSelector(schedulerPool, client, commonSelector, SelectionKey.OP_WRITE|SelectionKey.OP_READ));
@@ -99,10 +111,10 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   protected void shutdownService() {
     commonSelector.wakeup();
     for(final Client client: clients.values()) {
-      client.close();
+      IOUtils.closeQuitly(client);
     }
     for(final Server server: servers.values()) {
-      server.close();
+      IOUtils.closeQuitly(server);
     }
     if(commonSelector != null && commonSelector.isOpen()) {
       closeSelector(schedulerPool, commonSelector);
@@ -111,7 +123,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
       try {
         localNoThreadScheduler.tick(null);
       } catch(Exception e) {
-        
+
       }
     }
     clients.clear();
@@ -141,69 +153,68 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   public void select(final int delay) {
     ArgumentVerifier.assertNotNegative(delay, "delay");
     checkRunning();
-    try {
-      commonSelector.selectNow();  //We have to do this before we tick for windows
-      localNoThreadScheduler.tick(null);
-      if(delay == 0) {
-        commonSelector.selectNow();
-      } else {
-        commonSelector.select(delay);
-      }
-      if(isRunning()) {
-        for(final SelectionKey key: commonSelector.selectedKeys()) {
-          try {
-            if(key.isAcceptable()) {
-              doServerAccept(servers.get(key.channel()));
-            } else {
-              final Client tmpClient = clients.get(key.channel());
-              if(key.isConnectable() && tmpClient != null) {
-                doClientConnect(tmpClient, commonSelector);
-                key.cancel(); //Stupid windows bug here.
-                setClientOperations(tmpClient);
+    long startTime = Clock.accurateForwardProgressingMillis();
+    while(Clock.accurateForwardProgressingMillis()- startTime <= delay && isRunning() && !wakeUp) {
+      try {
+        commonSelector.selectNow();  //We have to do this before we tick for windows
+        localNoThreadScheduler.tick(null);
+        commonSelector.select(Math.min(delay, 50));
+        if(isRunning()) {
+          for(final SelectionKey key: commonSelector.selectedKeys()) {
+            try {
+              if(key.isAcceptable()) {
+                doServerAccept(servers.get(key.channel()));
               } else {
-                if (key.isReadable()) {
-                  if(tmpClient != null){
-                    doClientRead(tmpClient, commonSelector);
-                  } else {
-                    final Server server = servers.get(key.channel());
-                    if(server != null && server.getServerType() == WireProtocol.UDP) {
-                      server.acceptChannel((DatagramChannel)server.getSelectableChannel());
+                final Client tmpClient = clients.get(key.channel());
+                if(key.isConnectable() && tmpClient != null) {
+                  doClientConnect(tmpClient, commonSelector);
+                  key.cancel(); //Stupid windows bug here.
+                  setClientOperations(tmpClient);
+                } else {
+                  if (key.isReadable()) {
+                    if(tmpClient != null){
+                      doClientRead(tmpClient, commonSelector);
+                    } else {
+                      final Server server = servers.get(key.channel());
+                      if(server != null && server.getServerType() == WireProtocol.UDP) {
+                        server.acceptChannel((DatagramChannel)server.getSelectableChannel());
+                      }
                     }
-                  }
-                } 
-                if(key.isWritable()) {
-                  if(tmpClient != null){
-                    doClientWrite(tmpClient, commonSelector);
-                  } else {
-                    final Server server = servers.get(key.channel());
-                    if(server != null) {
-                      if(server instanceof UDPServer) {
-                        UDPServer us = (UDPServer) server;
-                        stats.addWrite(us.doWrite());
-                        setUDPServerOperations(us, true);
+                  } 
+                  if(key.isWritable()) {
+                    if(tmpClient != null){
+                      doClientWrite(tmpClient, commonSelector);
+                    } else {
+                      final Server server = servers.get(key.channel());
+                      if(server != null) {
+                        if(server instanceof UDPServer) {
+                          UDPServer us = (UDPServer) server;
+                          stats.addWrite(us.doWrite());
+                          setUDPServerOperations(us, true);
+                        }
                       }
                     }
                   }
                 }
               }
+            } catch(CancelledKeyException e) {
+              //Key could be cancelled at any point, we dont really care about it.
             }
-          } catch(CancelledKeyException e) {
-            //Key could be cancelled at any point, we dont really care about it.
           }
+          //Also for windows bug, canceled keys are not removed till we select again.
+          //So we just have to at the end of the loop.
+          commonSelector.selectNow();
+          localNoThreadScheduler.tick(null);
         }
-        //Also for windows bug, canceled keys are not removed till we select again.
-        //So we just have to at the end of the loop.
-        commonSelector.selectNow();
-        localNoThreadScheduler.tick(null);
+      } catch (IOException e) {
+        //There is really nothing to do here but try again, usually this is because of shutdown.
+      } catch(ClosedSelectorException e) {
+        //We do nothing here because the next loop should not happen now.
+      } catch (NullPointerException e) {
+        //There is a bug in some JVMs around this where the select() can throw an NPE from native code.
       }
-    } catch (IOException e) {
-      //There is really nothing to do here but try again, usually this is because of shutdown.
-    } catch(ClosedSelectorException e) {
-      //We do nothing here because the next loop should not happen now.
-    } catch (NullPointerException e) {
-      //There is a bug in some JVMs around this where the select() can throw an NPE from native code.
     }
-
+    wakeUp = false;
   }
 
   @Override

@@ -185,20 +185,6 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
 
   @Override
   public void watchFuture(final ListenableFuture<?> lf, final long delay) {
-    System.out.println(schedulerPool);
-    schedulerPool.schedule(new Runnable(){
-
-      @Override
-      public void run() {
-        System.out.println("Ran!");    
-      }}, delay);
-    
-    schedulerPool.execute(new Runnable(){
-
-      @Override
-      public void run() {
-        System.out.println("Ran!");    
-      }});
     dogCache.watch(lf, delay);
   }
 
@@ -228,7 +214,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
           server.acceptChannel(client);
         }
       } catch (IOException e) {
-        server.close();
+        IOUtils.closeQuitly(server);
         ExceptionUtils.handleException(e);
       }
     }
@@ -243,7 +229,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         client.setConnectionStatus(null);
       }
     } catch(IOException e) {
-      client.close();
+      IOUtils.closeQuitly(client);
       client.setConnectionStatus(e);
       ExceptionUtils.handleException(e);
     }
@@ -259,7 +245,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         }
         client.doSocketWrite();
       } catch(Exception e) {
-        client.close();
+        IOUtils.closeQuitly(client);
         ExceptionUtils.handleException(e);
       }
     }
@@ -274,12 +260,32 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         }
         client.doSocketRead();
       } catch (ClosedChannelException e) {
-        client.close();
+        IOUtils.closeQuitly(client);
         ExceptionUtils.handleException(e);
       }
     }
   }
   
+  protected static class RemoveFromSelector implements Runnable {
+
+    private final Selector selector;
+    private final Client client;
+
+    public RemoveFromSelector(Selector selector, Client client) {
+      this.client = client;
+      this.selector = selector;
+    }
+
+    @Override
+    public void run() {
+      SelectionKey sk = client.getChannel().keyFor(selector);
+      if(sk != null) {
+        sk.cancel();
+      }
+    }
+
+  }
+
   /**
    * This class is a helper runnable to generically add SelectableChannels to a selector for certain operations.
    * 
@@ -315,7 +321,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         } catch (CancelledKeyException e) {
           exec.execute(this);
         } catch (ClosedChannelException e) {
-          localClient.close();
+          IOUtils.closeQuitly(localClient);
         }
       }
     }
@@ -326,7 +332,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
           localServer.getSelectableChannel().register(localSelector, registerType);
         } catch (ClosedChannelException e) {
           ExceptionUtils.handleException(e);
-          localServer.close();
+          IOUtils.closeQuitly(localServer);
         }
       }
     }

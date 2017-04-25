@@ -26,7 +26,9 @@ import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
+import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
+import org.threadly.litesockets.Client.CloseListener;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.TCPClient;
@@ -102,7 +104,7 @@ public class TCPTests {
   
   
   @Test
-  public void setClientOptions() throws IOException, InterruptedException {
+  public void setClientOptions() throws IOException, InterruptedException, ExecutionException, TimeoutException {
     final TCPClient client = SE.createTCPClient("localhost", port);
     assertTrue(client.clientOptions().setTcpNoDelay(true));
     assertTrue(client.clientOptions().getTcpNoDelay());
@@ -125,9 +127,14 @@ public class TCPTests {
       assertFalse(client.clientOptions().setSocketSendBuffer(1));
       assertFalse(client.clientOptions().setSocketRecvBuffer(1));
     }
-    
+    final SettableListenableFuture<Boolean> slf = new SettableListenableFuture<Boolean>(); 
+    client.addCloseListener(new CloseListener() {
+      @Override
+      public void onClose(Client client) {
+        slf.setResult(true);
+      }});
     client.close();
-    
+    slf.get(5000, TimeUnit.MILLISECONDS);
     assertEquals(-1, client.clientOptions().getSocketRecvBuffer());
     assertEquals(-1, client.clientOptions().getSocketSendBuffer());
     assertFalse(client.clientOptions().setSocketSendBuffer(16384));
@@ -277,9 +284,10 @@ public class TCPTests {
     new TestCondition(){
       @Override
       public boolean get() {
+        System.out.println(mbb.remaining() +":"+client.getStats().getTotalRead());
         return mbb.remaining() == SMALL_TEXT_BUFFER.remaining() * 10000;
       }
-    }.blockTillTrue(5000);
+    }.blockTillTrue(5000, 100);
     client.close();    
     int len = is.read();
     assertEquals(-1, len);

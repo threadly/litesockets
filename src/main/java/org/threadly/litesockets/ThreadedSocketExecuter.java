@@ -1,17 +1,22 @@
 package org.threadly.litesockets;
 
+import java.io.IOException;
 import java.nio.channels.CancelledKeyException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
+import java.util.Arrays;
 import java.util.concurrent.ScheduledExecutorService;
 
 import org.threadly.concurrent.ConfigurableThreadFactory;
 import org.threadly.concurrent.SingleThreadScheduler;
 import org.threadly.concurrent.SubmitterExecutor;
 import org.threadly.concurrent.SubmitterScheduler;
+import org.threadly.concurrent.future.FutureUtils;
+import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.wrapper.KeyDistributedExecutor;
 import org.threadly.concurrent.wrapper.compatibility.ScheduledExecutorServiceWrapper;
+import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.ExceptionUtils;
 
@@ -94,10 +99,10 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   @Override
   protected void shutdownService() {
     for(final Client client: clients.values()) {
-      client.close();
+      IOUtils.closeQuitly(client);
     }
     for(final Server server: servers.values()) {
-      server.close();
+      IOUtils.closeQuitly(server);
     }
     closeSelector(localAcceptScheduler, acceptSelector);
     closeSelector(localReadScheduler, readSelector);
@@ -111,15 +116,18 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
       clients.remove(client.getChannel());
       return;
     }
-    if(client.isClosed()) {
-      writeScheduler.execute(new AddToSelector(writeScheduler, client, writeSelector, 0));
-      readScheduler.execute(new AddToSelector(readScheduler, client, readSelector, 0));
-      clients.remove(client.getChannel());
-      return;
-    }
 
     synchronized(client) {
-      if(!client.getChannel().isConnected() && client.getChannel().isConnectionPending()) {
+      if(client.isClosed()) {
+        clients.remove(client.getChannel());
+        ListenableFuture<?> lf = readScheduler.submit(new RemoveFromSelector(readSelector, client));
+        ListenableFuture<?> lf2 = writeScheduler.submit(new RemoveFromSelector(writeSelector, client));
+        FutureUtils.makeCompleteFuture(Arrays.asList(lf, lf2)).addListener(new Runnable() {
+          @Override
+          public void run() {
+            IOUtils.closeQuitly(client.getChannel());
+          }});
+      } else if(!client.getChannel().isConnected() && client.getChannel().isConnectionPending()) {
         readScheduler.execute(new AddToSelector(readScheduler, client, readSelector, SelectionKey.OP_CONNECT));
         writeScheduler.execute(new AddToSelector(writeScheduler, client, writeSelector, 0));
       } else if(client.canWrite() && client.canRead()) {
@@ -223,7 +231,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
                   doClientRead(client, readSelector);
                 }
               } catch(CancelledKeyException e) {
-                client.close();
+                IOUtils.closeQuitly(client);
                 ExceptionUtils.handleException(e);
               }
             } else {

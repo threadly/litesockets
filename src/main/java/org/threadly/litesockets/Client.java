@@ -1,5 +1,6 @@
 package org.threadly.litesockets;
 
+import java.io.Closeable;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
@@ -32,7 +33,7 @@ import org.threadly.util.Clock;
  * @author lwahlmeier
  *
  */
-public abstract class Client {
+public abstract class Client implements Closeable {
 
   protected final MergedByteBuffers readBuffers = new MergedByteBuffers(false);
   protected final SocketExecuterCommonBase se;
@@ -349,11 +350,13 @@ public abstract class Client {
    * @return a {@link MergedByteBuffers} of the current read data for this client.
    */
   public MergedByteBuffers getRead() {
-    MergedByteBuffers mbb = readBuffers.duplicateAndClean();
-    if(mbb.remaining() >= maxBufferSize) {
-      se.setClientOperations(this);
+    synchronized(readerLock) {
+      MergedByteBuffers mbb = readBuffers.duplicateAndClean();
+      if(mbb.remaining() >= maxBufferSize) {
+        se.setClientOperations(this);
+      }
+      return mbb;
     }
-    return mbb;
   }
 
   /**

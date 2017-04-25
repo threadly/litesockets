@@ -144,6 +144,7 @@ public class TCPClient extends Client {
   @Override
   public void close() {
     if(setClose()) {
+      System.out.println("close Called:"+this);
       se.setClientOperations(this);
       this.getClientsThreadExecutor().execute(new Runnable() {
         @Override
@@ -157,8 +158,6 @@ public class TCPClient extends Client {
             writeBuffers.discard(writeBuffers.remaining());
           }
         }});
-      IOUtils.closeQuitly(channel.socket());
-      IOUtils.closeQuitly(channel);
       this.callClosers();
     }
   }
