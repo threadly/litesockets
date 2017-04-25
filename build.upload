@@ -8,15 +8,15 @@ targetCompatibility = 1.6
 
 compileJava {
   String[] java6Paths = new String[5]
-  java6Paths[0] = "/usr/lib/jvm/java-6-openjdk-amd64/jre/lib/rt.jar"
-  java6Paths[1] = "/usr/lib/jvm/java-6-openjdk/jre/lib/rt.jar"
-  java6Paths[2] = "/usr/lib/jvm/java-1.6.0-openjdk-amd64/jre/lib/rt.jar"
-  java6Paths[3] = "/usr/lib/jvm/java-1.6.0-openjdk/jre/lib/rt.jar"
-  java6Paths[4] = "/usr/lib/jvm/java-6-sun/jre/lib/rt.jar"
+  java6Paths[0] = "/usr/lib/jvm/java-6-openjdk-amd64/jre/lib/"
+  java6Paths[1] = "/usr/lib/jvm/java-6-openjdk/jre/lib/"
+  java6Paths[2] = "/usr/lib/jvm/java-1.6.0-openjdk-amd64/jre/lib/"
+  java6Paths[3] = "/usr/lib/jvm/java-1.6.0-openjdk/jre/lib/"
+  java6Paths[4] = "/usr/lib/jvm/java-6-sun/jre/lib/"
   for (String path : java6Paths) {
     if (new java.io.File(path).exists()) {
-      println 'Using java 6 rt.jar: ' + path
-      options.bootClasspath = path
+      println 'Using java 6 classpath path: ' + path
+      options.bootClasspath = fileTree(include: ['*.jar'], dir: path).join(File.pathSeparator)
       break
     }
   }
@@ -31,14 +31,14 @@ compileTestJava {
   options.compilerArgs << "-Xlint:all" << "-Xlint:-deprecation" << "-Werror"
   
   String[] java6Paths = new String[5]
-  java6Paths[0] = "/usr/lib/jvm/java-6-openjdk-amd64/jre/lib/rt.jar"
-  java6Paths[1] = "/usr/lib/jvm/java-6-openjdk/jre/lib/rt.jar"
-  java6Paths[2] = "/usr/lib/jvm/java-1.6.0-openjdk-amd64/jre/lib/rt.jar"
-  java6Paths[3] = "/usr/lib/jvm/java-1.6.0-openjdk/jre/lib/rt.jar"
-  java6Paths[4] = "/usr/lib/jvm/java-6-sun/jre/lib/rt.jar"
+  java6Paths[0] = "/usr/lib/jvm/java-6-openjdk-amd64/jre/lib/"
+  java6Paths[1] = "/usr/lib/jvm/java-6-openjdk/jre/lib/"
+  java6Paths[2] = "/usr/lib/jvm/java-1.6.0-openjdk-amd64/jre/lib/"
+  java6Paths[3] = "/usr/lib/jvm/java-1.6.0-openjdk/jre/lib/"
+  java6Paths[4] = "/usr/lib/jvm/java-6-sun/jre/lib/"
   for (String path : java6Paths) {
     if (new java.io.File(path).exists()) {
-      options.bootClasspath = path
+      options.bootClasspath = fileTree(include: ['*.jar'], dir: path).join(File.pathSeparator)
       break
     }
   }

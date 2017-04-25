@@ -6,13 +6,10 @@ import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.util.Arrays;
 
 import org.threadly.concurrent.NoThreadScheduler;
 import org.threadly.concurrent.SubmitterExecutor;
-import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
-import org.threadly.litesockets.SocketExecuterCommonBase.RemoveFromSelector;
 import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.Clock;
