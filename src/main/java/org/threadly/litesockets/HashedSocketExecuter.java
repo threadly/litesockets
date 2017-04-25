@@ -49,7 +49,7 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
       if(client.isClosed()) {
         clients.remove(client.getChannel());
         st.scheduler.execute(new RemoveFromSelector(st.selector, client));
-        st.scheduler.execute(()->IOUtils.closeQuitly(client.getChannel()));
+        st.scheduler.execute(()->IOUtils.closeQuietly(client.getChannel()));
       } else if(!client.getChannel().isConnected() && client.getChannel().isConnectionPending()) {
         st.scheduler.execute(new AddToSelector(st.scheduler,client, st.selector, SelectionKey.OP_CONNECT));
       } else if(client.canWrite() && client.canRead()) {
@@ -126,10 +126,10 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
   @Override
   protected void shutdownService() {
     for(final Client client: clients.values()) {
-      IOUtils.closeQuitly(client);
+      IOUtils.closeQuietly(client);
     }
     for(final Server server: servers.values()) {
-      IOUtils.closeQuitly(server);
+      IOUtils.closeQuietly(server);
     }
     for(SelectorThread st: clientSelectors.values()) {
       closeSelector(st.scheduler, st.selector);

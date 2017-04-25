@@ -66,7 +66,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
       schedulerPool.submit(new RemoveFromSelector(commonSelector, client)).addListener(new Runnable() {
         @Override
         public void run() {
-          IOUtils.closeQuitly(client.getChannel());
+          IOUtils.closeQuietly(client.getChannel());
         }});
 
     } else if(client.getChannel().isConnectionPending()) {
@@ -111,10 +111,10 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   protected void shutdownService() {
     commonSelector.wakeup();
     for(final Client client: clients.values()) {
-      IOUtils.closeQuitly(client);
+      IOUtils.closeQuietly(client);
     }
     for(final Server server: servers.values()) {
-      IOUtils.closeQuitly(server);
+      IOUtils.closeQuietly(server);
     }
     if(commonSelector != null && commonSelector.isOpen()) {
       closeSelector(schedulerPool, commonSelector);
