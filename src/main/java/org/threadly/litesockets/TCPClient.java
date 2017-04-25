@@ -36,7 +36,7 @@ public class TCPClient extends Client {
   private static final ListenableFuture<Long> closedFuture = FutureUtils.immediateFailureFuture(new IllegalStateException("Connection is Closed"));
 
   private final MergedByteBuffers writeBuffers = new MergedByteBuffers();
-  private final Deque<Pair<Long, SettableListenableFuture<Long>>> writeFutures = new ArrayDeque<Pair<Long, SettableListenableFuture<Long>>>();
+  private final Deque<Pair<Long, SettableListenableFuture<Long>>> writeFutures = new ArrayDeque<Pair<Long, SettableListenableFuture<Long>>>(8);
   private final TCPSocketOptions tso = new TCPSocketOptions();
   protected final AtomicBoolean startedConnection = new AtomicBoolean(false);
   protected final SettableListenableFuture<Boolean> connectionFuture = new SettableListenableFuture<Boolean>(false);
@@ -46,7 +46,7 @@ public class TCPClient extends Client {
   protected final InetSocketAddress remoteAddress;
   
   private volatile ListenableFuture<Long> lastWriteFuture = IOUtils.FINISHED_LONG_FUTURE;
-  private volatile ByteBuffer currentWriteBuffer = ByteBuffer.allocate(0);
+  private volatile ByteBuffer currentWriteBuffer = IOUtils.EMPTY_BYTEBUFFER;
   private volatile SSLProcessor sslProcessor;
   
   protected volatile int maxConnectionTime = DEFAULT_SOCKET_TIMEOUT;
