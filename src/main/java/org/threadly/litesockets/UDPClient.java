@@ -4,7 +4,6 @@ import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.concurrent.Executor;
 
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
@@ -37,7 +36,8 @@ public class UDPClient extends Client {
   
 
   protected UDPClient(final InetSocketAddress sa, final UDPServer server) {
-    super(server.getSocketExecuterCommonBase());
+    super(server.getSocketExecuterCommonBase(), 
+          server.getSocketExecuterCommonBase().getExecutorFor(sa));
     this.remoteAddress = sa;
     udpServer = server;
   }
@@ -190,11 +190,6 @@ public class UDPClient extends Client {
       se.setClientOperations(this);
     }
     return mbb;
-  }
-  
-  @Override
-  public Executor getClientsThreadExecutor() {
-    return se.getExecutorFor(remoteAddress);
   }
 
   /**

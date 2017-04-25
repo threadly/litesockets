@@ -4,9 +4,9 @@ import java.io.Closeable;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.threadly.concurrent.SubmitterExecutor;
 import org.threadly.concurrent.event.ListenerHelper;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.utils.IOUtils;
@@ -37,6 +37,7 @@ public abstract class Client implements Closeable {
 
   protected final MergedByteBuffers readBuffers = new MergedByteBuffers(false);
   protected final SocketExecuterCommonBase se;
+  protected final SubmitterExecutor clientExecutor;
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
   protected final Object readerLock = new Object();
   protected final Object writerLock = new Object();
@@ -52,6 +53,12 @@ public abstract class Client implements Closeable {
 
   public Client(final SocketExecuterCommonBase se) {
     this.se = se;
+    this.clientExecutor = se.getExecutorFor(this);
+  }
+  
+  protected Client(final SocketExecuterCommonBase se, final SubmitterExecutor clientExecutor) {
+    this.se = se;
+    this.clientExecutor = clientExecutor;
   }
 
   /**
@@ -291,8 +298,8 @@ public abstract class Client implements Closeable {
    * 
    * @return The {@link Executor} for the client.
    */
-  public Executor getClientsThreadExecutor() {
-    return se.getExecutorFor(this);
+  public SubmitterExecutor getClientsThreadExecutor() {
+    return clientExecutor;
   }
 
   /**
