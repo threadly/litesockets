@@ -136,6 +136,7 @@ public class TCPTests {
     client.close();
     slf.get(5000, TimeUnit.MILLISECONDS);
     assertEquals(-1, client.clientOptions().getSocketRecvBuffer());
+    
     assertEquals(-1, client.clientOptions().getSocketSendBuffer());
     assertFalse(client.clientOptions().setSocketSendBuffer(16384));
     assertFalse(client.clientOptions().setSocketRecvBuffer(16384));

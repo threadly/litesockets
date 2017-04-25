@@ -1,6 +1,5 @@
 package org.threadly.litesockets;
 
-import java.io.IOException;
 import java.nio.channels.CancelledKeyException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
