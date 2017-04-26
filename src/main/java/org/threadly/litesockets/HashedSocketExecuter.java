@@ -8,11 +8,7 @@ import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.util.ArrayList;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.concurrent.ConfigurableThreadFactory;
 import org.threadly.concurrent.SingleThreadScheduler;
@@ -23,7 +19,7 @@ import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.util.ArgumentVerifier;
 
 public class HashedSocketExecuter extends SocketExecuterCommonBase {
-  private final ArrayList<SelectorThread> clientSelectors = new ArrayList<>();
+  private final ArrayList<SelectorThread> clientSelectors;
   private final KeyDistributedExecutor clientDistributer;
   private final int selectors;
   
@@ -33,6 +29,7 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
 
   public HashedSocketExecuter(SubmitterScheduler scheduler, int maxTasksPerCycle, int numberOfSelectors) {
     super(scheduler);
+    clientSelectors = new ArrayList<>(numberOfSelectors);
     clientDistributer = new KeyDistributedExecutor(schedulerPool, maxTasksPerCycle);
     this.selectors = numberOfSelectors;
   }
@@ -124,14 +121,12 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
   }
   
   private class SelectorThread {
-    private final int id;
     private final Selector selector;
     private final SingleThreadScheduler scheduler;
     private final ConcurrentLinkedQueue<Client> clientsToCheck = new ConcurrentLinkedQueue<>();
     private volatile boolean isAwake = true;
     
     public SelectorThread(int id) {
-      this.id = id;
       selector = openSelector();
       scheduler = new SingleThreadScheduler(new ConfigurableThreadFactory("SelectorThread-"+id, false, true, Thread.currentThread().getPriority(), null, null));
       scheduler.execute(()->doSelect());
@@ -240,5 +235,4 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
       }
     }
   }
-
 }
