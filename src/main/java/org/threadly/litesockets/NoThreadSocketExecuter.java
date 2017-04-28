@@ -176,7 +176,6 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
                 if(key.isConnectable() && tmpClient != null) {
                   doClientConnect(tmpClient, commonSelector);
                   key.cancel(); //Stupid windows bug here.
-                  setClientOperations(tmpClient);
                 } else {
                   if (key.isReadable()) {
                     if(tmpClient != null){

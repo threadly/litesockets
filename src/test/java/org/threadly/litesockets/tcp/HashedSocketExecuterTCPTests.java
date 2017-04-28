@@ -1,6 +1,7 @@
 package org.threadly.litesockets.tcp;
 
 import java.io.IOException;
+import java.net.ConnectException;
 
 import org.junit.After;
 import org.junit.Before;
@@ -46,5 +47,10 @@ public class HashedSocketExecuterTCPTests extends TCPTests {
   @Test
   public void clientBlockingWriter() throws Exception {
     super.clientBlockingWriter();
+  }
+  
+  @Test(expected=ConnectException.class)
+  public void tcpConnectionRefused() throws Throwable {
+    super.tcpConnectionRefused();
   }
 }

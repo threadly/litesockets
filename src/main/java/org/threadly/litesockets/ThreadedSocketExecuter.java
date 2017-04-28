@@ -225,7 +225,6 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
                 if(sk.isConnectable()) {
                   doClientConnect(client, readSelector);
                   sk.cancel();
-                  setClientOperations(client);
                 } else {
                   doClientRead(client, readSelector);
                 }

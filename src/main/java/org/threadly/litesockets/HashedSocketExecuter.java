@@ -45,57 +45,35 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
     if(!clients.containsKey(client.getChannel())) {
       return;
     }
-    final SelectorThread st = clientSelectors.get(client.hashCode()%clientSelectors.size());
+    final SelectorThread st = clientSelectors.get(client.hashCode()%selectors);
     st.addClient(client);
   }
   
   @Override
   public void startListening(final Server server) {
-    if(!checkServer(server)) {
-      return;
-    } else {
-      final SelectorThread st = clientSelectors.get(server.hashCode()%clientSelectors.size());
-      if(server.getServerType() == WireProtocol.TCP) {
-        st.scheduler.execute(new AddToSelector(st.scheduler, server, st.selector, SelectionKey.OP_ACCEPT));
-        st.selector.wakeup();
-      } else {
-        throw new UnsupportedOperationException("Unknown Server WireProtocol!"+ server.getServerType());
-      }
+    if(checkServer(server)) {
+      final SelectorThread st = clientSelectors.get(server.hashCode()%selectors);
+      st.addServer(server);
     }
   }
 
   @Override
   public void stopListening(final Server server) {
-    if(!checkServer(server)) {
-      return;
-    } else {
-      final SelectorThread st = clientSelectors.get(server.hashCode()%clientSelectors.size());
-      if(server.getServerType() == WireProtocol.TCP) {
-        st.scheduler.execute(new AddToSelector(st.scheduler, server, st.selector, 0));
-        st.selector.wakeup();
-      } else if(server.getServerType() == WireProtocol.UDP) {
-        st.scheduler.execute(new AddToSelector(st.scheduler, server, st.selector, 0));
-        st.selector.wakeup();
-      } else {
-        throw new UnsupportedOperationException("Unknown Server WireProtocol!"+ server.getServerType());
-      }
+    if(checkServer(server)) {
+      final SelectorThread st = clientSelectors.get(server.hashCode()%selectors);
+      st.removeServer(server);
     }
   }
 
   @Override
   public void setUDPServerOperations(UDPServer udpServer, boolean enable) {
     if(checkServer(udpServer)) {
-      final SelectorThread st = clientSelectors.get(udpServer.hashCode()%clientSelectors.size());
+      final SelectorThread st = clientSelectors.get(udpServer.hashCode()%selectors);
       if(enable) {
-        if(udpServer.needsWrite()) {
-          st.scheduler.execute(new AddToSelector(st.scheduler, udpServer, st.selector, SelectionKey.OP_READ|SelectionKey.OP_WRITE));
-        } else {
-          st.scheduler.execute(new AddToSelector(st.scheduler, udpServer, st.selector, SelectionKey.OP_READ));  
-        }
+        st.addServer(udpServer);
       } else {
-        st.scheduler.execute(new AddToSelector(st.scheduler, udpServer, st.selector, 0));
-      }
-      st.selector.wakeup();
+        
+      }st.removeServer(udpServer);
     }
   }
 
@@ -115,21 +93,27 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
       IOUtils.closeQuietly(server);
     }
     for(SelectorThread st: clientSelectors) {
-      closeSelector(st.scheduler, st.selector);
       st.selector.wakeup();
+      st.selector.wakeup();
+      
+      IOUtils.closeQuietly(st.selector);
     }
   }
   
   private class SelectorThread {
     private final Selector selector;
-    private final SingleThreadScheduler scheduler;
+    private final Thread thread;
     private final ConcurrentLinkedQueue<Client> clientsToCheck = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<Server> serversToAdd = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<Server> serversToRemove = new ConcurrentLinkedQueue<>();
     private volatile boolean isAwake = true;
     
     public SelectorThread(int id) {
       selector = openSelector();
-      scheduler = new SingleThreadScheduler(new ConfigurableThreadFactory("SelectorThread-"+id, false, true, Thread.currentThread().getPriority(), null, null));
-      scheduler.execute(()->doSelect());
+      //scheduler = new SingleThreadScheduler(new ConfigurableThreadFactory("SelectorThread-"+id, false, true, Thread.currentThread().getPriority(), null, null));
+      thread = new Thread(()->doSelect());
+      thread.setDaemon(true);
+      thread.start();
     }
     
     public void addClient(Client client) {
@@ -140,32 +124,84 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
       }
     }
     
+    public void addServer(Server server) {
+      serversToAdd.add(server);
+      if(!isAwake) {
+        isAwake = true;
+        selector.wakeup();
+      }
+    }
+    
+    public void removeServer(Server server) {
+      serversToAdd.add(server);
+      if(!isAwake) {
+        isAwake = true;
+        selector.wakeup();
+      }
+    }
+    
+    private void processServers() {
+      Server server = serversToAdd.poll();
+      while(server != null) {
+        try {
+          if(server.getServerType() == WireProtocol.TCP) {
+            server.getSelectableChannel().register(selector, SelectionKey.OP_ACCEPT);
+          } else if(server.getServerType() == WireProtocol.UDP) {
+            UDPServer us = (UDPServer) server;
+            if(us.needsWrite()) {
+              server.getSelectableChannel().register(selector, SelectionKey.OP_READ|SelectionKey.OP_WRITE);  
+            } else {
+              server.getSelectableChannel().register(selector, SelectionKey.OP_READ);
+            }
+          }
+        } catch(Exception e) {
+          IOUtils.closeQuietly(server);
+        }
+        server = serversToAdd.poll();  
+      }
+      server = serversToRemove.poll();
+      while(server != null) {
+        SelectionKey sk = server.getSelectableChannel().keyFor(selector);
+        if(sk != null) {
+          sk.cancel();
+        }
+        server = serversToRemove.poll();
+      }
+    }
+    
     private void processClients() {
       Client client = clientsToCheck.poll();
       while(client != null) {
         final Client fc = client;
         try {
+          SelectionKey sk = client.getChannel().keyFor(selector);
           if(client.isClosed()) {
             clients.remove(client.getChannel());
-            SelectionKey sk = client.getChannel().keyFor(selector);
             if(sk != null) {
               sk.cancel();
             }
             client.getClientsThreadExecutor().execute(()->IOUtils.closeQuietly(fc.getChannel()));
-          } else if(!client.getChannel().isConnected() && client.getChannel().isConnectionPending()) {
-            client.getChannel().register(selector, SelectionKey.OP_CONNECT);
-          } else if(client.canWrite() && client.canRead()) {
-            client.getChannel().register(selector, SelectionKey.OP_READ|SelectionKey.OP_WRITE);
-          } else if (client.canRead()){
-            client.getChannel().register(selector, SelectionKey.OP_READ);
-          } else if (client.canWrite()){
-            client.getChannel().register(selector, SelectionKey.OP_WRITE);
           } else {
-            client.getChannel().register(selector, 0);
+            if(sk == null) {
+              sk = client.getChannel().register(selector, 0);
+            }
+            if(!client.getChannel().isConnected() && client.getChannel().isConnectionPending()) {
+              sk.interestOps(SelectionKey.OP_CONNECT);
+            } else if(client.canWrite() && client.canRead()) {
+              sk.interestOps(SelectionKey.OP_READ|SelectionKey.OP_WRITE);
+            } else if (client.canRead()){
+              sk.interestOps(SelectionKey.OP_READ);
+            } else if (client.canWrite()){
+              sk.interestOps(SelectionKey.OP_WRITE);
+            } else {
+              sk.interestOps(0);
+            }
           }
+          
         } catch (CancelledKeyException e) {
-          scheduler.execute(()->addClient(fc));
-        } catch (ClosedChannelException e) {
+          addClient(fc);
+        } catch (Exception e) {
+          e.printStackTrace();
           IOUtils.closeQuietly(client);
         }
         client = clientsToCheck.poll();
@@ -174,9 +210,12 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
 
 
     private void doSelect() {
+      while(isRunning()) {
       try {
         isAwake = false;
         processClients();
+        processServers();
+        selector.selectedKeys().clear();
         selector.select();
         isAwake = true;
         for(final SelectionKey key: selector.selectedKeys()) {
@@ -188,7 +227,6 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
               if(key.isConnectable() && tmpClient != null) {
                 doClientConnect(tmpClient, selector);
                 key.cancel(); //Stupid windows bug here.
-                setClientOperations(tmpClient);
               } else {
                 if (key.isReadable()) {
                   if(tmpClient != null){
@@ -230,8 +268,8 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
       } catch (NullPointerException e) {
         //There is a bug in some JVMs around this where the select() can throw an NPE from native code.
       }
-      if(isRunning()) {
-        scheduler.execute(()->doSelect());
+
+
       }
     }
   }

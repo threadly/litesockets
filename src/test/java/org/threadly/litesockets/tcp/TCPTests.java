@@ -760,6 +760,7 @@ public class TCPTests {
   public void tcpConnectionRefused() throws Throwable {
     server.close();
     TCPClient client = SE.createTCPClient("localhost", port);
+    Thread.sleep(100);
     assertTrue(!client.hasConnectionTimedOut());
     //final FakeTCPServerClient clientFC = new FakeTCPServerClient(SE);
     try {

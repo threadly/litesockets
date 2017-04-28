@@ -225,15 +225,18 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     if(client == null) {
       return;
     }
-    try {
-      if(client.getChannel().finishConnect()) {
-        client.setConnectionStatus(null);
+    client.getClientsThreadExecutor().execute(()-> {
+      try {
+        if(client.getChannel().finishConnect()) {
+          client.setConnectionStatus(null);
+        }
+        setClientOperations(client);
+      } catch(IOException e) {
+        IOUtils.closeQuietly(client);
+        client.setConnectionStatus(e);
+        ExceptionUtils.handleException(e);
       }
-    } catch(IOException e) {
-      IOUtils.closeQuietly(client);
-      client.setConnectionStatus(e);
-      ExceptionUtils.handleException(e);
-    }
+    });
   }
 
   protected void doClientWrite(final Client client, final Selector selector) {
@@ -242,7 +245,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         final SelectionKey sk = client.getChannel().keyFor(selector);
 
         if((sk.interestOps() & SelectionKey.OP_WRITE) == SelectionKey.OP_WRITE) {
-          client.getChannel().register(selector, sk.interestOps() - SelectionKey.OP_WRITE);
+          sk.interestOps(sk.interestOps() - SelectionKey.OP_WRITE);
         }
         client.doSocketWrite();
       } catch(Exception e) {
@@ -257,10 +260,10 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
       final SelectionKey sk = client.getChannel().keyFor(selector);
       try {
         if((sk.interestOps() & SelectionKey.OP_READ) == SelectionKey.OP_READ) {
-          client.getChannel().register(selector, sk.interestOps() - SelectionKey.OP_READ);
+          sk.interestOps(sk.interestOps() - SelectionKey.OP_READ);
         }
         client.doSocketRead();
-      } catch (ClosedChannelException e) {
+      } catch (Exception e) {
         IOUtils.closeQuietly(client);
         ExceptionUtils.handleException(e);
       }
