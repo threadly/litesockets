@@ -4,6 +4,7 @@ import java.io.Closeable;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.concurrent.SubmitterExecutor;
@@ -43,7 +44,7 @@ public abstract class Client implements Closeable {
   protected final Object writerLock = new Object();
   protected final ClientByteStats stats = new ClientByteStats();
   protected final AtomicBoolean closed = new AtomicBoolean(false);
-  protected final ListenerHelper<CloseListener> closerListener = new ListenerHelper<CloseListener>(CloseListener.class);
+  protected final ConcurrentLinkedQueue<CloseListener> closerListener = new ConcurrentLinkedQueue<>();
   protected volatile Runnable readerCaller = null;
   protected volatile boolean useNativeBuffers = false;
   protected volatile boolean keepReadBuffer = true;
@@ -244,8 +245,13 @@ public abstract class Client implements Closeable {
   }
 
   protected void callClosers() {
-    this.closerListener.call().onClose(this);
+    this.getClientsThreadExecutor().execute(()->{
+      while(!closerListener.isEmpty()) {
+        closerListener.poll().onClose(this);
+      }
+    });
   }
+  
   protected void callReader() {
     Runnable readerCaller = this.readerCaller;
     if (readerCaller != null) {
@@ -322,9 +328,12 @@ public abstract class Client implements Closeable {
    */
   public void addCloseListener(final CloseListener closer) {
     if(closed.get()) {
-      getClientsThreadExecutor().execute(() -> closer.onClose(Client.this));      
+      getClientsThreadExecutor().execute(()->closer.onClose(Client.this));      
     } else {
-      closerListener.addListener(closer, this.getClientsThreadExecutor());
+      closerListener.add(closer);
+      if(closed.get() && !closerListener.isEmpty()) {
+        this.callClosers();
+      }
     }
   }
 
