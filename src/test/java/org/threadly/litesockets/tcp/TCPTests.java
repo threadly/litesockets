@@ -21,6 +21,7 @@ import java.util.concurrent.TimeoutException;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.concurrent.future.FutureUtils;
@@ -37,6 +38,7 @@ import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.test.concurrent.TestCondition;
+
 
 
 public class TCPTests {
@@ -243,7 +245,8 @@ public class TCPTests {
     server.close();
   }
   
-  @Test
+  //@Test
+  @Ignore
   public void simpleTest() throws IOException, InterruptedException {
     final TCPClient client = SE.createTCPClient("localhost", port);
     client.connect();

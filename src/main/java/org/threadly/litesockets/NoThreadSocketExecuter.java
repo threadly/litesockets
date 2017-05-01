@@ -165,6 +165,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
       try {
         commonSelector.selectNow();  //We have to do this before we tick for windows
         localNoThreadScheduler.tick(null);
+        commonSelector.selectedKeys().clear();
         commonSelector.select(Math.min(delay, 50));
         if(isRunning()) {
           for(final SelectionKey key: commonSelector.selectedKeys()) {

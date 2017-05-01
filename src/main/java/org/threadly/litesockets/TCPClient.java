@@ -174,7 +174,7 @@ public class TCPClient extends Client {
 
   @Override
   public int getWriteBufferSize() {
-    return this.writeBuffers.remaining();
+    return this.writeBuffers.remaining() + this.currentWriteBuffer.remaining();
   }
 
   @Override

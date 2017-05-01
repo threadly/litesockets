@@ -17,7 +17,7 @@ import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.ExceptionUtils;
 
 public class HashedSocketExecuter extends SocketExecuterCommonBase {
-  private final ArrayList<SelectorThread> clientSelectors;
+  private final SelectorThread[] clientSelectors;
   private final KeyDistributedExecutor clientDistributer;
   private final int selectors;
   
@@ -27,9 +27,16 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
 
   public HashedSocketExecuter(SubmitterScheduler scheduler, int maxTasksPerCycle, int numberOfSelectors) {
     super(scheduler);
-    clientSelectors = new ArrayList<>(numberOfSelectors);
+    clientSelectors = new SelectorThread[numberOfSelectors];
     clientDistributer = new KeyDistributedExecutor(schedulerPool, maxTasksPerCycle);
     this.selectors = numberOfSelectors;
+  }
+  
+  private SelectorThread getSelectorFor(Object obj) {
+    if(selectors == 1) {
+      return clientSelectors[0];
+    } 
+    return clientSelectors[obj.hashCode()%selectors];
   }
 
   @Override
@@ -43,14 +50,14 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
     if(!clients.containsKey(client.getChannel())) {
       return;
     }
-    final SelectorThread st = clientSelectors.get(client.hashCode()%selectors);
+    final SelectorThread st = getSelectorFor(client);
     st.addClient(client);
   }
   
   @Override
   public void startListening(final Server server) {
     if(checkServer(server)) {
-      final SelectorThread st = clientSelectors.get(server.hashCode()%selectors);
+      final SelectorThread st = getSelectorFor(server);
       st.addServer(server);
     }
   }
@@ -58,7 +65,7 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
   @Override
   public void stopListening(final Server server) {
     if(checkServer(server)) {
-      final SelectorThread st = clientSelectors.get(server.hashCode()%selectors);
+      final SelectorThread st = getSelectorFor(server);
       st.removeServer(server);
     }
   }
@@ -66,7 +73,7 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
   @Override
   public void setUDPServerOperations(UDPServer udpServer, boolean enable) {
     if(checkServer(udpServer)) {
-      final SelectorThread st = clientSelectors.get(udpServer.hashCode()%selectors);
+      final SelectorThread st = getSelectorFor(udpServer);
       if(enable) {
         st.addServer(udpServer);
       } else {
@@ -78,7 +85,7 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
   @Override
   protected void startupService() {
     for(int i=0; i<selectors; i++) {
-      clientSelectors.add(new SelectorThread(i));
+      clientSelectors[i] = new SelectorThread(i);
     }
   }
 
@@ -137,6 +144,7 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
       }
     }
     
+    @SuppressWarnings("resource")
     private void processServers() {
       Server server = serversToAdd.poll();
       while(server != null) {

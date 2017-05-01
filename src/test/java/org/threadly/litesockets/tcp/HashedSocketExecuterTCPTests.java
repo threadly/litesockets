@@ -7,9 +7,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
-import org.threadly.concurrent.SingleThreadScheduler;
 import org.threadly.litesockets.HashedSocketExecuter;
-import org.threadly.litesockets.NoThreadSocketExecuter;
 import org.threadly.litesockets.utils.PortUtils;
 
 public class HashedSocketExecuterTCPTests extends TCPTests {
