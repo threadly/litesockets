@@ -102,13 +102,13 @@ public abstract class Client implements Closeable {
    * This is called when the SocketExecuter detects the socket can read.  This must be done on the clients ReadThread, 
    * and not the thread calling this. 
    */
-  protected abstract void doSocketRead();
+  protected abstract void doSocketRead(boolean doLocal);
   
   /**
    * This is called when the SocketExecuter detects the socket can write.  This must be done on the clients ReadThread, 
    * and not the thread calling this. 
    */
-  protected abstract void doSocketWrite();
+  protected abstract void doSocketWrite(boolean doLocal);
 
   /**
    * 

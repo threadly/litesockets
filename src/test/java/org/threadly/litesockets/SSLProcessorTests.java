@@ -332,13 +332,13 @@ public class SSLProcessorTests {
     }
 
     @Override
-    protected void doSocketRead() {
+    protected void doSocketRead(boolean doLocal) {
       // TODO Auto-generated method stub
       
     }
 
     @Override
-    protected void doSocketWrite() {
+    protected void doSocketWrite(boolean doLocal) {
       // TODO Auto-generated method stub
       
     }

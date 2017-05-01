@@ -43,11 +43,11 @@ public class UDPClient extends Client {
   }
   
   @Override
-  protected void doSocketRead() {
+  protected void doSocketRead(boolean doLocal) {
   }
 
   @Override
-  protected void doSocketWrite() {
+  protected void doSocketWrite(boolean doLocal) {
   }
   
   @Override

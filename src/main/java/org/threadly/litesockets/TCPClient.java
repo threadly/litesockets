@@ -187,13 +187,21 @@ public class TCPClient extends Client {
   }
 
   @Override
-  protected void doSocketRead() {
-    this.getClientsThreadExecutor().execute(()->doClientRead());
+  protected void doSocketRead(boolean doLocal) {
+    if(doLocal) {
+      doClientRead(doLocal);
+    } else {
+      this.getClientsThreadExecutor().execute(()->doClientRead(doLocal));
+    }
   }
 
   @Override
-  protected void doSocketWrite() {
-    this.getClientsThreadExecutor().execute(()->doClientWrite());
+  protected void doSocketWrite(boolean doLocal) {
+    if(doLocal) {
+      doClientWrite(doLocal);
+    } else {
+      this.getClientsThreadExecutor().execute(()->doClientWrite(doLocal));
+    }
   }
 
   @Override
@@ -294,7 +302,7 @@ public class TCPClient extends Client {
     throw new IllegalStateException("Must Set the SSLEngine before starting Encryption!");
   }
 
-  private void doClientWrite() {
+  private void doClientWrite(boolean doLocal) {
     if(isClosed()) {
       return;
     }
@@ -310,14 +318,16 @@ public class TCPClient extends Client {
           break;
         }
       }
-      se.setClientOperations(TCPClient.this);
+      if(!doLocal) {
+        se.setClientOperations(TCPClient.this);
+      }
     } catch(Exception e) {
       ExceptionUtils.handleException(e);
       close();
     }
   }
 
-  private void doClientRead() {
+  private void doClientRead(boolean doLocal) {
     if(isClosed()) {
       return;
     }
@@ -340,7 +350,7 @@ public class TCPClient extends Client {
       }
       if(size < 0) {
         close();
-      } else {
+      } else if(!doLocal) {
         se.setClientOperations(TCPClient.this);
       }
     } catch (IOException e) {

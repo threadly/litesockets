@@ -59,7 +59,6 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
    * 
    * @param scheduler the {@link SubmitterScheduler} to be used for client/server callbacks.
    * @param maxTasksPerCycle the max number of tasks to run on a clients thread before returning the thread back to the pool.
-   * @param numberOfSelectors the number of selector threads to run.  Default is core/2.
    */
   public ThreadedSocketExecuter(final SubmitterScheduler scheduler, final int maxTasksPerCycle) {
     this(scheduler, maxTasksPerCycle, -1);
@@ -161,20 +160,18 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   private class SelectorThread {
     private final Selector selector;
     private final Thread thread;
-    private final ConcurrentLinkedQueue<Client> clientsToCheck = new ConcurrentLinkedQueue<>();
-    private final ConcurrentLinkedQueue<Server> serversToAdd = new ConcurrentLinkedQueue<>();
-    private final ConcurrentLinkedQueue<Server> serversToRemove = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<Runnable> processQueue = new ConcurrentLinkedQueue<>();
     private volatile boolean isAwake = true;
     
     public SelectorThread(int id) {
       selector = openSelector();
-      thread = new Thread(()->doSelect(), "HashedSelector");
+      thread = new Thread(()->doSelect(), "HashedSelector-"+id);
       thread.setDaemon(true);
       thread.start();
     }
     
     public void addClient(Client client) {
-      clientsToCheck.add(client);
+      processQueue.add(()->processClient(client));
       if(!isAwake) {
         isAwake = true;
         selector.wakeup();
@@ -182,7 +179,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
     }
     
     public void addServer(Server server) {
-      serversToAdd.add(server);
+      processQueue.add(()->processServerAdd(server));
       if(!isAwake) {
         isAwake = true;
         selector.wakeup();
@@ -190,79 +187,70 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
     }
     
     public void removeServer(Server server) {
-      serversToRemove.add(server);
+      processQueue.add(()->processServerRemove(server));
       if(!isAwake) {
         isAwake = true;
         selector.wakeup();
       }
     }
     
-    @SuppressWarnings("resource")
-    private void processServers() {
-      Server server = serversToAdd.poll();
-      while(server != null) {
-        try {
-          if(server.getServerType() == WireProtocol.TCP) {
-            server.getSelectableChannel().register(selector, SelectionKey.OP_ACCEPT);
-          } else if(server.getServerType() == WireProtocol.UDP) {
-            UDPServer us = (UDPServer) server;
-            if(us.needsWrite()) {
-              server.getSelectableChannel().register(selector, SelectionKey.OP_READ|SelectionKey.OP_WRITE);  
-            } else {
-              server.getSelectableChannel().register(selector, SelectionKey.OP_READ);
-            }
+    private void processServerAdd(final Server server) {
+      try {
+        if(server.getServerType() == WireProtocol.TCP) {
+          server.getSelectableChannel().register(selector, SelectionKey.OP_ACCEPT);
+        } else if(server.getServerType() == WireProtocol.UDP) {
+          UDPServer us = (UDPServer) server;
+          if(us.needsWrite()) {
+            server.getSelectableChannel().register(selector, SelectionKey.OP_READ|SelectionKey.OP_WRITE);  
+          } else {
+            server.getSelectableChannel().register(selector, SelectionKey.OP_READ);
           }
-        } catch(Exception e) {
-          IOUtils.closeQuietly(server);
         }
-        server = serversToAdd.poll();  
-      }
-      
-      server = serversToRemove.poll();
-      while(server != null) {
-        SelectionKey sk = server.getSelectableChannel().keyFor(selector);
-        if(sk != null) {
-          sk.cancel();
-        }
-        server = serversToRemove.poll();
+      } catch(Exception e) {
+        IOUtils.closeQuietly(server);
       }
     }
     
-    private void processClients() {
-      Client client = clientsToCheck.poll();
-      while(client != null) {
-        final Client fc = client;
-        try {
-          SelectionKey sk = client.getChannel().keyFor(selector);
-          if(client.isClosed()) {
-            clients.remove(client.getChannel());
-            if(sk != null) {
-              sk.cancel();
-            }
-            client.getClientsThreadExecutor().execute(()->IOUtils.closeQuietly(fc.getChannel()));
-          } else {
-            if(sk == null) {
-              sk = client.getChannel().register(selector, 0);
-            }
-            if(!client.getChannel().isConnected() && client.getChannel().isConnectionPending()) {
-              sk.interestOps(SelectionKey.OP_CONNECT);
-            } else if(client.canWrite() && client.canRead()) {
-              sk.interestOps(SelectionKey.OP_READ|SelectionKey.OP_WRITE);
-            } else if (client.canRead()){
-              sk.interestOps(SelectionKey.OP_READ);
-            } else if (client.canWrite()){
-              sk.interestOps(SelectionKey.OP_WRITE);
-            } else {
-              sk.interestOps(0);
-            }
+    private void processServerRemove(final Server server) {
+      SelectionKey sk = server.getSelectableChannel().keyFor(selector);
+      if(sk != null) {
+        sk.cancel();
+      }
+    }
+    
+    private void processClient(final Client client) {
+      final Client fc = client;
+      try {
+        SelectionKey sk = client.getChannel().keyFor(selector);
+        if(client.isClosed()) {
+          clients.remove(client.getChannel());
+          if(sk != null) {
+            sk.cancel();
           }
-        } catch (CancelledKeyException e) {
-          addClient(fc);
-        } catch (Exception e) {
-          ExceptionUtils.handleException(e);
-          IOUtils.closeQuietly(client);
+          if(client.getChannel().isOpen()) {
+            client.getClientsThreadExecutor().execute(()->IOUtils.closeQuietly(fc.getChannel()));
+          }
+        } else {
+          if(sk == null) {
+            sk = client.getChannel().register(selector, 0);
+          }
+          if(!client.getChannel().isConnected() && client.getChannel().isConnectionPending()) {
+            sk.interestOps(SelectionKey.OP_CONNECT);
+          } else if(client.canWrite() && client.canRead()) {
+            sk.interestOps(SelectionKey.OP_READ|SelectionKey.OP_WRITE);
+          } else if (client.canRead()){
+            sk.interestOps(SelectionKey.OP_READ);
+          } else if (client.canWrite()){
+            sk.interestOps(SelectionKey.OP_WRITE);
+          } else {
+            sk.interestOps(0);
+          }
         }
-        client = clientsToCheck.poll();
+      } catch (CancelledKeyException e) {
+        addClient(fc);
+      } catch (Exception e) {
+        ExceptionUtils.handleException(e);
+        IOUtils.closeQuietly(client);
       }
     }
 
@@ -270,8 +258,13 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
       while(isRunning()) {
       try {
         isAwake = false;
-        processClients();
-        processServers();
+        while(!processQueue.isEmpty()) {
+          try {
+            processQueue.poll().run();
+          } catch(Exception e) {
+            
+          }
+        }
         selector.selectedKeys().clear();
         selector.select();
         isAwake = true;
@@ -287,8 +280,8 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
             } else {
               final Client tmpClient = clients.get(key.channel());
               if(key.isConnectable() && tmpClient != null) {
-                doClientConnect(tmpClient, selector);
                 key.cancel(); //Stupid windows bug here.
+                doClientConnect(tmpClient, selector);
               } else {
                 if (key.isReadable()) {
                   if(tmpClient != null){
