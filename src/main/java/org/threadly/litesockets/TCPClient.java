@@ -40,8 +40,6 @@ public class TCPClient extends Client {
   private final TCPSocketOptions tso = new TCPSocketOptions();
   protected final AtomicBoolean startedConnection = new AtomicBoolean(false);
   protected final SettableListenableFuture<Boolean> connectionFuture = new SettableListenableFuture<Boolean>(false);
-  protected final ReadRunnable readRunnable = new ReadRunnable();
-  protected final WriteRunnable writeRunnable = new WriteRunnable();
   protected final SocketChannel channel;
   protected final InetSocketAddress remoteAddress;
 
@@ -149,10 +147,12 @@ public class TCPClient extends Client {
       this.getClientsThreadExecutor().execute(new Runnable() {
         @Override
         public void run() {
-          final ClosedChannelException cce = new ClosedChannelException();
           synchronized(writerLock) {
-            for(final Pair<Long, SettableListenableFuture<Long>> p: writeFutures) {
-              p.getRight().setFailure(cce);
+            if(writeFutures.size() > 0) {
+              final ClosedChannelException cce = new ClosedChannelException();
+              for(final Pair<Long, SettableListenableFuture<Long>> p: writeFutures) {
+                p.getRight().setFailure(cce);
+              }
             }
             writeFutures.clear();
             writeBuffers.discard(writeBuffers.remaining());
@@ -188,12 +188,12 @@ public class TCPClient extends Client {
 
   @Override
   protected void doSocketRead() {
-    this.getClientsThreadExecutor().execute(readRunnable);
+    this.getClientsThreadExecutor().execute(()->doClientRead());
   }
 
   @Override
   protected void doSocketWrite() {
-    this.getClientsThreadExecutor().execute(writeRunnable);
+    this.getClientsThreadExecutor().execute(()->doClientWrite());
   }
 
   @Override
@@ -294,67 +294,59 @@ public class TCPClient extends Client {
     throw new IllegalStateException("Must Set the SSLEngine before starting Encryption!");
   }
 
-  private class WriteRunnable implements Runnable {
-
-    @Override
-    public void run() {
-      if(isClosed()) {
-        return;
-      }
-      int wrote = 0;
-      try {
-        wrote = channel.write(getWriteBuffer());
-        while(wrote > 0) {
-          reduceWrite(wrote);
-          se.addWriteAmount(wrote);
-          if(canWrite()) {
-            wrote = channel.write(getWriteBuffer());
-          } else {
-            break;
-          }
+  private void doClientWrite() {
+    if(isClosed()) {
+      return;
+    }
+    int wrote = 0;
+    try {
+      wrote = channel.write(getWriteBuffer());
+      while(wrote > 0) {
+        reduceWrite(wrote);
+        se.addWriteAmount(wrote);
+        if(canWrite()) {
+          wrote = channel.write(getWriteBuffer());
+        } else {
+          break;
         }
-        se.setClientOperations(TCPClient.this);
-      } catch(Exception e) {
-        ExceptionUtils.handleException(e);
-        close();
       }
+      se.setClientOperations(TCPClient.this);
+    } catch(Exception e) {
+      ExceptionUtils.handleException(e);
+      close();
     }
   }
 
-  private class ReadRunnable implements Runnable {
-
-    @Override
-    public void run() {
-      if(isClosed()) {
-        return;
-      }
-      ByteBuffer readByteBuffer = provideReadByteBuffer();
-      final int origPos = readByteBuffer.position();
-      int size = 0;
-      try {
-        size = channel.read(readByteBuffer);
-        while(size > 0) {
-          readByteBuffer.position(origPos);
-          final ByteBuffer resultBuffer = readByteBuffer.slice();
-          readByteBuffer.position(origPos+size);
-          resultBuffer.limit(size);
-          addReadBuffer(resultBuffer);
-          if(canRead()) {
-            size = channel.read(readByteBuffer);
-          } else {
-            break;
-          }
-        }
-        if(size < 0) {
-          close();
-        } else {
-          se.setClientOperations(TCPClient.this);
-        }
-      } catch (IOException e) {
-        ExceptionUtils.handleException(e);
-        close();
-      } 
+  private void doClientRead() {
+    if(isClosed()) {
+      return;
     }
+    ByteBuffer readByteBuffer = provideReadByteBuffer();
+    final int origPos = readByteBuffer.position();
+    int size = 0;
+    try {
+      size = channel.read(readByteBuffer);
+      while(size > 0) {
+        readByteBuffer.position(origPos);
+        final ByteBuffer resultBuffer = readByteBuffer.slice();
+        readByteBuffer.position(origPos+size);
+        resultBuffer.limit(size);
+        addReadBuffer(resultBuffer);
+        if(canRead()) {
+          size = channel.read(readByteBuffer);
+        } else {
+          break;
+        }
+      }
+      if(size < 0) {
+        close();
+      } else {
+        se.setClientOperations(TCPClient.this);
+      }
+    } catch (IOException e) {
+      ExceptionUtils.handleException(e);
+      close();
+    } 
   }
 
   /**
