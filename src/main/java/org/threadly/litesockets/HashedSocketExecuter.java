@@ -2,7 +2,6 @@ package org.threadly.litesockets;
 
 import java.io.IOException;
 import java.nio.channels.CancelledKeyException;
-import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
@@ -10,13 +9,12 @@ import java.nio.channels.Selector;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import org.threadly.concurrent.ConfigurableThreadFactory;
-import org.threadly.concurrent.SingleThreadScheduler;
 import org.threadly.concurrent.SubmitterExecutor;
 import org.threadly.concurrent.SubmitterScheduler;
 import org.threadly.concurrent.wrapper.KeyDistributedExecutor;
 import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.util.ArgumentVerifier;
+import org.threadly.util.ExceptionUtils;
 
 public class HashedSocketExecuter extends SocketExecuterCommonBase {
   private final ArrayList<SelectorThread> clientSelectors;
@@ -72,8 +70,8 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
       if(enable) {
         st.addServer(udpServer);
       } else {
-        
-      }st.removeServer(udpServer);
+        st.removeServer(udpServer);
+      }
     }
   }
 
@@ -110,8 +108,7 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
     
     public SelectorThread(int id) {
       selector = openSelector();
-      //scheduler = new SingleThreadScheduler(new ConfigurableThreadFactory("SelectorThread-"+id, false, true, Thread.currentThread().getPriority(), null, null));
-      thread = new Thread(()->doSelect());
+      thread = new Thread(()->doSelect(), "HashedSelector");
       thread.setDaemon(true);
       thread.start();
     }
@@ -133,7 +130,7 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
     }
     
     public void removeServer(Server server) {
-      serversToAdd.add(server);
+      serversToRemove.add(server);
       if(!isAwake) {
         isAwake = true;
         selector.wakeup();
@@ -159,6 +156,7 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
         }
         server = serversToAdd.poll();  
       }
+      
       server = serversToRemove.poll();
       while(server != null) {
         SelectionKey sk = server.getSelectableChannel().keyFor(selector);
@@ -197,17 +195,15 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
               sk.interestOps(0);
             }
           }
-          
         } catch (CancelledKeyException e) {
           addClient(fc);
         } catch (Exception e) {
-          e.printStackTrace();
+          ExceptionUtils.handleException(e);
           IOUtils.closeQuietly(client);
         }
         client = clientsToCheck.poll();
       }
     }
-
 
     private void doSelect() {
       while(isRunning()) {
@@ -268,8 +264,6 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
       } catch (NullPointerException e) {
         //There is a bug in some JVMs around this where the select() can throw an NPE from native code.
       }
-
-
       }
     }
   }
