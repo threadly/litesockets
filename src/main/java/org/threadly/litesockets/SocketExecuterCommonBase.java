@@ -244,9 +244,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
       try {
         final SelectionKey sk = client.getChannel().keyFor(selector);
 
-        if((sk.interestOps() & SelectionKey.OP_WRITE) == SelectionKey.OP_WRITE) {
-          sk.interestOps(sk.interestOps() - SelectionKey.OP_WRITE);
-        }
+        sk.interestOps(sk.interestOps()& ~SelectionKey.OP_WRITE);
         client.doSocketWrite();
       } catch(Exception e) {
         IOUtils.closeQuietly(client);
@@ -259,9 +257,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     if(client != null) {
       final SelectionKey sk = client.getChannel().keyFor(selector);
       try {
-        if((sk.interestOps() & SelectionKey.OP_READ) == SelectionKey.OP_READ) {
-          sk.interestOps(sk.interestOps() - SelectionKey.OP_READ);
-        }
+        sk.interestOps(sk.interestOps() & ~SelectionKey.OP_READ);
         client.doSocketRead();
       } catch (Exception e) {
         IOUtils.closeQuietly(client);
