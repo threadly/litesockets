@@ -6,7 +6,6 @@ import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.util.ArrayList;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.threadly.concurrent.SubmitterExecutor;
@@ -225,7 +224,12 @@ public class HashedSocketExecuter extends SocketExecuterCommonBase {
         for(final SelectionKey key: selector.selectedKeys()) {
           try {
             if(key.isAcceptable()) {
-              doServerAccept(servers.get(key.channel()));
+              key.interestOps(0);
+              schedulerPool.execute(()->{
+                Server s = servers.get(key.channel());
+                doServerAccept(s);
+                addServer(s);
+              });
             } else {
               final Client tmpClient = clients.get(key.channel());
               if(key.isConnectable() && tmpClient != null) {
