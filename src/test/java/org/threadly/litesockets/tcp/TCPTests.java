@@ -771,7 +771,12 @@ public class TCPTests {
       fail();
     } catch(ExecutionException e) {
       assertTrue(!client.hasConnectionTimedOut());
-      assertEquals(0, SE.getClientCount());
+      new TestCondition(){
+        @Override
+        public boolean get() {
+          return 0 == SE.getClientCount() ;
+        }
+      }.blockTillTrue(5000);
       throw e.getCause();
     }
   }
