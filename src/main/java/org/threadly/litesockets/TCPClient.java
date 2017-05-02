@@ -36,10 +36,10 @@ public class TCPClient extends Client {
   private static final ListenableFuture<Long> closedFuture = FutureUtils.immediateFailureFuture(new IllegalStateException("Connection is Closed"));
 
   private final MergedByteBuffers writeBuffers = new MergedByteBuffers();
-  private final Deque<Pair<Long, SettableListenableFuture<Long>>> writeFutures = new ArrayDeque<Pair<Long, SettableListenableFuture<Long>>>(8);
+  private final Deque<Pair<Long, SettableListenableFuture<Long>>> writeFutures = new ArrayDeque<>(8);
   private final TCPSocketOptions tso = new TCPSocketOptions();
   protected final AtomicBoolean startedConnection = new AtomicBoolean(false);
-  protected final SettableListenableFuture<Boolean> connectionFuture = new SettableListenableFuture<Boolean>(false);
+  protected final SettableListenableFuture<Boolean> connectionFuture = new SettableListenableFuture<>(false);
   protected final SocketChannel channel;
   protected final InetSocketAddress remoteAddress;
 
@@ -215,15 +215,15 @@ public class TCPClient extends Client {
       return closedFuture;
     }
     synchronized(writerLock) {
+      final SettableListenableFuture<Long> slf = new SettableListenableFuture<>(false);
+      lastWriteFuture = slf;
       final boolean needNotify = !canWrite();
-      final SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>(false);
       if(sslProcessor != null && sslProcessor.handShakeStarted()) {
         writeBuffers.add(sslProcessor.encrypt(mbb));
       } else {
         writeBuffers.add(mbb);
       }
-      writeFutures.add(new Pair<Long, SettableListenableFuture<Long>>(writeBuffers.getTotalConsumedBytes()+writeBuffers.remaining(), slf));
-      lastWriteFuture = slf;
+      writeFutures.add(new Pair<>(writeBuffers.getTotalConsumedBytes()+writeBuffers.remaining(), slf));
       if(needNotify && se != null && channel.isConnected()) {
         se.setClientOperations(this);
       }
