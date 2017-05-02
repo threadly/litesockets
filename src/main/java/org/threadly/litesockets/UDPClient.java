@@ -154,9 +154,14 @@ public class UDPClient extends Client {
 
   @Override
   public ListenableFuture<?> write(final ByteBuffer bb) {
-    addWriteStats(bb.remaining());
+    return write(new MergedByteBuffers(false, bb));
+  }
+  
+  @Override
+  public ListenableFuture<?> write(final MergedByteBuffers mbb) {
+    addWriteStats(mbb.remaining());
     if(!closed.get()) {
-      lastWriteFuture = udpServer.write(bb, remoteAddress);
+      lastWriteFuture = udpServer.write(mbb.pull(mbb.remaining()), remoteAddress);
       return lastWriteFuture;
     }
     return lastWriteFuture;

@@ -116,17 +116,18 @@ public class SSLProcessor {
   }
 
   public MergedByteBuffers encrypt(final ByteBuffer buffer) {
+    return encrypt(new MergedByteBuffers(false, buffer));
+  }
+  
+  public MergedByteBuffers encrypt(final MergedByteBuffers lmbb) {
     final MergedByteBuffers mbb = new MergedByteBuffers(false);
     if(!startedHandshake.get()){
-      mbb.add(buffer);
+      mbb.add(lmbb);
       return mbb;
     }
-    ByteBuffer oldBB = buffer.duplicate();
-    if(finishedHandshake.get() && this.tempBuffers.remaining() > 0) {
-      tempBuffers.add(buffer);
-      oldBB = tempBuffers.pull(tempBuffers.remaining());
-    }
-    
+
+    tempBuffers.add(lmbb);
+    ByteBuffer oldBB = tempBuffers.pull(tempBuffers.remaining());
     ByteBuffer newBB; 
     ByteBuffer tmpBB;
     boolean gotFinished = false;

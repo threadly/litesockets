@@ -348,6 +348,12 @@ public class SSLProcessorTests {
       // TODO Auto-generated method stub
       return null;
     }
+
+    @Override
+    public ListenableFuture<?> write(MergedByteBuffers mbb) {
+      writeBuffers.add(sp.encrypt(mbb));
+      return FutureUtils.immediateResultFuture(true);
+    }
     
   }
   

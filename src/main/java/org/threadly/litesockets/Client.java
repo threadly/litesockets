@@ -198,6 +198,16 @@ public abstract class Client implements Closeable {
    */
   public abstract ListenableFuture<?> write(ByteBuffer bb);
   
+  /**
+   * <p>This is called to write data to the clients socket.  Its important to note that there is no back
+   * pressure when adding writes so care should be taken to now allow the clients {@link #getWriteBufferSize()} to get
+   * to big.</p>
+   * 
+   * @param bb The {@link ByteBuffer} to write onto the clients socket. 
+   * @return A {@link ListenableFuture} that will be completed once the data has been fully written to the socket.
+   */
+  public abstract ListenableFuture<?> write(MergedByteBuffers mbb);
+  
   public abstract ListenableFuture<?> lastWriteFuture();
 
   /**

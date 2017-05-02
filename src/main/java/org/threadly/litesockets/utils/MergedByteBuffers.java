@@ -26,7 +26,7 @@ public class MergedByteBuffers {
   public static final int UNSIGNED_SHORT_MASK = 0xffff;
   public static final long UNSIGNED_INT_MASK = 0xffffffffL;
 
-  protected final ArrayDeque<ByteBuffer> availableBuffers = new ArrayDeque<ByteBuffer>(8);
+  protected final ArrayDeque<ByteBuffer> availableBuffers;
   protected final boolean markReadOnly;
   protected int currentSize;
   protected long consumedSize;
@@ -37,6 +37,15 @@ public class MergedByteBuffers {
 
   public MergedByteBuffers(boolean readOnly) {
     this.markReadOnly = readOnly;
+    availableBuffers = new ArrayDeque<ByteBuffer>(8);
+  }
+  
+  public MergedByteBuffers(boolean readOnly, ByteBuffer ...bbs) {
+    this.markReadOnly = readOnly;
+    availableBuffers = new ArrayDeque<ByteBuffer>(bbs.length);
+    for(ByteBuffer bb: bbs) {
+      add(bb);
+    }
   }
 
   /**

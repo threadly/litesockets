@@ -206,6 +206,11 @@ public class TCPClient extends Client {
 
   @Override
   public ListenableFuture<?> write(final ByteBuffer bb) {
+    return write(new MergedByteBuffers(false, bb));
+  }
+  
+  @Override
+  public ListenableFuture<?> write(final MergedByteBuffers mbb) {
     if(isClosed()) {
       return closedFuture;
     }
@@ -213,9 +218,9 @@ public class TCPClient extends Client {
       final boolean needNotify = !canWrite();
       final SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>(false);
       if(sslProcessor != null && sslProcessor.handShakeStarted()) {
-        writeBuffers.add(sslProcessor.encrypt(bb));
+        writeBuffers.add(sslProcessor.encrypt(mbb));
       } else {
-        writeBuffers.add(bb);
+        writeBuffers.add(mbb);
       }
       writeFutures.add(new Pair<Long, SettableListenableFuture<Long>>(writeBuffers.getTotalConsumedBytes()+writeBuffers.remaining(), slf));
       lastWriteFuture = slf;
@@ -309,14 +314,9 @@ public class TCPClient extends Client {
     int wrote = 0;
     try {
       wrote = channel.write(getWriteBuffer());
-      while(wrote > 0) {
+      if(wrote > 0) {
         reduceWrite(wrote);
         se.addWriteAmount(wrote);
-        if(canWrite()) {
-          wrote = channel.write(getWriteBuffer());
-        } else {
-          break;
-        }
       }
       if(!doLocal) {
         se.setClientOperations(TCPClient.this);
@@ -336,23 +336,20 @@ public class TCPClient extends Client {
     int size = 0;
     try {
       size = channel.read(readByteBuffer);
-      while(size > 0) {
+      if(size > 0) {
         readByteBuffer.position(origPos);
         final ByteBuffer resultBuffer = readByteBuffer.slice();
         readByteBuffer.position(origPos+size);
         resultBuffer.limit(size);
         addReadBuffer(resultBuffer);
-        if(canRead()) {
-          size = channel.read(readByteBuffer);
-        } else {
-          break;
+        if(!doLocal) {
+          se.setClientOperations(TCPClient.this);
         }
-      }
-      if(size < 0) {
+      } else if(size < 0) {
         close();
-      } else if(!doLocal) {
-        se.setClientOperations(TCPClient.this);
-      }
+        return;
+      } 
+
     } catch (IOException e) {
       ExceptionUtils.handleException(e);
       close();
