@@ -228,7 +228,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
             sk.cancel();
           }
           if(client.getChannel().isOpen()) {
-            schedulerPool.execute(()->IOUtils.closeQuietly(fc.getChannel()));
+            client.getClientsThreadExecutor().execute(()->IOUtils.closeQuietly(fc.getChannel()));
           }
         } else {
           if(sk == null) {

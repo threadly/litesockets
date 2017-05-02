@@ -133,6 +133,13 @@ public class TCPTests {
       }});
     client.close();
     slf.get(5000, TimeUnit.MILLISECONDS);
+    
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return SE.getClientCount() == 0;
+      }
+    }.blockTillTrue(5000);
     assertEquals(-1, client.clientOptions().getSocketRecvBuffer());
     
     assertEquals(-1, client.clientOptions().getSocketSendBuffer());

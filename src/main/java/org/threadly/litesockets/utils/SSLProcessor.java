@@ -120,12 +120,10 @@ public class SSLProcessor {
   }
   
   public MergedByteBuffers encrypt(final MergedByteBuffers lmbb) {
-    final MergedByteBuffers mbb = new MergedByteBuffers(false);
     if(!startedHandshake.get()){
-      mbb.add(lmbb);
-      return mbb;
+      return lmbb;
     }
-
+    final MergedByteBuffers mbb = new MergedByteBuffers(false);
     tempBuffers.add(lmbb);
     ByteBuffer oldBB = tempBuffers.pull(tempBuffers.remaining());
     ByteBuffer newBB; 
