@@ -8,7 +8,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.concurrent.SubmitterExecutor;
-import org.threadly.concurrent.event.ListenerHelper;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.litesockets.utils.MergedByteBuffers;
@@ -203,7 +202,7 @@ public abstract class Client implements Closeable {
    * pressure when adding writes so care should be taken to now allow the clients {@link #getWriteBufferSize()} to get
    * to big.</p>
    * 
-   * @param bb The {@link ByteBuffer} to write onto the clients socket. 
+   * @param mbb The {@link MergedByteBuffers} to write onto the clients socket. 
    * @return A {@link ListenableFuture} that will be completed once the data has been fully written to the socket.
    */
   public abstract ListenableFuture<?> write(MergedByteBuffers mbb);
