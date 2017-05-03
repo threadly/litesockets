@@ -28,7 +28,7 @@ public class NoThreadTCPTests extends TCPTests {
       @Override
       public void run() {
         while(ntSE.isRunning() && keepRunning) {
-          ntSE.select(10000);
+          ntSE.select(1000);
         }
       }});
     serverFC = new FakeTCPServerClient();
@@ -61,8 +61,12 @@ public class NoThreadTCPTests extends TCPTests {
     super.simpleWriteTest();
   }
   
-  @Test
+  //@Test
   public void simpleTest() throws IOException, InterruptedException {
     super.simpleTest();
+  }
+  @Test
+  public void writerReaderBlockTest() throws Exception {
+    super.writerReaderBlockTest();
   }
 }

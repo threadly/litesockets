@@ -332,13 +332,13 @@ public class SSLProcessorTests {
     }
 
     @Override
-    protected void doSocketRead() {
+    protected void doSocketRead(boolean doLocal) {
       // TODO Auto-generated method stub
       
     }
 
     @Override
-    protected void doSocketWrite() {
+    protected void doSocketWrite(boolean doLocal) {
       // TODO Auto-generated method stub
       
     }
@@ -347,6 +347,12 @@ public class SSLProcessorTests {
     public ListenableFuture<?> lastWriteFuture() {
       // TODO Auto-generated method stub
       return null;
+    }
+
+    @Override
+    public ListenableFuture<?> write(MergedByteBuffers mbb) {
+      writeBuffers.add(sp.encrypt(mbb));
+      return FutureUtils.immediateResultFuture(true);
     }
     
   }

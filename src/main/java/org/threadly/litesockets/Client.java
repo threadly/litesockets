@@ -4,10 +4,10 @@ import java.io.Closeable;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.concurrent.SubmitterExecutor;
-import org.threadly.concurrent.event.ListenerHelper;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.litesockets.utils.MergedByteBuffers;
@@ -43,7 +43,7 @@ public abstract class Client implements Closeable {
   protected final Object writerLock = new Object();
   protected final ClientByteStats stats = new ClientByteStats();
   protected final AtomicBoolean closed = new AtomicBoolean(false);
-  protected final ListenerHelper<CloseListener> closerListener = new ListenerHelper<CloseListener>(CloseListener.class);
+  protected final ConcurrentLinkedQueue<CloseListener> closerListener = new ConcurrentLinkedQueue<>();
   protected volatile Runnable readerCaller = null;
   protected volatile boolean useNativeBuffers = false;
   protected volatile boolean keepReadBuffer = true;
@@ -102,13 +102,13 @@ public abstract class Client implements Closeable {
    * This is called when the SocketExecuter detects the socket can read.  This must be done on the clients ReadThread, 
    * and not the thread calling this. 
    */
-  protected abstract void doSocketRead();
+  protected abstract void doSocketRead(boolean doLocal);
   
   /**
    * This is called when the SocketExecuter detects the socket can write.  This must be done on the clients ReadThread, 
    * and not the thread calling this. 
    */
-  protected abstract void doSocketWrite();
+  protected abstract void doSocketWrite(boolean doLocal);
 
   /**
    * 
@@ -197,6 +197,16 @@ public abstract class Client implements Closeable {
    */
   public abstract ListenableFuture<?> write(ByteBuffer bb);
   
+  /**
+   * <p>This is called to write data to the clients socket.  Its important to note that there is no back
+   * pressure when adding writes so care should be taken to now allow the clients {@link #getWriteBufferSize()} to get
+   * to big.</p>
+   * 
+   * @param mbb The {@link MergedByteBuffers} to write onto the clients socket. 
+   * @return A {@link ListenableFuture} that will be completed once the data has been fully written to the socket.
+   */
+  public abstract ListenableFuture<?> write(MergedByteBuffers mbb);
+  
   public abstract ListenableFuture<?> lastWriteFuture();
 
   /**
@@ -244,8 +254,13 @@ public abstract class Client implements Closeable {
   }
 
   protected void callClosers() {
-    this.closerListener.call().onClose(this);
+    this.getClientsThreadExecutor().execute(()->{
+      while(!closerListener.isEmpty()) {
+        closerListener.poll().onClose(this);
+      }
+    });
   }
+  
   protected void callReader() {
     Runnable readerCaller = this.readerCaller;
     if (readerCaller != null) {
@@ -322,9 +337,12 @@ public abstract class Client implements Closeable {
    */
   public void addCloseListener(final CloseListener closer) {
     if(closed.get()) {
-      getClientsThreadExecutor().execute(() -> closer.onClose(Client.this));      
+      getClientsThreadExecutor().execute(()->closer.onClose(Client.this));      
     } else {
-      closerListener.addListener(closer, this.getClientsThreadExecutor());
+      closerListener.add(closer);
+      if(closed.get() && !closerListener.isEmpty()) {
+        this.callClosers();
+      }
     }
   }
 
