@@ -140,6 +140,42 @@ public class MergedByteBuffers {
    * @return an {@code int} with the offset of the first occurrence of the given . 
    */
   public int indexOf(final byte[] pattern) {
+    return indexOf(pattern, 0);
+  }
+
+  /**
+   * Like the indexOf in String object this find a pattern of bytes and reports the position they start at.  
+   * This defaults to using US-ASCII as the Charset.
+   * 
+   * @param pattern String pattern to search for.
+   * @param fromPosition Starting index to search from, inclusive
+   * @return an {@code int} with the offset of the first occurrence of the given . 
+   */
+  public int indexOf(final String pattern, int fromPosition) {
+    return indexOf(pattern, Charset.forName("US-ASCII"));
+  }
+
+  /**
+   * Like the indexOf in String object this find a pattern of bytes and reports the position they start at.
+   * 
+   * @param pattern String pattern to search for.
+   * @param charSet the Charset of the string.
+   * @param fromPosition Starting index to search from, inclusive
+   * @return an {@code int} with the offset of the first occurrence of the given . 
+   */
+  public int indexOf(final String pattern, final Charset charSet, int fromPosition) {
+    ArgumentVerifier.assertNotNull(pattern, "String");
+    return indexOf(pattern.getBytes(charSet));
+  }
+
+  /**
+   * Like the indexOf in String object this find a pattern of bytes and reports the position they start at.
+   * 
+   * @param pattern byte[] pattern to search for
+   * @param fromPosition Starting index to search from, inclusive
+   * @return an {@code int} with the offset of the first occurrence of the given . 
+   */
+  public int indexOf(final byte[] pattern, int fromPosition) {
     ArgumentVerifier.assertNotNull(pattern, "byte[]");
     if(currentSize == 0){
       return -1;
@@ -149,6 +185,9 @@ public class MergedByteBuffers {
     int bufPos = 0;
 
     MergedByteBuffers mbb = copy();
+    if (fromPosition > 0) {
+      mbb.discard(fromPosition);
+    }
     byte[] prevMatched = new byte[pattern.length];
 
     while(mbb.remaining() >= pattern.length-patPos) {
