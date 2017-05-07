@@ -27,6 +27,8 @@ import org.threadly.litesockets.Client;
 import org.threadly.litesockets.NoThreadSocketExecuter;
 import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.WireProtocol;
+import org.threadly.litesockets.buffers.MergedByteBuffers;
+import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 
 public class SSLProcessorTests {
   static final String STRING = "hello";
@@ -78,9 +80,9 @@ public class SSLProcessorTests {
     FakeClient fc = new FakeClient(SE);
     SSLProcessor sp = new SSLProcessor(fc, sslCtx.createSSLEngine());
     MergedByteBuffers mbb = sp.encrypt(STRINGBB.duplicate());
-    assertEquals(STRING, mbb.copy().getAsString(mbb.remaining()));
+    assertEquals(STRING, mbb.duplicate().getAsString(mbb.remaining()));
     MergedByteBuffers mbb2 = sp.decrypt(mbb);
-    assertEquals(STRING, mbb2.copy().getAsString(mbb2.remaining()));
+    assertEquals(STRING, mbb2.duplicate().getAsString(mbb2.remaining()));
   }
   
   @Test
@@ -125,7 +127,7 @@ public class SSLProcessorTests {
     assertTrue(sp.isEncrypted());
     MergedByteBuffers mbb = sp.encrypt(STRINGBB.duplicate());
     byte[] ba = new byte[mbb.remaining()]; 
-    mbb.copy().get(ba);
+    mbb.duplicate().get(ba);
     assertFalse(Arrays.equals(STRINGBB.array(), ba));
 
     MergedByteBuffers dmbb = sp2.decrypt(mbb);
@@ -208,12 +210,12 @@ public class SSLProcessorTests {
     }
     MergedByteBuffers mbb = sp.encrypt(LARGE_STRINGBB.duplicate());
     byte[] ba = new byte[mbb.remaining()]; 
-    mbb.copy().get(ba);
+    mbb.duplicate().get(ba);
     assertFalse(Arrays.equals(LARGE_STRINGBB.array(), ba));
 
-    MergedByteBuffers dmbb = new MergedByteBuffers();
+    MergedByteBuffers dmbb = new ReuseableMergedByteBuffers();
     while(mbb.remaining() > 0) {
-      MergedByteBuffers tmpmbb = sp2.decrypt(mbb.pull(1));
+      MergedByteBuffers tmpmbb = sp2.decrypt(mbb.pullBuffer(1));
       dmbb.add(tmpmbb);
     }
     assertEquals(LARGE_STRING, dmbb.getAsString(dmbb.remaining()));
@@ -223,7 +225,7 @@ public class SSLProcessorTests {
   
   public static class FakeClient extends Client {
     
-    MergedByteBuffers writeBuffers = new MergedByteBuffers(false);
+    MergedByteBuffers writeBuffers = new ReuseableMergedByteBuffers(false);
     SSLProcessor sp;
 
     public FakeClient(SocketExecuter se) {
@@ -289,7 +291,7 @@ public class SSLProcessorTests {
 
     @Override
     protected ByteBuffer getWriteBuffer() {
-      return writeBuffers.pop();
+      return writeBuffers.popBuffer();
     }
 
     @Override

@@ -16,7 +16,7 @@ import javax.net.ssl.SSLSession;
 
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
-import org.threadly.litesockets.utils.MergedByteBuffers;
+import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.litesockets.utils.SSLProcessor;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.Clock;
@@ -33,7 +33,7 @@ public class TCPClient extends Client {
   protected static final int MIN_WRITE_BUFFER_SIZE = 8192;
   protected static final int MAX_COMBINED_WRITE_BUFFER_SIZE = 65536;
 
-  private final MergedByteBuffers writeBuffers = new MergedByteBuffers();
+  private final ReuseableMergedByteBuffers writeBuffers = new ReuseableMergedByteBuffers();
   private final Deque<Pair<Long, SettableListenableFuture<Long>>> writeFutures = new ArrayDeque<Pair<Long, SettableListenableFuture<Long>>>();
   private final TCPSocketOptions tso = new TCPSocketOptions();
   protected final AtomicBoolean startedConnection = new AtomicBoolean(false);
@@ -191,8 +191,8 @@ public class TCPClient extends Client {
   }
   
   @Override
-  public MergedByteBuffers getRead() {
-    MergedByteBuffers mbb = super.getRead();
+  public ReuseableMergedByteBuffers getRead() {
+    ReuseableMergedByteBuffers mbb = super.getRead();
     if(sslProcessor != null && sslProcessor.handShakeStarted() && mbb.remaining() > 0) {
       mbb = sslProcessor.decrypt(mbb);
     }

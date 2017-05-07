@@ -287,6 +287,10 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     }
   }
 
+  /**
+   * This class is a helper runnable to generically remove SelectableChannels/SelectionKeys from a selector.
+   *
+   */
   protected static class RemoveFromSelector implements Runnable {
 
     private final Selector selector;

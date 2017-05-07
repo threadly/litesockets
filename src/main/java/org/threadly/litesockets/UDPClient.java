@@ -9,7 +9,7 @@ import java.util.concurrent.Executor;
 
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
-import org.threadly.litesockets.utils.MergedByteBuffers;
+import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.util.Clock;
 
 /**
@@ -184,8 +184,8 @@ public class UDPClient extends Client {
   }
   
   @Override
-  public MergedByteBuffers getRead() {
-    MergedByteBuffers mbb = new MergedByteBuffers();
+  public ReuseableMergedByteBuffers getRead() {
+    ReuseableMergedByteBuffers mbb = new ReuseableMergedByteBuffers();
     int start = 0;
     int finished = 0;
     synchronized(readerLock) {
