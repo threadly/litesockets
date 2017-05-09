@@ -24,8 +24,6 @@ public interface MergedByteBuffers {
   int UNSIGNED_SHORT_MASK = 0xffff;
   long UNSIGNED_INT_MASK = 0xffffffffL;
   
-  ByteBuffer EMPTY_BYTEBUFFER = ByteBuffer.allocate(0);
-
   
   /**
    * This method allows you to add ByteBuffers to the MergedByteBuffers.  

@@ -61,7 +61,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   }
   
   /**
-   * <p>Creates a ThreadedSocketExecuter with different max task cycle</p> 
+   * <p>Creates a ThreadedSocketExecuter with different max task cycle.</p> 
    * 
    * @param scheduler the {@link SubmitterScheduler} to be used for client/server callbacks.
    * @param maxTasksPerCycle the max number of tasks to run on a clients thread before returning the thread back to the pool.
@@ -163,6 +163,9 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
     }
   }
   
+  /**
+   * 
+   */
   private class SelectorThread {
     private final Selector selector;
     private final Thread thread;

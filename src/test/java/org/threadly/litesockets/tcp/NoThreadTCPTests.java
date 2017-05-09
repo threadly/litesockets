@@ -60,11 +60,7 @@ public class NoThreadTCPTests extends TCPTests {
   public void simpleWriteTest() throws IOException, InterruptedException {
     super.simpleWriteTest();
   }
-  
-  //@Test
-  public void simpleTest() throws IOException, InterruptedException {
-    super.simpleTest();
-  }
+
   @Test
   public void writerReaderBlockTest() throws Exception {
     super.writerReaderBlockTest();

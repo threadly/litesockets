@@ -28,7 +28,8 @@ public class NoThreadUDPTests extends UDPTest {
   }
   
   @After
-  public void stop() {
+  public void stop() throws InterruptedException {
+    SE.stopListening(server);
     server.close();
     SE.stop();
     PS.shutdownNow();

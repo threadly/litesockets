@@ -120,7 +120,8 @@ public class SSLUtils {
       throw new InvalidKeySpecException("could not find key!");
     }
     
-    PKCS8EncodedKeySpec keyspec = new PKCS8EncodedKeySpec(Base64.getDecoder().decode(keyString.substring(keyPos, keyEnd).trim().replace("\n", "").replace("\r", "")));
+    PKCS8EncodedKeySpec keyspec = new PKCS8EncodedKeySpec(Base64.getDecoder()
+        .decode(keyString.substring(keyPos, keyEnd).trim().replace("\n", "").replace("\r", "")));
     return (RSAPrivateKey) KeyFactory.getInstance("RSA").generatePrivate(keyspec);
   }
 

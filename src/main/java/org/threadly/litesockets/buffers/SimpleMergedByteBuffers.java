@@ -3,6 +3,7 @@ package org.threadly.litesockets.buffers;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 
+import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.util.ArgumentVerifier;
 
 /**
@@ -11,7 +12,7 @@ import org.threadly.util.ArgumentVerifier;
  * 
  */
 public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
-  private static final ByteBuffer[] EMPTY_BUFFER_ARRAY = new ByteBuffer[] {EMPTY_BYTEBUFFER};
+  private static final ByteBuffer[] EMPTY_BUFFER_ARRAY = new ByteBuffer[] {IOUtils.EMPTY_BYTEBUFFER};
   
   
   private final ByteBuffer[] bba;
@@ -72,7 +73,7 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
     if(bba[this.currentBuffer].hasRemaining()) {
       return bba[currentBuffer];
     }
-    return EMPTY_BYTEBUFFER;
+    return IOUtils.EMPTY_BYTEBUFFER;
   }
 
   @Override
@@ -163,7 +164,7 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
   public ByteBuffer pullBuffer(int size) {
     ArgumentVerifier.assertNotNegative(size, "size");
     if (size == 0) {
-      return EMPTY_BYTEBUFFER;
+      return IOUtils.EMPTY_BYTEBUFFER;
     }
     if (remaining() < size) {
       throw new BufferUnderflowException();

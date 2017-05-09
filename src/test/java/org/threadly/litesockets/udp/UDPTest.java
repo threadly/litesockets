@@ -44,7 +44,8 @@ public class UDPTest {
   }
   
   @After
-  public void stop() {
+  public void stop()  throws InterruptedException {
+    server.stop();
     SE.stopListening(server);
     SE.stop();
     PS.shutdownNow();

@@ -1,7 +1,6 @@
 package org.threadly.litesockets;
 
 import java.io.IOException;
-import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
@@ -145,16 +144,13 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     if(!checkServer(server)) {
       return;
     } else {
-      if(server.getServerType() == WireProtocol.TCP) {
+      if(server instanceof TCPServer) {
         acceptScheduler.execute(()->executeServerOperations(acceptScheduler, server, acceptSelector, 0));
         acceptSelector.wakeup();
-      } else if(server.getServerType() == WireProtocol.UDP) {
-        readScheduler.execute(()->executeServerOperations(readScheduler, server, readSelector, 0));
-        writeScheduler.execute(()->executeServerOperations(writeScheduler, server, writeSelector, 0));
-        readSelector.wakeup();
-        writeSelector.wakeup();
+      } else if(server instanceof UDPServer) {
+        this.setUDPServerOperations((UDPServer)server, false);
       } else {
-        throw new UnsupportedOperationException("Unknown Server WireProtocol!"+ server.getServerType());
+        throw new UnsupportedOperationException("Unknown Server type!"+ server.getServerType());
       }
     }
   }
@@ -266,25 +262,6 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     }
   }
 
-  protected static void executeClientCancel(final Client client, final Selector selector) {
-    SelectionKey sk = client.getChannel().keyFor(selector);
-    if(sk != null) {
-      sk.cancel();
-    }
-  }
-
-  protected static void executeClientOperations(final Executor exec, final Client client, final Selector selector, final int registerType) {
-    if(!client.isClosed() && selector.isOpen()) {
-      try {
-        client.getChannel().register(selector, registerType);
-      } catch (CancelledKeyException e) {
-        exec.execute(()->executeClientOperations(exec, client, selector, registerType));
-      } catch (ClosedChannelException e) {
-        IOUtils.closeQuietly(client);
-      }
-    }
-  }
-  
   protected static void executeServerOperations(final Executor exec, final Server server, final Selector selector, final int registerType) {
     if(!server.isClosed()  && selector.isOpen()) {
       try {

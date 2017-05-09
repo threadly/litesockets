@@ -4,6 +4,7 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 
+import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.util.ArgumentVerifier;
 
 /**
@@ -115,7 +116,7 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
   @Override
   public ByteBuffer popBuffer() {
     if (currentSize == 0) {
-      return EMPTY_BYTEBUFFER;
+      return IOUtils.EMPTY_BYTEBUFFER;
     }
     return pullBuffer(availableBuffers.peekFirst().remaining());
   }
@@ -124,7 +125,7 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
   public ByteBuffer pullBuffer(final int size) {
     ArgumentVerifier.assertNotNegative(size, "size");
     if (size == 0) {
-      return EMPTY_BYTEBUFFER;
+      return IOUtils.EMPTY_BYTEBUFFER;
     }
     if (currentSize < size) {
       throw new BufferUnderflowException();

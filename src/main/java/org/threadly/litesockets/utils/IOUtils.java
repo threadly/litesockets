@@ -13,14 +13,18 @@ import java.util.concurrent.TimeoutException;
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.Client;
-import org.threadly.litesockets.Client.CloseListener;
-import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.buffers.MergedByteBuffers;
 import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.util.ExceptionUtils;
 
+
+/**
+ * SimpleUtil functions for IO operations.
+ *
+ */
 public class IOUtils {
   
+  private IOUtils(){}
 
   /**
    * Default max buffer size (64k).  Read and write buffers are independent of each other.
@@ -47,6 +51,11 @@ public class IOUtils {
   public static final ListenableFuture<Long> FINISHED_LONG_FUTURE = FutureUtils.immediateResultFuture(0L);
 
   
+  /**
+   * Another implementation of a silent closing function.
+   * 
+   * @param closer
+   */
   public static void closeQuietly(Closeable closer) {
     try {
       if(closer != null) {
@@ -75,6 +84,13 @@ public class IOUtils {
     }
   }
   
+  
+  /**
+   * This creates an {@link OutputStream} from a client.
+   * Like all {@link OutputStream} streams calling write will block until
+   * is it able to write the data.
+   * 
+   */
   public static class ClientOutputStream extends OutputStream {
     
     private final Client c;
@@ -83,11 +99,8 @@ public class IOUtils {
     
     public ClientOutputStream(Client c) {
       this.c = c;
-      c.addCloseListener(new CloseListener() {
-        @Override
-        public void onClose(Client client) {
+      c.addCloseListener((client)->{
           isClosed = true;
-        }
       });
       lastWriteFuture = c.lastWriteFuture();
     }
@@ -118,6 +131,14 @@ public class IOUtils {
     }
   }
   
+  
+  /**
+   * This creates an {@link InputStream} from a client.
+   * Like all other {@link InputStream} it will block on read until at least
+   * some data is available.
+   * 
+   *
+   */
   public static class ClientInputStream extends InputStream {
     private final Client c;
     private final MergedByteBuffers currentBB = new ReuseableMergedByteBuffers();
@@ -125,46 +146,34 @@ public class IOUtils {
     
     public ClientInputStream(Client c) {
       this.c=c;
-      c.addCloseListener(new CloseListener() {
-        @Override
-        public void onClose(Client client) {
-          isClosed = true;
-          synchronized(currentBB) {
-            currentBB.notifyAll();
-          }
+      c.addCloseListener((client)->{
+        isClosed = true;
+        synchronized(currentBB) {
+          currentBB.notifyAll();
         }
       });
-      c.setReader(new Reader() {
-        @Override
-        public void onRead(Client client) {
-          synchronized(currentBB) {
-            while(c.getReadBufferSize() > 0) {
-              if(currentBB.remaining() == 0) {
-                currentBB.add(c.getRead());
-                currentBB.notifyAll();
-              } else {
-                try {
-                  currentBB.wait();
-                } catch (InterruptedException e) {
-                  Thread.currentThread().interrupt();
-                  ExceptionUtils.handleException(e);
-                }
-              }
-            }
+      c.setReader((client)->{
+        synchronized(currentBB) {
+          if(currentBB.remaining() == 0) {
+            currentBB.add(c.getRead());
           }
-        }});
+          currentBB.notifyAll();
+        }
+      });
     }
 
     @Override
     public int read(byte[] ba, int offset, int len) throws IOException {
+      if(isClosed) {
+        return -1;
+      }
       while(true) {
         synchronized(currentBB) {
+          if(c.getReadBufferSize() > 0) {
+            currentBB.add(c.getRead());
+          }
           if(currentBB.remaining() >= len) {
-            ByteBuffer bb = currentBB.pullBuffer(len);
-            bb.get(ba, offset, len);
-            if(currentBB.remaining() == 0) {
-              currentBB.notifyAll();
-            }
+            currentBB.get(ba, offset, len);
             return len;
           } else {
             if(isClosed) {
@@ -184,10 +193,13 @@ public class IOUtils {
     
     @Override
     public int read() throws IOException {
+      if(isClosed) {
+        return -1;
+      }
       while(true) {
-        synchronized(this) {
+        synchronized(currentBB) {
           if(currentBB.remaining() > 0) {
-            return currentBB.get()&0xff;
+            return currentBB.get() & MergedByteBuffers.UNSIGNED_BYTE_MASK;
           } else {
             if(c.getReadBufferSize() > 0) {
               currentBB.add(c.getRead());
@@ -195,7 +207,7 @@ public class IOUtils {
               return -1;
             } else {
               try {
-                this.wait(1000);
+                currentBB.wait(1000);
               } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 ExceptionUtils.handleException(e);
