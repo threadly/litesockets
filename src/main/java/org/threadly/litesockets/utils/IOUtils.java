@@ -167,8 +167,8 @@ public class IOUtils {
       if(isClosed) {
         return -1;
       }
-      while(true) {
-        synchronized(currentBB) {
+      synchronized(currentBB) {
+        while(true) {
           if(c.getReadBufferSize() > 0) {
             currentBB.add(c.getRead());
           }
@@ -196,8 +196,8 @@ public class IOUtils {
       if(isClosed) {
         return -1;
       }
-      while(true) {
-        synchronized(currentBB) {
+      synchronized(currentBB) {
+        while(true) {
           if(currentBB.remaining() > 0) {
             return currentBB.get() & MergedByteBuffers.UNSIGNED_BYTE_MASK;
           } else {
