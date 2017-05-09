@@ -11,8 +11,9 @@ import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.litesockets.TCPClient;
 import org.threadly.litesockets.ThreadedSocketExecuter;
+import org.threadly.litesockets.buffers.MergedByteBuffers;
+import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.litesockets.tcp.FakeTCPServerClient;
-import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.test.concurrent.TestCondition;
 
@@ -185,7 +186,7 @@ public class ProfileServerTest {
   }
   
   public static String getMessageAsString(ByteBuffer bb) {
-    MergedByteBuffers mbb = new MergedByteBuffers();
+    MergedByteBuffers mbb = new ReuseableMergedByteBuffers();
     mbb.add(bb.duplicate());
     return mbb.getAsString(mbb.remaining());
   }

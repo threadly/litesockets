@@ -15,7 +15,7 @@ import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server.ClientAcceptor;
 import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.TCPServer;
-import org.threadly.litesockets.utils.MergedByteBuffers;
+import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.util.AbstractService;
 import org.threadly.util.ExceptionUtils;
 import org.threadly.util.debug.Profiler;
@@ -71,7 +71,7 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
 
   private final SubmitterScheduler scheduler;
   private final SocketExecuter socketEx;
-  private final ConcurrentHashMap<Client, MergedByteBuffers> clients = new ConcurrentHashMap<Client, MergedByteBuffers>();
+  private final ConcurrentHashMap<Client, ReuseableMergedByteBuffers> clients = new ConcurrentHashMap<Client, ReuseableMergedByteBuffers>();
   private final Profiler profiler;
   private final String host;
   private final int port;
@@ -102,7 +102,7 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
 
   @Override
   public void onRead(final Client client) {
-    final MergedByteBuffers mbb = clients.get(client);
+    final ReuseableMergedByteBuffers mbb = clients.get(client);
     mbb.add(client.getRead());
     int pos = -1;
     while((pos = mbb.indexOf("\n")) > -1) {
@@ -145,7 +145,7 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
   @Override
   public void accept(final Client client){
     try {
-      clients.put(client, new MergedByteBuffers());
+      clients.put(client, new ReuseableMergedByteBuffers());
       client.setReader(this);
       client.addCloseListener(this);
       //socketEx.addClient(client);

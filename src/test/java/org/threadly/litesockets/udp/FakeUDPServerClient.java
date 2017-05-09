@@ -14,8 +14,9 @@ import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server;
 import org.threadly.litesockets.Server.ClientAcceptor;
 import org.threadly.litesockets.Server.ServerCloseListener;
+import org.threadly.litesockets.buffers.MergedByteBuffers;
+import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.litesockets.SocketExecuter;
-import org.threadly.litesockets.utils.MergedByteBuffers;
 
 public class FakeUDPServerClient implements CloseListener, Reader, ClientAcceptor, ServerCloseListener {
   SocketExecuter SE;
@@ -40,7 +41,7 @@ public class FakeUDPServerClient implements CloseListener, Reader, ClientAccepto
     System.out.println("New Client:"+this);
     uc.setReader(this);
     uc.addCloseListener(this);
-    clients.put(uc, new MergedByteBuffers());
+    clients.put(uc, new ReuseableMergedByteBuffers());
     clientList.add(uc);
   }
 

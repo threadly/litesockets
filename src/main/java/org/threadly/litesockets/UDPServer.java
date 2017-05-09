@@ -244,6 +244,7 @@ public class UDPServer extends Server {
       this.bb = bb;
     }
 
+    @SuppressWarnings("resource")
     @Override
     public void run() {
       UDPReader reader = us.setUDPReader;

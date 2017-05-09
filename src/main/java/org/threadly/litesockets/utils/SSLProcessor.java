@@ -18,6 +18,8 @@ import javax.net.ssl.SSLSession;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
+import org.threadly.litesockets.buffers.MergedByteBuffers;
+import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.util.ExceptionUtils;
 
 /**
@@ -44,8 +46,8 @@ public class SSLProcessor {
   private final AtomicBoolean finishedHandshake = new AtomicBoolean(false); 
   private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
   private final SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>(false);
-  private final MergedByteBuffers encryptedReadBuffers = new MergedByteBuffers(false);
-  private final MergedByteBuffers tempBuffers = new MergedByteBuffers(false); 
+  private final MergedByteBuffers encryptedReadBuffers = new ReuseableMergedByteBuffers(false);
+  private final MergedByteBuffers tempBuffers = new ReuseableMergedByteBuffers(false); 
   private final SSLEngine ssle;
   private final Client client;
   private ByteBuffer writeBuffer;
@@ -117,7 +119,7 @@ public class SSLProcessor {
   }
 
   public MergedByteBuffers encrypt(final ByteBuffer buffer) {
-    final MergedByteBuffers mbb = new MergedByteBuffers(false);
+    final MergedByteBuffers mbb = new ReuseableMergedByteBuffers(false);
     if(!startedHandshake.get()){
       mbb.add(buffer);
       return mbb;
@@ -125,7 +127,7 @@ public class SSLProcessor {
     ByteBuffer oldBB = buffer.duplicate();
     if(finishedHandshake.get() && this.tempBuffers.remaining() > 0) {
       tempBuffers.add(buffer);
-      oldBB = tempBuffers.pull(tempBuffers.remaining());
+      oldBB = tempBuffers.pullBuffer(tempBuffers.remaining());
     }
     
     ByteBuffer newBB; 
@@ -173,19 +175,19 @@ public class SSLProcessor {
   }
   
   public MergedByteBuffers decrypt(final ByteBuffer bb) {
-    MergedByteBuffers mbb = new MergedByteBuffers(false);
+    MergedByteBuffers mbb = new ReuseableMergedByteBuffers(false);
     mbb.add(bb);
     return decrypt(mbb);
   }
   
-  public MergedByteBuffers decrypt(final MergedByteBuffers bb) {
-    final MergedByteBuffers mbb = new MergedByteBuffers(false);
+  public ReuseableMergedByteBuffers decrypt(final MergedByteBuffers bb) {
+    final ReuseableMergedByteBuffers mbb = new ReuseableMergedByteBuffers(false);
     if(!this.startedHandshake.get()) {
       mbb.add(bb);
       return mbb;
     }
     encryptedReadBuffers.add(bb);
-    final ByteBuffer encBB = encryptedReadBuffers.pull(encryptedReadBuffers.remaining());
+    final ByteBuffer encBB = encryptedReadBuffers.pullBuffer(encryptedReadBuffers.remaining());
     while(encBB.remaining() > 0) {
       final ByteBuffer dbb = getDecryptedByteBuffer();
       final ByteBuffer newBB = dbb.duplicate();

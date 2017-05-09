@@ -1,4 +1,4 @@
-package org.threadly.litesockets.utils;
+package org.threadly.litesockets.buffers;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
