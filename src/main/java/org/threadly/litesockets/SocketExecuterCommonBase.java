@@ -266,8 +266,6 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     }
   }
 
-  
-  
   protected static void executeClientCancel(final Client client, final Selector selector) {
     SelectionKey sk = client.getChannel().keyFor(selector);
     if(sk != null) {

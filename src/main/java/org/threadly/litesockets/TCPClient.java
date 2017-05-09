@@ -16,8 +16,10 @@ import javax.net.ssl.SSLSession;
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
+import org.threadly.litesockets.buffers.MergedByteBuffers;
+import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
+import org.threadly.litesockets.buffers.SimpleMergedByteBuffers;
 import org.threadly.litesockets.utils.IOUtils;
-import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SSLProcessor;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.Clock;
@@ -33,9 +35,9 @@ public class TCPClient extends Client {
   protected static final int DEFAULT_SOCKET_TIMEOUT = 10000;
   protected static final int MIN_WRITE_BUFFER_SIZE = 8192;
   protected static final int MAX_COMBINED_WRITE_BUFFER_SIZE = 65536;
-  private static final ListenableFuture<Long> closedFuture = FutureUtils.immediateFailureFuture(new IllegalStateException("Connection is Closed"));
+  private static final ListenableFuture<Long> CLOSED_FUTURE = FutureUtils.immediateFailureFuture(new IllegalStateException("Connection is Closed"));
 
-  private final MergedByteBuffers writeBuffers = new MergedByteBuffers();
+  private final ReuseableMergedByteBuffers writeBuffers = new ReuseableMergedByteBuffers();
   private final Deque<Pair<Long, SettableListenableFuture<Long>>> writeFutures = new ArrayDeque<>(8);
   private final TCPSocketOptions tso = new TCPSocketOptions();
   protected final AtomicBoolean startedConnection = new AtomicBoolean(false);
@@ -178,8 +180,8 @@ public class TCPClient extends Client {
   }
 
   @Override
-  public MergedByteBuffers getRead() {
-    MergedByteBuffers mbb = super.getRead();
+  public ReuseableMergedByteBuffers getRead() {
+    ReuseableMergedByteBuffers mbb = super.getRead();
     if(sslProcessor != null && sslProcessor.handShakeStarted() && mbb.remaining() > 0) {
       mbb = sslProcessor.decrypt(mbb);
     }
@@ -206,13 +208,13 @@ public class TCPClient extends Client {
 
   @Override
   public ListenableFuture<?> write(final ByteBuffer bb) {
-    return write(new MergedByteBuffers(false, bb));
+    return write(new SimpleMergedByteBuffers(false, bb));
   }
   
   @Override
   public ListenableFuture<?> write(final MergedByteBuffers mbb) {
     if(isClosed()) {
-      return closedFuture;
+      return CLOSED_FUTURE;
     }
     synchronized(writerLock) {
       final SettableListenableFuture<Long> slf = new SettableListenableFuture<>(false);
@@ -243,14 +245,14 @@ public class TCPClient extends Client {
     synchronized(writerLock) {
       //This is to keep from doing a ton of little writes if we can.  We will try to 
       //do at least 8k at a time, and up to 65k if we are already having to combine buffers
-      if(writeBuffers.nextPopSize() < MIN_WRITE_BUFFER_SIZE && writeBuffers.remaining() > writeBuffers.nextPopSize()) {
+      if(writeBuffers.nextBufferSize() < MIN_WRITE_BUFFER_SIZE && writeBuffers.remaining() > writeBuffers.nextBufferSize()) {
         if(writeBuffers.remaining() < MAX_COMBINED_WRITE_BUFFER_SIZE) {
-          currentWriteBuffer = writeBuffers.pull(writeBuffers.remaining());
+          currentWriteBuffer = writeBuffers.pullBuffer(writeBuffers.remaining());
         } else {
-          currentWriteBuffer = writeBuffers.pull(MAX_COMBINED_WRITE_BUFFER_SIZE);
+          currentWriteBuffer = writeBuffers.pullBuffer(MAX_COMBINED_WRITE_BUFFER_SIZE);
         }
       } else {
-        currentWriteBuffer = writeBuffers.pop();
+        currentWriteBuffer = writeBuffers.popBuffer();
       }
     }
     return currentWriteBuffer;

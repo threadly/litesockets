@@ -31,7 +31,8 @@ import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.TCPClient;
 import org.threadly.litesockets.TCPServer;
 import org.threadly.litesockets.ThreadedSocketExecuter;
-import org.threadly.litesockets.utils.MergedByteBuffers;
+import org.threadly.litesockets.buffers.MergedByteBuffers;
+import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.litesockets.utils.SSLUtils;
 import org.threadly.test.concurrent.TestCondition;
@@ -276,7 +277,7 @@ public class SSLTests {
         final TCPClient sslc = (TCPClient) c;
         servers_client.set(sslc);
         sslc.setReader(new Reader() {
-          MergedByteBuffers mbb = new MergedByteBuffers();
+          MergedByteBuffers mbb = new ReuseableMergedByteBuffers();
           boolean didSSL = false;
           @Override
           public void onRead(Client client) {
@@ -311,7 +312,7 @@ public class SSLTests {
     sslclient.setSSLEngine(sslec);
 
     sslclient.setReader(new Reader() {
-      MergedByteBuffers mbb = new MergedByteBuffers();
+      MergedByteBuffers mbb = new ReuseableMergedByteBuffers();
       boolean didSSL = false;
       @Override
       public void onRead(Client client) {

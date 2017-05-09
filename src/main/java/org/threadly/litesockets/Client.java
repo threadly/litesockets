@@ -9,8 +9,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.concurrent.SubmitterExecutor;
 import org.threadly.concurrent.future.ListenableFuture;
+import org.threadly.litesockets.buffers.MergedByteBuffers;
+import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.litesockets.utils.IOUtils;
-import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.Clock;
@@ -35,9 +36,9 @@ import org.threadly.util.Clock;
  */
 public abstract class Client implements Closeable {
 
-  protected final MergedByteBuffers readBuffers = new MergedByteBuffers(false);
-  protected final SocketExecuterCommonBase se;
   protected final SubmitterExecutor clientExecutor;
+  protected final ReuseableMergedByteBuffers readBuffers = new ReuseableMergedByteBuffers(false);
+  protected final SocketExecuterCommonBase se;
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
   protected final Object readerLock = new Object();
   protected final Object writerLock = new Object();
@@ -372,11 +373,11 @@ public abstract class Client implements Closeable {
    * <p>Whenever a the {@link Reader} Interfaces {@link Reader#onRead(Client)} is called the
    * {@link #getRead()} should be called from the client.</p>
    * 
-   * @return a {@link MergedByteBuffers} of the current read data for this client.
+   * @return a {@link ReuseableMergedByteBuffers} of the current read data for this client.
    */
-  public MergedByteBuffers getRead() {
+  public ReuseableMergedByteBuffers getRead() {
     synchronized(readerLock) {
-      MergedByteBuffers mbb = readBuffers.duplicateAndClean();
+      ReuseableMergedByteBuffers mbb = readBuffers.duplicateAndClean();
       if(mbb.remaining() >= maxBufferSize) {
         se.setClientOperations(this);
       }

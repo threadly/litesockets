@@ -30,12 +30,13 @@ import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.CloseListener;
 import org.threadly.litesockets.Client.Reader;
+import org.threadly.litesockets.buffers.MergedByteBuffers;
+import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.TCPClient;
 import org.threadly.litesockets.TCPServer;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.utils.IOUtils;
-import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.test.concurrent.TestCondition;
 
@@ -266,7 +267,7 @@ public class TCPTests {
     final TCPClient sclient = serverFC.getClientAt(0);
     InputStream is = new IOUtils.ClientInputStream(client);
     OutputStream os = new IOUtils.ClientOutputStream(sclient);
-    final MergedByteBuffers mbb = new MergedByteBuffers();
+    final MergedByteBuffers mbb = new ReuseableMergedByteBuffers();
     PS.execute(new Runnable() {
       @Override
       public void run() {

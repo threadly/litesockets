@@ -7,8 +7,10 @@ import java.nio.channels.SocketChannel;
 
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
+import org.threadly.litesockets.buffers.MergedByteBuffers;
+import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
+import org.threadly.litesockets.buffers.SimpleMergedByteBuffers;
 import org.threadly.litesockets.utils.IOUtils;
-import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.util.Clock;
 
 /**
@@ -154,14 +156,14 @@ public class UDPClient extends Client {
 
   @Override
   public ListenableFuture<?> write(final ByteBuffer bb) {
-    return write(new MergedByteBuffers(false, bb));
+    return write(new SimpleMergedByteBuffers(false, bb));
   }
   
   @Override
   public ListenableFuture<?> write(final MergedByteBuffers mbb) {
     addWriteStats(mbb.remaining());
     if(!closed.get()) {
-      lastWriteFuture = udpServer.write(mbb.pull(mbb.remaining()), remoteAddress);
+      lastWriteFuture = udpServer.write(mbb.pullBuffer(mbb.remaining()), remoteAddress);
       return lastWriteFuture;
     }
     return lastWriteFuture;
@@ -182,13 +184,13 @@ public class UDPClient extends Client {
   }
   
   @Override
-  public MergedByteBuffers getRead() {
-    MergedByteBuffers mbb = new MergedByteBuffers();
+  public ReuseableMergedByteBuffers getRead() {
+    ReuseableMergedByteBuffers mbb = new ReuseableMergedByteBuffers();
     int start = 0;
     int finished = 0;
     synchronized(readerLock) {
       start = getReadBufferSize();
-      mbb.add(readBuffers.pop());
+      mbb.add(readBuffers.popBuffer());
       finished = start - getReadBufferSize();
     }
     if(start >= maxBufferSize && finished < maxBufferSize) {

@@ -15,6 +15,8 @@ import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.CloseListener;
 import org.threadly.litesockets.Client.Reader;
+import org.threadly.litesockets.buffers.MergedByteBuffers;
+import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.util.ExceptionUtils;
 
 public class IOUtils {
@@ -118,7 +120,7 @@ public class IOUtils {
   
   public static class ClientInputStream extends InputStream {
     private final Client c;
-    private final MergedByteBuffers currentBB = new MergedByteBuffers();
+    private final MergedByteBuffers currentBB = new ReuseableMergedByteBuffers();
     private volatile boolean isClosed = false;
     
     public ClientInputStream(Client c) {
@@ -158,7 +160,7 @@ public class IOUtils {
       while(true) {
         synchronized(currentBB) {
           if(currentBB.remaining() >= len) {
-            ByteBuffer bb = currentBB.pull(len);
+            ByteBuffer bb = currentBB.pullBuffer(len);
             bb.get(ba, offset, len);
             if(currentBB.remaining() == 0) {
               currentBB.notifyAll();

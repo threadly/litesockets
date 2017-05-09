@@ -1,4 +1,4 @@
-package org.threadly.litesockets.utils;
+package org.threadly.litesockets.buffers;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
@@ -15,7 +15,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author lwahlmeier
  *
  */
-public class TransactionalByteBuffers extends MergedByteBuffers {
+public class TransactionalByteBuffers extends ReuseableMergedByteBuffers {
   private static final String ACCESS_ERROR = "Can not call method from different thread then the transaction begain with";
   private final ReentrantLock lock = new ReentrantLock();
   private final ArrayDeque<ByteBuffer> consumedBuffers = new ArrayDeque<ByteBuffer>(8); 
@@ -131,22 +131,17 @@ public class TransactionalByteBuffers extends MergedByteBuffers {
   }
   
   @Override
-  public ByteBuffer pop() {
-    return super.pop();
-  }
-  
-  @Override
-  public ByteBuffer pull(final int size) {
+  public ByteBuffer pullBuffer(final int size) {
     if(lock.isLocked()) {
       if(lock.isHeldByCurrentThread()) {
-        final ByteBuffer bb = super.pull(size);
+        final ByteBuffer bb = super.pullBuffer(size);
         consumedSinceBegin+=size;
-        return bb;        
+        return bb;
       } else {
         throw new IllegalStateException(ACCESS_ERROR);  
       }
     } else {
-      return super.pull(size);
+      return super.pullBuffer(size);
     }
   }
   

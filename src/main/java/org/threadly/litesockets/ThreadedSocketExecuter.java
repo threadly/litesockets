@@ -19,6 +19,12 @@ import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.ExceptionUtils;
 
+
+/**
+ * This is a multiThreaded Implementation of a SocketExecuter.  It runs multipule
+ * Selectors on different threads to help reduce select loop exhaustion. 
+ * 
+ */
 public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   private final SelectorThread[] clientSelectors;
   private final KeyDistributedExecutor clientDistributer;
