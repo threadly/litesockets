@@ -1,7 +1,9 @@
 package org.threadly.litesockets.buffers;
 
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+
 
 /**
  * This class is used to combine multiple ByteBuffers into 1 simplish to use interface.
@@ -202,7 +204,7 @@ public interface MergedByteBuffers {
    * 
    * @param destBytes fills the given byteArray with the next bytes from the MergedByteBuffer.
    * 
-   * @throws BufferUnderflowException if the {@code byte[]} is larger then the {@link #remaining()} in the MergedByteBuffer.
+   * @throws {@link BufferUnderflowException} if the {@code byte[]} is larger then the {@link #remaining()} in the MergedByteBuffer.
    */
   public void get(final byte[] destBytes);
   

@@ -13,7 +13,8 @@ import org.threadly.util.ArgumentVerifier;
  * 
  * The idea here is to keep from having to copy around and merge ByteBuffers as much as possible. 
  * 
- * NOTE: This is not threadSafe.  It should only be accessed by 1 thread at a time.
+ * NOTE: This is not threadSafe.  It should only be accessed by 1 thread at a time.  
+ * A single Client's onRead() callback is only called on 1 thread at a time. 
  * 
  */
 public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {

@@ -11,6 +11,8 @@ import org.threadly.util.ArgumentVerifier;
  * 
  */
 public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
+  private static final ByteBuffer[] EMPTY_BUFFER_ARRAY = new ByteBuffer[] {EMPTY_BYTEBUFFER};
+  
   
   private final ByteBuffer[] bba;
   private int currentBuffer = 0;
@@ -26,7 +28,7 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
     if(bbs.length > 0) {
       bba = bbs;
     } else {
-      bba = new ByteBuffer[] {EMPTY_BYTEBUFFER};
+      bba = EMPTY_BUFFER_ARRAY;
     }
   }
   
@@ -75,12 +77,12 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
 
   @Override
   protected void doAppend(ByteBuffer bb) {
-    throw new IllegalStateException("Can not add to this buffer!");
+    throw new UnsupportedOperationException("Can not add to this buffer!");
   }
 
   @Override
   protected void addToFront(ByteBuffer bb) {
-    throw new IllegalStateException("Can not add to this buffer!");
+    throw new UnsupportedOperationException("Can not add to this buffer!");
   }
 
   @Override
