@@ -2,7 +2,14 @@ package org.threadly.litesockets;
 
 import org.threadly.concurrent.SingleThreadScheduler;
 
+/**
+ * This is a SingleThreaded implementation of a SocketExecuter. 
+ * 
+ * 
+ *
+ */
 public class SingleThreadSocketExecuter extends NoThreadSocketExecuter {
+  private static final int SELECT_TIME_MS = 10000;
   
   private final SingleThreadScheduler sts = new SingleThreadScheduler();
   
@@ -15,7 +22,7 @@ public class SingleThreadSocketExecuter extends NoThreadSocketExecuter {
     super.startupService();
     sts.execute(()->{
       while(isRunning()) {
-        super.select(10000);
+        super.select(SELECT_TIME_MS);
       }
     });
   }

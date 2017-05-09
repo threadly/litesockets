@@ -19,6 +19,12 @@ import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.ExceptionUtils;
 
+
+/**
+ * This is a multiThreaded Implementation of a SocketExecuter.  It runs multipule
+ * Selectors on different threads to help reduce select loop exhaustion. 
+ * 
+ */
 public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   private final SelectorThread[] clientSelectors;
   private final KeyDistributedExecutor clientDistributer;
@@ -55,7 +61,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   }
   
   /**
-   * <p>Creates a ThreadedSocketExecuter with different max task cycle</p> 
+   * <p>Creates a ThreadedSocketExecuter with different max task cycle.</p> 
    * 
    * @param scheduler the {@link SubmitterScheduler} to be used for client/server callbacks.
    * @param maxTasksPerCycle the max number of tasks to run on a clients thread before returning the thread back to the pool.
@@ -157,6 +163,9 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
     }
   }
   
+  /**
+   * 
+   */
   private class SelectorThread {
     private final Selector selector;
     private final Thread thread;

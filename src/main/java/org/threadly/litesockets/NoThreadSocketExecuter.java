@@ -30,6 +30,8 @@ import org.threadly.util.ExceptionUtils;
  * @author lwahlmeier
  */
 public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
+  public static final int SELECT_TIME_MS = 50;
+  
   private final NoThreadScheduler localNoThreadScheduler;
   private Selector commonSelector;
   private volatile boolean wakeUp = false;
@@ -180,7 +182,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
         commonSelector.selectNow();  //We have to do this before we tick for windows
         localNoThreadScheduler.tick(null);
         commonSelector.selectedKeys().clear();
-        commonSelector.select(Math.min(delay, 50));
+        commonSelector.select(Math.min(delay, SELECT_TIME_MS));
         if(isRunning()) {
           for(final SelectionKey key: commonSelector.selectedKeys()) {
             try {

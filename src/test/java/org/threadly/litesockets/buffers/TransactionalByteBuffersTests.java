@@ -1,4 +1,4 @@
-package org.threadly.litesockets.utils;
+package org.threadly.litesockets.buffers;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -291,10 +291,10 @@ public class TransactionalByteBuffersTests {
     tbb.add(ByteBuffer.wrap(s.getBytes()));
     int size = tbb.remaining();
     tbb.begin();
-    tbb.pop();
+    tbb.popBuffer();
     tbb.rollback();
     assertEquals(size, tbb.remaining());
-    ByteBuffer bb = tbb.pop();
+    ByteBuffer bb = tbb.popBuffer();
     byte[] ba = new byte[bb.remaining()];
     bb.get(ba);
     assertEquals(s, new String(ba));
@@ -304,7 +304,7 @@ public class TransactionalByteBuffersTests {
       @Override
       public void run() {
         try {
-          tbb.pop(); 
+          tbb.popBuffer(); 
         } catch(Exception e) {
           hitException.set(true);
         }
@@ -316,15 +316,15 @@ public class TransactionalByteBuffersTests {
       }
     }.blockTillTrue(5000);
     tbb.commit();
-    bb = tbb.pop();
+    bb = tbb.popBuffer();
     ba = new byte[bb.remaining()];
     bb.get(ba);
     assertEquals(s, new String(ba));
-    bb = tbb.pop();
+    bb = tbb.popBuffer();
     ba = new byte[bb.remaining()];
     bb.get(ba);
     assertEquals(s, new String(ba));
-    bb = tbb.pop();
+    bb = tbb.popBuffer();
     ba = new byte[bb.remaining()];
     bb.get(ba);
     assertEquals(s, new String(ba));
@@ -340,11 +340,11 @@ public class TransactionalByteBuffersTests {
     tbb.add(ByteBuffer.wrap(s.getBytes()));
     int size = tbb.remaining();
     tbb.begin();
-    tbb.pull(16);
-    tbb.pull(8);
+    tbb.pullBuffer(16);
+    tbb.pullBuffer(8);
     tbb.rollback();
     assertEquals(size, tbb.remaining());
-    ByteBuffer bb = tbb.pull(16);
+    ByteBuffer bb = tbb.pullBuffer(16);
     assertEquals(s+"TE", new String(bb.array()));
     
     tbb.begin();
@@ -353,7 +353,7 @@ public class TransactionalByteBuffersTests {
       @Override
       public void run() {
         try {
-          tbb.pull(4); 
+          tbb.pullBuffer(4); 
         } catch(Exception e) {
           hitException.set(true);
         }
@@ -366,7 +366,7 @@ public class TransactionalByteBuffersTests {
     }.blockTillTrue(5000);
     tbb.commit();
     
-    bb = tbb.pull(tbb.remaining());
+    bb = tbb.pullBuffer(tbb.remaining());
     assertEquals("ST1234567890"+s+s, new String(bb.array()));
   }
   

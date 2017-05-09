@@ -30,14 +30,16 @@ import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.Client.CloseListener;
 import org.threadly.litesockets.Client.Reader;
+import org.threadly.litesockets.buffers.MergedByteBuffers;
+import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.litesockets.SocketExecuter;
 import org.threadly.litesockets.TCPClient;
 import org.threadly.litesockets.TCPServer;
 import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.utils.IOUtils;
-import org.threadly.litesockets.utils.MergedByteBuffers;
 import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.test.concurrent.TestCondition;
+import org.threadly.util.Clock;
 
 
 
@@ -252,9 +254,9 @@ public class TCPTests {
     server.close();
   }
   
-  //@Test
-  @Ignore
-  public void simpleTest() throws IOException, InterruptedException {
+  @Test
+  public void IOStreamTest() throws IOException, InterruptedException {
+    final int loops = 1000;
     final TCPClient client = SE.createTCPClient("localhost", port);
     client.connect();
     new TestCondition(){
@@ -264,38 +266,42 @@ public class TCPTests {
       }
     }.blockTillTrue(5000);
     final TCPClient sclient = serverFC.getClientAt(0);
-    InputStream is = new IOUtils.ClientInputStream(client);
-    OutputStream os = new IOUtils.ClientOutputStream(sclient);
-    final MergedByteBuffers mbb = new MergedByteBuffers();
+    final InputStream is = new IOUtils.ClientInputStream(client);
+    final OutputStream os = new IOUtils.ClientOutputStream(sclient);
+    final MergedByteBuffers mbb = new ReuseableMergedByteBuffers();
     PS.execute(new Runnable() {
       @Override
       public void run() {
         int len = 0;
         while(len >=0) {
           try {
-            byte[] ba = new byte[SMALL_TEXT_BUFFER.remaining()];
+            byte[] ba = new byte[SMALL_TEXT_BUFFER.remaining()*(loops/4)];
             len = is.read(ba);
-            mbb.add(ByteBuffer.wrap(ba));
+            if(len > 0) {
+              ByteBuffer bb = ByteBuffer.wrap(ba);
+              bb.limit(len);
+              mbb.add(bb);
+            }
           } catch (IOException e) {
             e.printStackTrace();
           }
         }
       }});
-    for(int i=0; i<10000; i++) {
+    for(int i=0; i<loops; i++) {
       os.write(SMALL_TEXT_BUFFER.array());
     }
    
     new TestCondition(){
       @Override
       public boolean get() {
-        System.out.println(mbb.remaining() +":"+client.getStats().getTotalRead());
-        return mbb.remaining() == SMALL_TEXT_BUFFER.remaining() * 10000;
+        return mbb.remaining() == SMALL_TEXT_BUFFER.remaining() * loops;
       }
-    }.blockTillTrue(5000, 100);
-    client.close();    
+    }.blockTillTrue(5000);
+    client.close();
     int len = is.read();
     assertEquals(-1, len);
-    
+    IOUtils.closeQuietly(is);
+    IOUtils.closeQuietly(os);
   }
   
   @Test
