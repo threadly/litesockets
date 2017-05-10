@@ -21,6 +21,15 @@ public class SimpleMergedByteBuffersTests {
         + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
   }
   
+  @Test
+  public void indexPatternTest() {
+    String st = "HTTP/1.1 101 Switching Protocols\r\nAccept: */*\r\nSec-WebSocket-Accept: W5bRv0dwYtd1GPxLJnXACYizcbU=\r\nUser-Agent: litesockets\r\n\r\n";
+    MergedByteBuffers mbb = new ReuseableMergedByteBuffers();
+    mbb.add(st.getBytes());
+    assertEquals("HTTP/1.1 101 Switching Protocols", mbb.getAsString(mbb.indexOf("\r\n")));
+    mbb.discard(2);
+    assertEquals(88, mbb.indexOf("\r\n\r\n"));
+  }
   
   @Test
   public void searchSpaning() {

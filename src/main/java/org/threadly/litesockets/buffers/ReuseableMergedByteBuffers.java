@@ -214,7 +214,7 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
     int currentPos = 0;
     for(ByteBuffer bb: this.availableBuffers) {
       if(bb.remaining() > pos-currentPos) {
-        return bb.get(pos-currentPos);
+        return bb.get(bb.position()+pos-currentPos);
       } else {
         currentPos+=bb.remaining();
       }

@@ -185,8 +185,6 @@ public abstract class AbstractMergedByteBuffers implements MergedByteBuffers {
 
     byte[] prevMatched = new byte[pattern.length];
     while(total-bufPos >= pattern.length-patPos) {
-      
-
       prevMatched[patPos] = abb.get(bufPos+patPos);
       if(pattern[patPos] == prevMatched[patPos]) {
         if(patPos == pattern.length-1) {
