@@ -21,7 +21,6 @@ import java.util.concurrent.TimeoutException;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
 import org.threadly.concurrent.future.FutureUtils;
@@ -39,9 +38,6 @@ import org.threadly.litesockets.ThreadedSocketExecuter;
 import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.test.concurrent.TestCondition;
-import org.threadly.util.Clock;
-
-
 
 public class TCPTests {
   private static final String OS = System.getProperty("os.name").toLowerCase();
@@ -91,7 +87,7 @@ public class TCPTests {
         + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
   }
 
-  @Test(expected=IllegalStateException.class)
+  @Test(expected=IOException.class)
   public void writeClosedSocket() throws Throwable {
     final TCPClient client = SE.createTCPClient("localhost", port);
     client.connect().get(5000, TimeUnit.MILLISECONDS);

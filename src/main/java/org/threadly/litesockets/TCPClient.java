@@ -35,7 +35,6 @@ public class TCPClient extends Client {
   protected static final int DEFAULT_SOCKET_TIMEOUT = 10000;
   protected static final int MIN_WRITE_BUFFER_SIZE = 8192;
   protected static final int MAX_COMBINED_WRITE_BUFFER_SIZE = 65536;
-  private static final ListenableFuture<Long> CLOSED_FUTURE = FutureUtils.immediateFailureFuture(new IllegalStateException("Connection is Closed"));
 
   private final ReuseableMergedByteBuffers writeBuffers = new ReuseableMergedByteBuffers();
   private final Deque<Pair<Long, SettableListenableFuture<Long>>> writeFutures = new ArrayDeque<>(8);
@@ -214,7 +213,7 @@ public class TCPClient extends Client {
   @Override
   public ListenableFuture<?> write(final MergedByteBuffers mbb) {
     if(isClosed()) {
-      return CLOSED_FUTURE;
+      return FutureUtils.immediateFailureFuture(new IOException("Connection is Closed"));
     }
     synchronized(writerLock) {
       final SettableListenableFuture<Long> slf = new SettableListenableFuture<>(false);
