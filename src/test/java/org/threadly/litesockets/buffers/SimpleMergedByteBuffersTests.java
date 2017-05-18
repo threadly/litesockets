@@ -242,6 +242,31 @@ public class SimpleMergedByteBuffersTests {
     assertEquals(size, mbb.getTotalConsumedBytes());
   }
   
+  @Test
+  public void discardFromEndAllBuffers() {
+    Random rnd = new Random();
+    MergedByteBuffers mbb = new SimpleMergedByteBuffers(false, ByteBuffer.allocate(rnd.nextInt(300)), ByteBuffer.allocate(rnd.nextInt(300)), ByteBuffer.allocate(rnd.nextInt(300)));
+    int size = mbb.remaining();
+    mbb.discardFromEnd(size);
+    assertEquals(0, mbb.remaining());
+    assertEquals(size, mbb.getTotalConsumedBytes());
+  }
+  
+  @Test
+  public void discardHalfFromEndBuffers() {
+    MergedByteBuffers mbb = new SimpleMergedByteBuffers(false, ByteBuffer.allocate(100), ByteBuffer.allocate(100), ByteBuffer.allocate(100));
+    
+    MergedByteBuffers expectedStart = mbb.duplicate();
+    int size = mbb.remaining();
+    mbb.discardFromEnd(size / 2);
+    
+    assertEquals(size / 2, mbb.remaining());
+    assertEquals(size / 2, mbb.getTotalConsumedBytes());
+    while (mbb.hasRemaining()) {
+      assertEquals(expectedStart.get(), mbb.get());
+    }
+  }
+  
   @Test(expected=BufferUnderflowException.class)
   public void badArrayGet() {
     MergedByteBuffers mbb = new SimpleMergedByteBuffers(false);
@@ -252,6 +277,12 @@ public class SimpleMergedByteBuffersTests {
   public void discardUnderFlow() {
     MergedByteBuffers mbb = new SimpleMergedByteBuffers(false);
     mbb.discard(100);
+  }
+  
+  @Test(expected=BufferUnderflowException.class)
+  public void discardFromEndUnderFlow() {
+    MergedByteBuffers mbb = new SimpleMergedByteBuffers(false);
+    mbb.discardFromEnd(100);
   }
   
   @Test(expected=IllegalArgumentException.class)

@@ -4,7 +4,6 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 
-
 /**
  * This class is used to combine multiple ByteBuffers into 1 simplish to use interface.
  * It provides most of the features of a single ByteBuffer, but with the ability to perform those 
@@ -192,7 +191,7 @@ public interface MergedByteBuffers {
    * 
    * @throws BufferUnderflowException if the {@code byte[]} is larger then the {@link #remaining()} in the MergedByteBuffer.
    */
-  public void get(final byte[] destBytes);
+  public void get(final byte[] destBytes) throws BufferUnderflowException;
   
   /**
    * Fills the passed {@code byte[]} completely with data from the MergedByteBuffer. 
@@ -203,7 +202,7 @@ public interface MergedByteBuffers {
    * 
    * @throws BufferUnderflowException if the {@code byte[]} is larger then the {@link #remaining()} in the MergedByteBuffer.
    */
-  public void get(final byte[] destBytes, int start, int length);
+  public void get(final byte[] destBytes, int start, int length) throws BufferUnderflowException;
 
   /**
    * Get the size of the next full {@link ByteBuffer} in the queue.
@@ -236,6 +235,14 @@ public interface MergedByteBuffers {
    * @param size the number of bytes to discard.
    */
   public void discard(final int size);
+
+  /**
+   * Similar to {@link #discard(int)} except that the bytes removed from this will be from the end 
+   * of the buffer and discard towards the head.
+   * 
+   * @param size the number of bytes to discard.
+   */
+  public void discardFromEnd(final int size);
 
   /**
    * This will return the specified number of bytes as a String object.

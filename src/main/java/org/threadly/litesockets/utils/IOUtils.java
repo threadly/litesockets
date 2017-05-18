@@ -54,7 +54,7 @@ public class IOUtils {
   /**
    * Another implementation of a silent closing function.
    * 
-   * @param closer
+   * @param closer Closable to invoke {@link Closeable#close()} on
    */
   public static void closeQuietly(Closeable closer) {
     try {
