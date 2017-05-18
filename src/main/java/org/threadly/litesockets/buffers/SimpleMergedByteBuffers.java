@@ -8,7 +8,7 @@ import org.threadly.util.ArgumentVerifier;
 
 /**
  *  This is a lower overhead Implementation of {@link MergedByteBuffers}.
- *  It is not appendable and can only process the buffers it is contructed with.
+ *  It is not appendable and can only process the buffers it is constructed with.
  * 
  */
 public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
@@ -202,6 +202,29 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
         toRemoveAmount = 0;
       } else {
         currentBuffer++;
+        toRemoveAmount -= bufRemaining;
+      }
+    }
+    consumedSize += size;
+  }
+
+  @Override
+  public void discardFromEnd(int size) {
+    ArgumentVerifier.assertNotNegative(size, "size");
+    if (remaining() < size) {
+      throw new BufferUnderflowException();
+    }
+    //We have logic here since we dont need to do any copying and we just drop the bytes
+    int currentIndex = bba.length;
+    int toRemoveAmount = size;
+    while (toRemoveAmount > 0) {
+      final ByteBuffer buf = bba[--currentIndex];
+      final int bufRemaining = buf.remaining();
+      if (bufRemaining > toRemoveAmount) {
+        buf.limit(buf.limit() - toRemoveAmount);
+        toRemoveAmount = 0;
+      } else {
+        bba[currentIndex] = IOUtils.EMPTY_BYTEBUFFER;
         toRemoveAmount -= bufRemaining;
       }
     }

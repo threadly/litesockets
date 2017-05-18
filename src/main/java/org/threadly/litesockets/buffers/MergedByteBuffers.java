@@ -1,9 +1,7 @@
 package org.threadly.litesockets.buffers;
 
-import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
-
 
 /**
  * This class is used to combine multiple ByteBuffers into 1 simplish to use interface.
@@ -236,6 +234,14 @@ public interface MergedByteBuffers {
    * @param size the number of bytes to discard.
    */
   public void discard(final int size);
+
+  /**
+   * Similar to {@link #discard(int)} except that the bytes removed from this will be from the end 
+   * of the buffer and discard towards the head.
+   * 
+   * @param size the number of bytes to discard.
+   */
+  public void discardFromEnd(final int size);
 
   /**
    * This will return the specified number of bytes as a String object.

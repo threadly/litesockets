@@ -249,6 +249,42 @@ public class ReuseableMergedByteBuffersTests {
     assertEquals(size, mbb.getTotalConsumedBytes());
   }
   
+  @Test
+  public void discardAllFromEndBuffers() {
+    MergedByteBuffers mbb = new ReuseableMergedByteBuffers();
+    Random rnd = new Random();
+    mbb.add(ByteBuffer.allocate(rnd.nextInt(300)));
+    mbb.add(ByteBuffer.allocate(rnd.nextInt(300)));
+    mbb.add(ByteBuffer.allocate(rnd.nextInt(300)));
+    int size = mbb.remaining();
+    mbb.discardFromEnd(size);
+    assertEquals(0, mbb.remaining());
+    assertEquals(size, mbb.getTotalConsumedBytes());
+  }
+  
+  @Test
+  public void discardHalfFromEndBuffers() {
+    MergedByteBuffers mbb = new ReuseableMergedByteBuffers();
+    Random rnd = new Random();
+    mbb.add(ByteBuffer.allocate(rnd.nextInt(300)));
+    mbb.add(ByteBuffer.allocate(rnd.nextInt(300)));
+    mbb.add(ByteBuffer.allocate(rnd.nextInt(300)));
+    if (mbb.remaining() % 2 == 1) {
+      // test only works with an even sized array due to integer division
+      mbb.add(new byte[] { 0x0 });
+    }
+    
+    MergedByteBuffers expectedStart = mbb.duplicate();
+    int size = mbb.remaining();
+    mbb.discardFromEnd(size / 2);
+    
+    assertEquals(size / 2, mbb.remaining());
+    assertEquals(size / 2, mbb.getTotalConsumedBytes());
+    while (mbb.hasRemaining()) {
+      assertEquals(expectedStart.get(), mbb.get());
+    }
+  }
+  
   @Test(expected=BufferUnderflowException.class)
   public void badArrayGet() {
     MergedByteBuffers mbb = new ReuseableMergedByteBuffers();
@@ -259,6 +295,12 @@ public class ReuseableMergedByteBuffersTests {
   public void discardUnderFlow() {
     MergedByteBuffers mbb = new ReuseableMergedByteBuffers();
     mbb.discard(100);
+  }
+  
+  @Test(expected=BufferUnderflowException.class)
+  public void discardFromEndUnderFlow() {
+    MergedByteBuffers mbb = new ReuseableMergedByteBuffers();
+    mbb.discardFromEnd(100);
   }
   
   @Test(expected=IllegalArgumentException.class)

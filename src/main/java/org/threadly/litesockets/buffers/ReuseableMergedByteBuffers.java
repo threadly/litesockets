@@ -170,8 +170,35 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
     currentSize -= size;
   }
 
+  @Override
+  public void discardFromEnd(int size) {
+    ArgumentVerifier.assertNotNegative(size, "size");
+    if (currentSize < size) {
+      throw new BufferUnderflowException();
+    }
+    //We have logic here since we dont need to do any copying and we just drop the bytes
+    int toRemoveAmount = size;
+    while (toRemoveAmount > 0) {
+      final ByteBuffer buf = availableBuffers.peekLast();
+      final int bufRemaining = buf.remaining();
+      if (bufRemaining > toRemoveAmount) {
+        buf.limit(buf.limit() - toRemoveAmount);
+        toRemoveAmount = 0;
+      } else {
+        removeLastBuffer();
+        toRemoveAmount -= bufRemaining;
+      }
+    }
+    consumedSize += size;
+    currentSize -= size;
+  }
+
   protected ByteBuffer removeFirstBuffer() {
     return this.availableBuffers.pollFirst();
+  }
+
+  protected ByteBuffer removeLastBuffer() {
+    return this.availableBuffers.pollLast();
   }
 
   private void doGet(final byte[] destBytes) {
