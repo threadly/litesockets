@@ -1,5 +1,6 @@
 package org.threadly.litesockets.buffers;
 
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 
@@ -190,7 +191,7 @@ public interface MergedByteBuffers {
    * 
    * @throws BufferUnderflowException if the {@code byte[]} is larger then the {@link #remaining()} in the MergedByteBuffer.
    */
-  public void get(final byte[] destBytes);
+  public void get(final byte[] destBytes) throws BufferUnderflowException;
   
   /**
    * Fills the passed {@code byte[]} completely with data from the MergedByteBuffer. 
@@ -201,7 +202,7 @@ public interface MergedByteBuffers {
    * 
    * @throws BufferUnderflowException if the {@code byte[]} is larger then the {@link #remaining()} in the MergedByteBuffer.
    */
-  public void get(final byte[] destBytes, int start, int length);
+  public void get(final byte[] destBytes, int start, int length) throws BufferUnderflowException;
 
   /**
    * Get the size of the next full {@link ByteBuffer} in the queue.
