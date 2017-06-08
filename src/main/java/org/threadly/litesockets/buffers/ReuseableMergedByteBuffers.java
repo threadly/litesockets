@@ -33,7 +33,9 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
   }
   
   public ReuseableMergedByteBuffers(boolean readOnly, ByteBuffer ...bbs) {
-    super(readOnly, bbs);
+    super(readOnly);
+    
+    add(bbs);
   }
   
   @Override
