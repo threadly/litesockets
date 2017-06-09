@@ -65,6 +65,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
       return;
     }
     schedulerPool.execute(()->this.doClientOperations(client));
+    wakeup();
   }
 
   @Override
