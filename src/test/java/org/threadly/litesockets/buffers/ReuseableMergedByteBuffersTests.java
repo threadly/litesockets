@@ -19,6 +19,16 @@ public class ReuseableMergedByteBuffersTests {
   }
   
   @Test
+  public void constructWithBuffersTest() {
+    ByteBuffer bb = ByteBuffer.wrap("vsdljsakd".getBytes());
+    MergedByteBuffers mbb = new ReuseableMergedByteBuffers(false, bb);
+    assertEquals(bb.remaining(), mbb.remaining());
+    while (mbb.hasRemaining()) {
+      assertEquals(bb.get(), mbb.get());
+    }
+  }
+  
+  @Test
   public void indexPatternTest() {
     String st = "HTTP/1.1 101 Switching Protocols\r\nAccept: */*\r\nSec-WebSocket-Accept: W5bRv0dwYtd1GPxLJnXACYizcbU=\r\nUser-Agent: litesockets\r\n\r\n";
     MergedByteBuffers mbb = new ReuseableMergedByteBuffers();

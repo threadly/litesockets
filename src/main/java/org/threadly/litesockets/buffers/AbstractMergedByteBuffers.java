@@ -28,11 +28,6 @@ public abstract class AbstractMergedByteBuffers implements MergedByteBuffers {
     this.markReadOnly = readOnly;
   }
   
-  public AbstractMergedByteBuffers(boolean readOnly, ByteBuffer ...bbs) {
-    this.markReadOnly = readOnly;
-    add(bbs);
-  }
-  
   protected abstract void doAppend(final ByteBuffer bb);
   protected abstract void addToFront(final ByteBuffer bb);
   protected abstract byte get(int pos);
