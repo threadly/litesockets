@@ -188,6 +188,7 @@ public class SSLProcessor {
     encryptedReadBuffers.add(bb);
     final ByteBuffer encBB = encryptedReadBuffers.pullBuffer(encryptedReadBuffers.remaining());
     while(encBB.remaining() > 0) {
+      int lastSize = encBB.remaining();
       final ByteBuffer dbb = getDecryptedByteBuffer();
       final ByteBuffer newBB = dbb.duplicate();
       SSLEngineResult res;
@@ -204,7 +205,7 @@ public class SSLProcessor {
       newBB.limit(dbb.position());
       if(newBB.hasRemaining()) {
         mbb.add(newBB);
-      } else if (res.getStatus() == Status.BUFFER_UNDERFLOW) {
+      } else if (res.getStatus() == Status.BUFFER_UNDERFLOW || (lastSize > 0 && lastSize == encBB.remaining())) {
         if(encBB.hasRemaining()) {
           encryptedReadBuffers.add(encBB);
         }
