@@ -97,14 +97,16 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
   }
 
   @Override
-  public void get(byte[] destBytes, int start, int length) {
+  public int get(byte[] destBytes, int start, int length) {
     ArgumentVerifier.assertNotNull(destBytes, "byte[]");
-    if (currentSize < length) {
-      throw new BufferUnderflowException();
+    if(currentSize == 0) {
+      return -1;
     }
-    doGet(destBytes);
-    consumedSize += destBytes.length;
-    currentSize -= destBytes.length;
+    int toCopy = Math.min(length, currentSize); 
+    doGet(destBytes, start, toCopy);
+    consumedSize += toCopy;
+    currentSize -= toCopy;
+    return toCopy; 
   }
 
   @Override
@@ -209,14 +211,11 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
   
   private void doGet(final byte[] destBytes, int start, int len) {
     int remainingToCopy = len;
-
     while (remainingToCopy > 0) {
       final ByteBuffer buf = availableBuffers.peek();
-
       final int toCopy = Math.min(buf.remaining(), remainingToCopy);
-      buf.get(destBytes, start+destBytes.length-remainingToCopy, toCopy);
+      buf.get(destBytes, start + len - remainingToCopy, toCopy);
       remainingToCopy -= toCopy;
-
       if (! buf.hasRemaining()) {
         removeFirstBuffer();
       }

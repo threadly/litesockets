@@ -1,6 +1,6 @@
 package org.threadly.litesockets.buffers;
 
-import java.nio.BufferUnderflowException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 
@@ -188,10 +188,10 @@ public interface MergedByteBuffers {
    * Fills the passed {@code byte[]} completely with data from the MergedByteBuffer. 
    * 
    * @param destBytes fills the given byteArray with the next bytes from the MergedByteBuffer.
-   * 
-   * @throws BufferUnderflowException if the {@code byte[]} is larger then the {@link #remaining()} in the MergedByteBuffer.
+   *
+   * @return number of bytes copied into destBytes.
    */
-  public void get(final byte[] destBytes) throws BufferUnderflowException;
+  public int get(final byte[] destBytes);
   
   /**
    * Fills the passed {@code byte[]} completely with data from the MergedByteBuffer. 
@@ -200,9 +200,9 @@ public interface MergedByteBuffers {
    * @param start starting position to fill in the byte[].
    * @param length how much data to copy into the buffer.
    * 
-   * @throws BufferUnderflowException if the {@code byte[]} is larger then the {@link #remaining()} in the MergedByteBuffer.
+   * @return number of bytes copied into destBytes.
    */
-  public void get(final byte[] destBytes, int start, int length) throws BufferUnderflowException;
+  public int get(final byte[] destBytes, int start, int length);
 
   /**
    * Get the size of the next full {@link ByteBuffer} in the queue.
@@ -273,4 +273,6 @@ public interface MergedByteBuffers {
    * @return true if ByteByffers can be added to this {@link MergedByteBuffers} or false if they can not be.
    */
   public boolean isAppendable(); 
+  
+  public InputStream asInputStream();
 }

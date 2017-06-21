@@ -1,5 +1,7 @@
 package org.threadly.litesockets.buffers;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
@@ -34,7 +36,7 @@ public abstract class AbstractMergedByteBuffers implements MergedByteBuffers {
   public abstract AbstractMergedByteBuffers duplicate();
   public abstract AbstractMergedByteBuffers duplicateAndClean();
   public abstract byte get();
-  public abstract void get(byte[] destBytes, int start, int length);
+  public abstract int get(byte[] destBytes, int start, int length);
   public abstract int nextBufferSize();
   public abstract ByteBuffer popBuffer(); 
   public abstract int remaining();
@@ -75,9 +77,9 @@ public abstract class AbstractMergedByteBuffers implements MergedByteBuffers {
   }
   
   @Override
-  public void get(final byte[] destBytes) {
+  public int get(final byte[] destBytes) {
     ArgumentVerifier.assertNotNull(destBytes, "byte[]");
-    get(destBytes, 0, destBytes.length);
+    return get(destBytes, 0, destBytes.length);
   }
   
   @Override
@@ -192,5 +194,35 @@ public abstract class AbstractMergedByteBuffers implements MergedByteBuffers {
       }
     }
     return -1;
+  }
+  
+  public InputStream asInputStream() {
+    return new InputStream() {
+
+      @Override
+      public int available() {
+        return remaining();
+      }
+      
+      @Override
+      public int read(byte[] ba, int offset, int len) throws IOException {
+        if(hasRemaining()) {
+          int left = Math.min(remaining(), len);
+          AbstractMergedByteBuffers.this.get(ba, offset, left);
+          return left;
+        } else {
+          return -1;
+        }
+      }
+      
+      @Override
+      public int read() throws IOException {
+        if(hasRemaining()) {
+          return (int)get();
+        } else {
+          return -1;
+        }
+      }
+    };
   }
 }
