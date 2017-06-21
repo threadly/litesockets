@@ -190,7 +190,6 @@ public interface MergedByteBuffers {
    * @param destBytes fills the given byteArray with the next bytes from the MergedByteBuffer.
    *
    * @return number of bytes copied into destBytes.
-   * @throws BufferUnderflowException if the {@code byte[]} is larger then the {@link #remaining()} in the MergedByteBuffer.
    */
   public int get(final byte[] destBytes);
   
