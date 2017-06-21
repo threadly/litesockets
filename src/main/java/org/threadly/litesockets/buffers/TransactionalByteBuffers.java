@@ -117,16 +117,17 @@ public class TransactionalByteBuffers extends ReuseableMergedByteBuffers {
   }
   
   @Override
-  public void get(final byte[] destBytes) {
+  public int get(final byte[] destBytes) {
     if(lock.isLocked()) {
       if(lock.isHeldByCurrentThread()) {
-        super.get(destBytes);
-        consumedSinceBegin+=destBytes.length;        
+        int consumed = super.get(destBytes);
+        consumedSinceBegin+=consumed;
+        return consumed;
       } else {
         throw new IllegalStateException(ACCESS_ERROR);  
       }
     } else {
-      super.get(destBytes);
+      return super.get(destBytes);
     }
   }
   

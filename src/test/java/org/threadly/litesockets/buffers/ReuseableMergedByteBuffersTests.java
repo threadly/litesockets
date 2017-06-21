@@ -2,6 +2,7 @@ package org.threadly.litesockets.buffers;
 
 import static org.junit.Assert.assertEquals;
 
+import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.Random;
@@ -36,6 +37,21 @@ public class ReuseableMergedByteBuffersTests {
     assertEquals("HTTP/1.1 101 Switching Protocols", mbb.getAsString(mbb.indexOf("\r\n")));
     mbb.discard(2);
     assertEquals(88, mbb.indexOf("\r\n\r\n"));
+  }
+  
+  @Test
+  public void GetArrayOffset() throws IOException {
+    String st = "HTTP/1.1 101 Switching Protocols\r\nAccept: */*\r\nSec-WebSocket-Accept: W5bRv0dwYtd1GPxLJnXACYizcbU=\r\nUser-Agent: litesockets\r\n\r\n";
+    MergedByteBuffers mbb = new ReuseableMergedByteBuffers();
+    mbb.add(st.getBytes());
+    byte[] ba = new byte[mbb.remaining()];
+    System.out.println(mbb.remaining());
+    for(int i=0; i<ba.length; i++) {
+      mbb.get(ba, i, 1);
+    }
+    System.out.println(new String(ba).length());
+    System.out.println(mbb.remaining());
+    assertEquals(st, new String(ba));
   }
   
   
@@ -295,10 +311,10 @@ public class ReuseableMergedByteBuffersTests {
     }
   }
   
-  @Test(expected=BufferUnderflowException.class)
+  @Test
   public void badArrayGet() {
     MergedByteBuffers mbb = new ReuseableMergedByteBuffers();
-    mbb.get(new byte[100]);
+    assertEquals(-1, mbb.get(new byte[100]));
   }
   
   @Test(expected=BufferUnderflowException.class)
