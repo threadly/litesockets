@@ -247,6 +247,6 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
         currentPos+=bb.remaining();
       }
     }
-    return 0;
+    throw new IndexOutOfBoundsException(pos + " > " + (remaining() - 1));
   }
 }

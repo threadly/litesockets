@@ -40,6 +40,13 @@ public class ReuseableMergedByteBuffersTests {
   }
   
   @Test
+  public void indexOfHalfMatchTest() {
+    String pattern = "123";
+    MergedByteBuffers mbb = new ReuseableMergedByteBuffers(false, ByteBuffer.wrap(("foobarthelongversion" + pattern).getBytes()));
+    assertEquals(-1, mbb.indexOf(pattern + pattern));
+  }
+  
+  @Test
   public void GetArrayOffset() throws IOException {
     String st = "HTTP/1.1 101 Switching Protocols\r\nAccept: */*\r\nSec-WebSocket-Accept: W5bRv0dwYtd1GPxLJnXACYizcbU=\r\nUser-Agent: litesockets\r\n\r\n";
     MergedByteBuffers mbb = new ReuseableMergedByteBuffers();
@@ -54,7 +61,6 @@ public class ReuseableMergedByteBuffersTests {
     assertEquals(st, new String(ba));
   }
   
-  
   @Test
   public void searchSpaning() {
     MergedByteBuffers mbb = new ReuseableMergedByteBuffers();
@@ -65,8 +71,31 @@ public class ReuseableMergedByteBuffersTests {
     System.out.println(mbb.indexOf("testingCrap"));
     assertEquals(17, mbb.indexOf("testingCrap"));
     mbb.discard(17);
-    assertEquals("testingCrap", mbb.getAsString("testingCrap".length()));
-    
+    assertEquals("testingCrap", mbb.getAsString("testingCrap".length())); 
+  }
+  
+  @Test
+  public void getIndex() {
+    int count = 10;
+    byte[] bytes1 = new byte[count];
+    byte[] bytes2 = new byte[count];
+    for (int i = 0; i < count; i++) {
+      if (i < count / 2) {
+        bytes1[i] = (byte)i;
+        bytes2[i] = -1;
+      } else {
+        bytes1[i] = -1;
+        bytes2[i] = (byte)i;
+      }
+    }
+    ByteBuffer bb1 = ByteBuffer.wrap(bytes1);
+    bb1.limit(count / 2);
+    ByteBuffer bb2 = ByteBuffer.wrap(bytes2);
+    bb2.position(count / 2);
+    ReuseableMergedByteBuffers mbb = new ReuseableMergedByteBuffers(false, bb1, bb2);
+    for (int i = 0; i < count; i++) {
+      assertEquals((byte)i, mbb.get(i));
+    }
   }
 
   @Test
