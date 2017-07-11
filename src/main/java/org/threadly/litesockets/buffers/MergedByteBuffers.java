@@ -23,7 +23,6 @@ public interface MergedByteBuffers {
   int UNSIGNED_SHORT_MASK = 0xffff;
   long UNSIGNED_INT_MASK = 0xffffffffL;
   
-  
   /**
    * This method allows you to add ByteBuffers to the MergedByteBuffers.  
    * All must be done in order of how you want to pull the data back out.
