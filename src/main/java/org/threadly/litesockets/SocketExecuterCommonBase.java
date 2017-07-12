@@ -18,21 +18,18 @@ import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.AbstractService;
 import org.threadly.util.ArgumentVerifier;
-import org.threadly.util.ExceptionUtils;
-
 
 /**
  *  This is a common base class for the Threaded and NoThread SocketExecuters. 
  */
 abstract class SocketExecuterCommonBase extends AbstractService implements SocketExecuter {
-  
   private final Logger log = Logger.getLogger(this.getClass().toString());
   protected final SubmitterScheduler acceptScheduler;
   protected final SubmitterScheduler readScheduler;
   protected final SubmitterScheduler writeScheduler;
   protected final SubmitterScheduler schedulerPool;
-  protected final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<SocketChannel, Client>();
-  protected final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<SelectableChannel, Server>();
+  protected final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<>();
+  protected final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<>();
   protected final SocketExecuterByteStats stats = new SocketExecuterByteStats();
   protected final WatchdogCache dogCache;
   protected volatile boolean verboseLogging = false;
@@ -117,7 +114,8 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   }
 
   protected boolean checkServer(final Server server) {
-    if(!isRunning() || server.isClosed() || server.getSocketExecuter() != this || !servers.containsKey(server.getSelectableChannel())) {
+    if(!isRunning() || server.isClosed() || server.getSocketExecuter() != this || 
+       !servers.containsKey(server.getSelectableChannel())) {
       servers.remove(server.getSelectableChannel());
       return false;
     }
@@ -211,8 +209,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
           client = ((ServerSocketChannel)server.getSelectableChannel()).accept();
         }
       } catch (IOException e) {
-        IOUtils.closeQuietly(server);
-        ExceptionUtils.handleException(e);
+        server.close(e);
       }
     }
   }
@@ -228,9 +225,8 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
         }
         setClientOperations(client);
       } catch(IOException e) {
-        IOUtils.closeQuietly(client);
+        client.close(e);
         client.setConnectionStatus(e);
-        ExceptionUtils.handleException(e);
       }
     });
   }
@@ -242,9 +238,8 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
 
         sk.interestOps(sk.interestOps()&~SelectionKey.OP_WRITE);
         client.doSocketWrite(false);
-      } catch(Exception e) {
-        IOUtils.closeQuietly(client);
-        ExceptionUtils.handleException(e);
+      } catch (Throwable t) {
+        client.close(t);
       }
     }
   }
@@ -255,20 +250,19 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
       try {
         sk.interestOps(sk.interestOps() & ~SelectionKey.OP_READ);
         client.doSocketRead(false);
-      } catch (Exception e) {
-        IOUtils.closeQuietly(client);
-        ExceptionUtils.handleException(e);
+      } catch (Throwable t) {
+        client.close(t);
       }
     }
   }
 
-  protected static void executeServerOperations(final Executor exec, final Server server, final Selector selector, final int registerType) {
+  protected static void executeServerOperations(final Executor exec, final Server server, 
+                                                final Selector selector, final int registerType) {
     if(!server.isClosed()  && selector.isOpen()) {
       try {
         server.getSelectableChannel().register(selector, registerType);
       } catch (ClosedChannelException e) {
-        ExceptionUtils.handleException(e);
-        IOUtils.closeQuietly(server);
+        server.close(e);
       }
     }
   }

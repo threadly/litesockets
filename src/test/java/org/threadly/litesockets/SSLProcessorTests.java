@@ -129,7 +129,6 @@ public class SSLProcessorTests {
 
     MergedByteBuffers dmbb = sp2.decrypt(mbb);
     assertEquals(STRING, dmbb.getAsString(dmbb.remaining()));
-    
   }
 
   @Test
@@ -175,7 +174,6 @@ public class SSLProcessorTests {
     
   }
 
-
   @Test
   public void largeEncrypted() throws IOException {
     FakeClient fc = new FakeClient(SE);
@@ -216,12 +214,9 @@ public class SSLProcessorTests {
       dmbb.add(tmpmbb);
     }
     assertEquals(LARGE_STRING, dmbb.getAsString(dmbb.remaining()));
-    
   }
   
-  
   public static class FakeClient extends Client {
-    
     MergedByteBuffers writeBuffers = new ReuseableMergedByteBuffers(false);
     SSLProcessor sp;
 
@@ -245,37 +240,31 @@ public class SSLProcessorTests {
 
     @Override
     public boolean hasConnectionTimedOut() {
-      // TODO Auto-generated method stub
       return false;
     }
 
     @Override
     public ListenableFuture<Boolean> connect() {
-      // TODO Auto-generated method stub
       return null;
     }
 
     @Override
     protected void setConnectionStatus(Throwable t) {
-      // TODO Auto-generated method stub
       
     }
 
     @Override
     public void setConnectionTimeout(int timeout) {
-      // TODO Auto-generated method stub
       
     }
 
     @Override
     public int getTimeout() {
-      // TODO Auto-generated method stub
       return 0;
     }
 
     @Override
     public int getWriteBufferSize() {
-      // TODO Auto-generated method stub
       return 0;
     }
 
@@ -286,37 +275,31 @@ public class SSLProcessorTests {
 
     @Override
     protected void reduceWrite(int size) {
-      // TODO Auto-generated method stub
       
     }
 
     @Override
     protected SocketChannel getChannel() {
-      // TODO Auto-generated method stub
       return null;
     }
 
     @Override
     public WireProtocol getProtocol() {
-      // TODO Auto-generated method stub
       return null;
     }
 
     @Override
-    public void close() {
-      // TODO Auto-generated method stub
+    public void close(Throwable error) {
       
     }
 
     @Override
     public SocketAddress getRemoteSocketAddress() {
-      // TODO Auto-generated method stub
       return null;
     }
 
     @Override
     public SocketAddress getLocalSocketAddress() {
-      // TODO Auto-generated method stub
       return null;
     }
     
@@ -328,25 +311,21 @@ public class SSLProcessorTests {
 
     @Override
     public ClientOptions clientOptions() {
-      // TODO Auto-generated method stub
       return null;
     }
 
     @Override
     protected void doSocketRead(boolean doLocal) {
-      // TODO Auto-generated method stub
       
     }
 
     @Override
     protected void doSocketWrite(boolean doLocal) {
-      // TODO Auto-generated method stub
       
     }
 
     @Override
     public ListenableFuture<?> lastWriteFuture() {
-      // TODO Auto-generated method stub
       return null;
     }
 
@@ -355,8 +334,5 @@ public class SSLProcessorTests {
       writeBuffers.add(sp.encrypt(mbb));
       return FutureUtils.immediateResultFuture(true);
     }
-    
   }
-  
-  
 }

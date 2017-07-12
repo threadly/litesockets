@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.threadly.litesockets.Client;
-import org.threadly.litesockets.Client.CloseListener;
+import org.threadly.litesockets.Client.ClientCloseListener;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server;
 import org.threadly.litesockets.Server.ClientAcceptor;
@@ -15,8 +15,8 @@ import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.litesockets.TCPClient;
 import org.threadly.litesockets.TCPServer;
 
-public class FakeTCPServerClient implements Reader, CloseListener, ClientAcceptor, ServerCloseListener{
-  private ConcurrentHashMap<TCPClient, MergedByteBuffers> map = new ConcurrentHashMap<TCPClient, MergedByteBuffers>();
+public class FakeTCPServerClient implements Reader, ClientCloseListener, ClientAcceptor, ServerCloseListener{
+  private ConcurrentHashMap<TCPClient, MergedByteBuffers> map = new ConcurrentHashMap<>();
   private ArrayList<TCPClient> clients = new ArrayList<TCPClient>();
   private ArrayList<TCPServer> servers = new ArrayList<TCPServer>();
 
@@ -107,5 +107,4 @@ public class FakeTCPServerClient implements Reader, CloseListener, ClientAccepto
 //      
 //    }
   }
-
 }

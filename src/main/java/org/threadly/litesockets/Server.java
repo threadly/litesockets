@@ -5,6 +5,7 @@ import java.nio.channels.SelectableChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.concurrent.event.ListenerHelper;
+import org.threadly.util.ExceptionUtils;
 
 /**
  * This is the main Server Interface for litesockets.  
@@ -18,12 +19,11 @@ import org.threadly.concurrent.event.ListenerHelper;
  *
  */
 public abstract class Server implements Closeable {
-  
   protected final SocketExecuterCommonBase sei;
   private final AtomicBoolean closed = new AtomicBoolean(false);
   private volatile ClientAcceptor clientAcceptor;
   private volatile ListenerHelper<ServerCloseListener> closer = 
-      new ListenerHelper<ServerCloseListener>(ServerCloseListener.class);
+      new ListenerHelper<>(ServerCloseListener.class);
   
   protected Server(final SocketExecuterCommonBase sei) {
     this.sei = sei;
@@ -45,11 +45,19 @@ public abstract class Server implements Closeable {
    */
   protected abstract SelectableChannel getSelectableChannel();
   
-  
   /**
    * <p>Close this servers Socket.  Once closed you must construct a new Server to open it again.</p>
    */
-  public abstract void close();
+  public void close() {
+    close(null);
+  }
+
+  /**
+   * <p>Close this servers Socket.  Once closed you must construct a new Server to open it again.</p>
+   * 
+   * @param error The error that resulted in us closing this server, or {@code null} if closing normally
+   */
+  public abstract void close(Throwable error);
   
   /**
    * <p>This is used by the {@link SocketExecuter} to know how to handle this Server 
@@ -67,10 +75,14 @@ public abstract class Server implements Closeable {
   /**
    * <p>Get the current ServerCloser callback assigned to this Server.</p>
    * 
-   * @return the currently set Closer.
+   * @param t Error that initiated the close, or {@code null} if closed normally
    */
-  protected void callClosers() {
-    this.closer.call().onClose(this);
+  protected void callClosers(Throwable t) {
+    if (t == null) {
+      this.closer.call().onClose(this);
+    } else {
+      this.closer.call().onCloseWithError(this, t);
+    }
   }
 
   /**
@@ -154,16 +166,28 @@ public abstract class Server implements Closeable {
    * 
    * <p>This is called once a Close is detected on the Servers Socket. Since it can happen on any thread as well
    * you might get new clients for this server shortly after it closes.</p>
-   * 
-   *
    */
   public interface ServerCloseListener {
     /**
-     * Once a close is detected for this {@link Server} this is called..
+     * Invoked once the provided server has been detected to be in a closed state.
      * 
      * @param server The {@link Server} that has been closed.
      */
     public void onClose(Server server);
-  }
 
+    /**
+     * Invoked once the provided server has been closed due to an error.
+     * 
+     * <p>By default this will invoked {@link ExceptionUtils#handleException(Throwable)} and then 
+     * invoke {@link #clone()}.  If you override this you must also invoke {@link #close()} if you 
+     * want that logic shared / reused during an error condition.</p>
+     * 
+     * @param server The {@link Server} that has been closed.
+     * @param error The exception which resulted in the client closing
+     */
+    public default void onCloseWithError(Server server, Throwable error) {
+      ExceptionUtils.handleException(error);
+      onClose(server);
+    }
+  }
 }

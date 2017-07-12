@@ -108,7 +108,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
       try {
         localNoThreadScheduler.tick(null);
       } catch(Exception e) {
-
+        ExceptionUtils.handleException(e);
       }
     }
     clients.clear();
@@ -142,8 +142,8 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
       } else {
         sk.interestOps(0);
       }
-    } catch(Exception e) {
-      e.printStackTrace();
+    } catch(Throwable t) {
+      client.close(t);
     }
   }
 
@@ -198,9 +198,8 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
                         tmpClient.setConnectionStatus(null);
                       }
                     } catch(IOException e) {
-                      IOUtils.closeQuietly(tmpClient);
+                      tmpClient.close(e);
                       tmpClient.setConnectionStatus(e);
-                      ExceptionUtils.handleException(e);
                     }
                   } else {
                     if (key.isReadable()) {

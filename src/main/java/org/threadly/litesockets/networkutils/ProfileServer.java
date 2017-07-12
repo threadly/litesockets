@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.threadly.concurrent.SubmitterScheduler;
 import org.threadly.litesockets.Client;
-import org.threadly.litesockets.Client.CloseListener;
+import org.threadly.litesockets.Client.ClientCloseListener;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server.ClientAcceptor;
 import org.threadly.litesockets.SocketExecuter;
@@ -19,7 +19,6 @@ import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.util.AbstractService;
 import org.threadly.util.ExceptionUtils;
 import org.threadly.util.debug.Profiler;
-
 
 /**
  * <p>The ProfileServer Uses Threadly's {@link Profiler} tying it to a listen socket to make it easy
@@ -42,7 +41,7 @@ import org.threadly.util.debug.Profiler;
  * memory.
  *
  */
-public class ProfileServer extends AbstractService implements ClientAcceptor, Reader, CloseListener{
+public class ProfileServer extends AbstractService implements ClientAcceptor, Reader, ClientCloseListener{
   public static final int DISCONNECT_DELAY = 500;
   private static final Charset DEFAULT_CHARSET = Charset.forName("US-ASCII");
   protected static final ByteBuffer DUMP_EXCEPTION = ByteBuffer.wrap("Got Exception doing Dump!\n\n".getBytes(DEFAULT_CHARSET)).asReadOnlyBuffer();
@@ -59,6 +58,7 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
   protected static final String RESET_PROFILE = "reset";
   protected static final String DUMP_PROFILE = "dump";
   protected static final ByteBuffer HELP;
+  
   static {
     final StringBuilder sb = new StringBuilder(150);
     sb.append("HELP MENU:\n");
@@ -71,12 +71,11 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
 
   private final SubmitterScheduler scheduler;
   private final SocketExecuter socketEx;
-  private final ConcurrentHashMap<Client, ReuseableMergedByteBuffers> clients = new ConcurrentHashMap<Client, ReuseableMergedByteBuffers>();
+  private final ConcurrentHashMap<Client, ReuseableMergedByteBuffers> clients = new ConcurrentHashMap<>();
   private final Profiler profiler;
   private final String host;
   private final int port;
   private TCPServer server;
-  
   
   /**
    * Constructs a ProileServer.
@@ -97,6 +96,11 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
   
   @Override
   public void onClose(final Client client) {
+    clients.remove(client);
+  }
+
+  @Override
+  public void onCloseWithError(Client client, Throwable error) {
     clients.remove(client);
   }
 
@@ -144,14 +148,10 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
 
   @Override
   public void accept(final Client client){
-    try {
-      clients.put(client, new ReuseableMergedByteBuffers());
-      client.setReader(this);
-      client.addCloseListener(this);
-      //socketEx.addClient(client);
-    } catch (Exception e) {
-      ExceptionUtils.handleException(e);
-    }
+    clients.put(client, new ReuseableMergedByteBuffers());
+    client.setReader(this);
+    client.addCloseListener(this);
+    //socketEx.addClient(client);
   }
   
   private void sendHelp(final Client client) {
@@ -165,7 +165,6 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
   
   private void dumpProfile(final Client client) {
     scheduler.execute(new Runnable() {
-
       @Override
       public void run() {
         final ByteArrayOutputStream baos = new ByteArrayOutputStream(0);
@@ -199,7 +198,6 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
-
   }
 
   @Override

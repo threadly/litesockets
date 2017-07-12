@@ -27,7 +27,7 @@ import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
-import org.threadly.litesockets.Client.CloseListener;
+import org.threadly.litesockets.Client.ClientCloseListener;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.buffers.MergedByteBuffers;
 import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
@@ -124,7 +124,7 @@ public class TCPTests {
       assertFalse(client.clientOptions().setSocketRecvBuffer(1));
     }
     final SettableListenableFuture<Boolean> slf = new SettableListenableFuture<Boolean>(); 
-    client.addCloseListener(new CloseListener() {
+    client.addCloseListener(new ClientCloseListener() {
       @Override
       public void onClose(Client client) {
         slf.setResult(true);

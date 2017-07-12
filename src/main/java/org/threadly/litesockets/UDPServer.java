@@ -37,10 +37,10 @@ public class UDPServer extends Server {
    */
   public static enum UDPFilterMode {WhiteList, BlackList};
 
-  private final ConcurrentHashMap<InetSocketAddress, UDPClient> clients = new ConcurrentHashMap<InetSocketAddress, UDPClient>();
-  private final ConcurrentLinkedQueue<Pair<InetSocketAddress, ByteBuffer>> writeQueue = new ConcurrentLinkedQueue<Pair<InetSocketAddress, ByteBuffer>>();
-  private final ConcurrentLinkedQueue<SettableListenableFuture<Long>> writeFutures = new ConcurrentLinkedQueue<SettableListenableFuture<Long>>();
-  private final ConcurrentHashMap<InetAddress, Integer> filter = new ConcurrentHashMap<InetAddress, Integer>();
+  private final ConcurrentHashMap<InetSocketAddress, UDPClient> clients = new ConcurrentHashMap<>();
+  private final ConcurrentLinkedQueue<Pair<InetSocketAddress, ByteBuffer>> writeQueue = new ConcurrentLinkedQueue<>();
+  private final ConcurrentLinkedQueue<SettableListenableFuture<Long>> writeFutures = new ConcurrentLinkedQueue<>();
+  private final ConcurrentHashMap<InetAddress, Integer> filter = new ConcurrentHashMap<>();
   private final DatagramChannel channel;
   private volatile UDPFilterMode filterMode = UDPFilterMode.BlackList;
   private volatile UDPReader setUDPReader = null;
@@ -150,10 +150,10 @@ public class UDPServer extends Server {
   }
 
   @Override
-  public void close() {
+  public void close(Throwable error) {
     if(setClosed()) {
       IOUtils.closeQuietly(channel);
-      this.callClosers();
+      this.callClosers(error);
     }
   }
 
