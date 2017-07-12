@@ -57,7 +57,7 @@ public abstract class Server implements Closeable {
    * 
    * @param error The error that resulted in us closing this server, or {@code null} if closing normally
    */
-  protected abstract void close(Throwable error);
+  public abstract void close(Throwable error);
   
   /**
    * <p>This is used by the {@link SocketExecuter} to know how to handle this Server 
@@ -177,6 +177,10 @@ public abstract class Server implements Closeable {
 
     /**
      * Invoked once the provided server has been closed due to an error.
+     * 
+     * <p>By default this will invoked {@link ExceptionUtils#handleException(Throwable)} and then 
+     * invoke {@link #clone()}.  If you override this you must also invoke {@link #close()} if you 
+     * want that logic shared / reused during an error condition.</p>
      * 
      * @param server The {@link Server} that has been closed.
      * @param error The exception which resulted in the client closing

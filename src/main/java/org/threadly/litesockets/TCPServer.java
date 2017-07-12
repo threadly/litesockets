@@ -55,7 +55,7 @@ public class TCPServer extends Server {
   }
 
   @Override
-  protected void close(Throwable error) {
+  public void close(Throwable error) {
     if(this.setClosed()) {
       getSocketExecuter().stopListening(this);
       IOUtils.closeQuietly(socket);

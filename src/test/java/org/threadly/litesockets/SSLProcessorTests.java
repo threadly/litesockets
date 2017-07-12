@@ -289,7 +289,8 @@ public class SSLProcessorTests {
     }
 
     @Override
-    protected void close(Throwable error) {
+    public void close(Throwable error) {
+      
     }
 
     @Override

@@ -150,7 +150,7 @@ public class UDPServer extends Server {
   }
 
   @Override
-  protected void close(Throwable error) {
+  public void close(Throwable error) {
     if(setClosed()) {
       IOUtils.closeQuietly(channel);
       this.callClosers(error);

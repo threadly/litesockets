@@ -222,8 +222,7 @@ public abstract class Client implements Closeable {
    * 
    * @param error The error that resulted in us closing this client, or {@code null} if closing normally
    */
-  protected abstract void close(Throwable error);
-
+  public abstract void close(Throwable error);
 
   /*Implemented functions*/
   
@@ -493,8 +492,11 @@ public abstract class Client implements Closeable {
 
     /**
      * This notifies the callback about the client being closed due to an exception.  Typically 
-     * these might represent a {@link java.util.io.IOException} from the connection being closed 
-     * during a read. 
+     * these might represent a {@code IOException} from the connection being closed during a read. 
+     * 
+     * <p>By default this will invoked {@link ExceptionUtils#handleException(Throwable)} and then 
+     * invoke {@link #clone()}.  If you override this you must also invoke {@link #close()} if you 
+     * want that logic shared / reused during an error condition.</p>
      * 
      * @param client This is the client the close is being called for.
      * @param error The exception which resulted in the client closing
