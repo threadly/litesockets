@@ -15,7 +15,7 @@ import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.Clock;
-
+import org.threadly.util.ExceptionUtils;
 
 /**
  * <p>This is the base Client object for client communication.  Anything that reads or writes data
@@ -32,10 +32,8 @@ import org.threadly.util.Clock;
  * in the executer, but it will not write to the socket until added to the executer.
  * 
  * @author lwahlmeier
- *
  */
 public abstract class Client implements Closeable {
-
   protected final SubmitterExecutor clientExecutor;
   protected final ReuseableMergedByteBuffers readBuffers = new ReuseableMergedByteBuffers(false);
   protected final SocketExecuterCommonBase se;
@@ -44,7 +42,7 @@ public abstract class Client implements Closeable {
   protected final Object writerLock = new Object();
   protected final ClientByteStats stats = new ClientByteStats();
   protected final AtomicBoolean closed = new AtomicBoolean(false);
-  protected final ConcurrentLinkedQueue<CloseListener> closerListener = new ConcurrentLinkedQueue<>();
+  protected final ConcurrentLinkedQueue<ClientCloseListener> closerListener = new ConcurrentLinkedQueue<>();
   protected volatile Runnable readerCaller = null;
   protected volatile boolean useNativeBuffers = false;
   protected volatile boolean keepReadBuffer = true;
@@ -211,10 +209,20 @@ public abstract class Client implements Closeable {
   public abstract ListenableFuture<?> lastWriteFuture();
 
   /**
-   * <p>Closes this client.  Reads can still occur after this it called.  {@link CloseListener#onClose(Client)} will still be
+   * <p>Closes this client.  Reads can still occur after this it called.  {@link ClientCloseListener#onClose(Client)} will still be
    * called (if set) once all reads are done.</p>
    */
-  public abstract void close();
+  public void close() {
+    close(null);
+  }
+  
+  /**
+   * <p>Closes this client.  Reads can still occur after this it called.  {@link ClientCloseListener#onClose(Client)} will still be
+   * called (if set) once all reads are done.</p>
+   * 
+   * @param error The error that resulted in us closing this client, or {@code null} if closing normally
+   */
+  protected abstract void close(Throwable error);
 
 
   /*Implemented functions*/
@@ -254,10 +262,14 @@ public abstract class Client implements Closeable {
 
   }
 
-  protected void callClosers() {
+  protected void callClosers(Throwable error) {
     this.getClientsThreadExecutor().execute(()->{
       while(!closerListener.isEmpty()) {
-        closerListener.poll().onClose(this);
+        if (error == null) {
+          closerListener.poll().onClose(this);
+        } else {
+          closerListener.poll().onCloseWithError(this, error);
+        }
       }
     });
   }
@@ -331,18 +343,18 @@ public abstract class Client implements Closeable {
   }
 
   /**
-   * <p>This adds a {@link CloseListener} for this client.  Once set the client will call .onClose 
+   * <p>This adds a {@link ClientCloseListener} for this client.  Once set the client will call .onClose 
    * on it once it a socket close is detected.</p> 
    * 
-   * @param closer sets this clients {@link CloseListener} callback.
+   * @param closer sets this clients {@link ClientCloseListener} callback.
    */
-  public void addCloseListener(final CloseListener closer) {
+  public void addCloseListener(final ClientCloseListener closer) {
     if(closed.get()) {
       getClientsThreadExecutor().execute(()->closer.onClose(Client.this));      
     } else {
       closerListener.add(closer);
       if(closed.get() && !closerListener.isEmpty()) {
-        this.callClosers();
+        this.callClosers(null);
       }
     }
   }
@@ -463,17 +475,34 @@ public abstract class Client implements Closeable {
    * Used to notify when a Client is closed.
    * 
    * <p>It is also single threaded on the same thread key as the reads.
-   * No action must be taken when this is called but it is usually advised to do some kind of clean up or something
-   * as this client object will no longer be used for anything.</p>
+   * No action must be taken when this is called but it is usually advised to do some kind of clean 
+   * up or something as this client object will no longer be used for anything.</p>
    * 
+   * <p>If this closes with an error / exception {@link #onCloseWithError(Client, Throwable)} will 
+   * be invoked instead of {@link #onClose(Client)}.  By default however this implementation will 
+   * just delegate to {@link ExceptionUtils#handleException(Throwable)} and then invoke the forced 
+   * to implement {@link #onClose(Client)}.</p>
    */
-  public interface CloseListener {
+  public interface ClientCloseListener {
     /**
      * This notifies the callback about the client being closed.
      * 
      * @param client This is the client the close is being called for.
      */
     public void onClose(Client client);
+
+    /**
+     * This notifies the callback about the client being closed due to an exception.  Typically 
+     * these might represent a {@link java.util.io.IOException} from the connection being closed 
+     * during a read. 
+     * 
+     * @param client This is the client the close is being called for.
+     * @param error The exception which resulted in the client closing
+     */
+    public default void onCloseWithError(Client client, Throwable error) {
+      ExceptionUtils.handleException(error);
+      onClose(client);
+    }
   }
 
   /**
@@ -623,13 +652,7 @@ public abstract class Client implements Closeable {
     public int getUdpFrameSize();
   }
 
-  /**
-   * 
-   * @author lwahlmeier
-   *
-   */
   protected class BaseClientOptions implements ClientOptions {
-
     @Override
     public boolean setNativeBuffers(boolean enabled) {
       useNativeBuffers = enabled;
@@ -716,7 +739,5 @@ public abstract class Client implements Closeable {
     public int getUdpFrameSize() {
       return -1;
     }
-
   }
 }
-

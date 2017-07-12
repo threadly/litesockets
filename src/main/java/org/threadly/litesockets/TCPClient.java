@@ -142,7 +142,7 @@ public class TCPClient extends Client {
   }
 
   @Override
-  public void close() {
+  protected void close(Throwable error) {
     if(setClose()) {
       se.setClientOperations(this);
       this.getClientsThreadExecutor().execute(new Runnable() {
@@ -159,7 +159,7 @@ public class TCPClient extends Client {
             writeBuffers.discard(writeBuffers.remaining());
           }
         }});
-      this.callClosers();
+      this.callClosers(error);
     }
   }
 
