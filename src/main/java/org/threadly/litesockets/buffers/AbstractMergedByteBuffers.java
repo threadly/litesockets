@@ -1,5 +1,7 @@
 package org.threadly.litesockets.buffers;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
@@ -16,7 +18,6 @@ import org.threadly.util.ArgumentVerifier;
  * NOTE: This is not threadSafe.  It should only be accessed by 1 thread at a time.
  * 
  */
-@SuppressWarnings("deprecation")
 public abstract class AbstractMergedByteBuffers implements MergedByteBuffers {
 
   protected final boolean markReadOnly;
@@ -29,18 +30,13 @@ public abstract class AbstractMergedByteBuffers implements MergedByteBuffers {
     this.markReadOnly = readOnly;
   }
   
-  public AbstractMergedByteBuffers(boolean readOnly, ByteBuffer ...bbs) {
-    this.markReadOnly = readOnly;
-    add(bbs);
-  }
-  
   protected abstract void doAppend(final ByteBuffer bb);
   protected abstract void addToFront(final ByteBuffer bb);
   protected abstract byte get(int pos);
   public abstract AbstractMergedByteBuffers duplicate();
   public abstract AbstractMergedByteBuffers duplicateAndClean();
   public abstract byte get();
-  public abstract void get(byte[] destBytes, int start, int length);
+  public abstract int get(byte[] destBytes, int start, int length);
   public abstract int nextBufferSize();
   public abstract ByteBuffer popBuffer(); 
   public abstract int remaining();
@@ -81,9 +77,9 @@ public abstract class AbstractMergedByteBuffers implements MergedByteBuffers {
   }
   
   @Override
-  public void get(final byte[] destBytes) {
+  public int get(final byte[] destBytes) {
     ArgumentVerifier.assertNotNull(destBytes, "byte[]");
-    get(destBytes, 0, destBytes.length);
+    return get(destBytes, 0, destBytes.length);
   }
   
   @Override
@@ -186,8 +182,6 @@ public abstract class AbstractMergedByteBuffers implements MergedByteBuffers {
 
     byte[] prevMatched = new byte[pattern.length];
     while(total-bufPos >= pattern.length-patPos) {
-      
-
       prevMatched[patPos] = abb.get(bufPos+patPos);
       if(pattern[patPos] == prevMatched[patPos]) {
         if(patPos == pattern.length-1) {
@@ -202,24 +196,33 @@ public abstract class AbstractMergedByteBuffers implements MergedByteBuffers {
     return -1;
   }
   
+  public InputStream asInputStream() {
+    return new InputStream() {
 
-  @Override
-  public int nextPopSize() {
-    return this.nextBufferSize();
-  }
-
-  @Override
-  public ByteBuffer pop() {
-    return this.popBuffer();
-  }
-
-  @Override
-  public ByteBuffer pull(int size) {
-    return this.pullBuffer(size);
-  }
-  
-  @Override
-  public MergedByteBuffers copy() {
-    return this.duplicate();
+      @Override
+      public int available() {
+        return remaining();
+      }
+      
+      @Override
+      public int read(byte[] ba, int offset, int len) throws IOException {
+        if(hasRemaining()) {
+          int left = Math.min(remaining(), len);
+          AbstractMergedByteBuffers.this.get(ba, offset, left);
+          return left;
+        } else {
+          return -1;
+        }
+      }
+      
+      @Override
+      public int read() throws IOException {
+        if(hasRemaining()) {
+          return (int)get();
+        } else {
+          return -1;
+        }
+      }
+    };
   }
 }

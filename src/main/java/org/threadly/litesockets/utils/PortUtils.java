@@ -1,6 +1,5 @@
 package org.threadly.litesockets.utils;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -51,13 +50,5 @@ public class PortUtils {
       //We Dont Care
     }
     throw new RuntimeException("Could not find a port!!");
-  }
-  
-  public static void closeQuietly(Closeable closer) {
-    try {
-      closer.close();
-    } catch(Throwable t) {
-      
-    }
   }
 }

@@ -11,6 +11,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
+import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.util.Pair;
 
 
@@ -36,17 +37,17 @@ public class UDPServer extends Server {
    */
   public static enum UDPFilterMode {WhiteList, BlackList};
 
-  private final ConcurrentHashMap<InetSocketAddress, UDPClient> clients = new ConcurrentHashMap<InetSocketAddress, UDPClient>();
-  private final ConcurrentLinkedQueue<Pair<InetSocketAddress, ByteBuffer>> writeQueue = new ConcurrentLinkedQueue<Pair<InetSocketAddress, ByteBuffer>>();
-  private final ConcurrentLinkedQueue<SettableListenableFuture<Long>> writeFutures = new ConcurrentLinkedQueue<SettableListenableFuture<Long>>();
-  private final ConcurrentHashMap<InetAddress, Integer> filter = new ConcurrentHashMap<InetAddress, Integer>();
+  private final ConcurrentHashMap<InetSocketAddress, UDPClient> clients = new ConcurrentHashMap<>();
+  private final ConcurrentLinkedQueue<Pair<InetSocketAddress, ByteBuffer>> writeQueue = new ConcurrentLinkedQueue<>();
+  private final ConcurrentLinkedQueue<SettableListenableFuture<Long>> writeFutures = new ConcurrentLinkedQueue<>();
+  private final ConcurrentHashMap<InetAddress, Integer> filter = new ConcurrentHashMap<>();
   private final DatagramChannel channel;
   private volatile UDPFilterMode filterMode = UDPFilterMode.BlackList;
   private volatile UDPReader setUDPReader = null;
   private volatile int frameSize = DEFAULT_FRAME_SIZE;
   private volatile ClientAcceptor clientAcceptor;
 
-  protected UDPServer(final SocketExecuter sei, final String host, final int port) throws IOException {
+  protected UDPServer(final SocketExecuterCommonBase sei, final String host, final int port) throws IOException {
     super(sei);
     channel = DatagramChannel.open();
     channel.socket().bind(new InetSocketAddress(host, port));
@@ -149,16 +150,10 @@ public class UDPServer extends Server {
   }
 
   @Override
-  public void close() {
+  public void close(Throwable error) {
     if(setClosed()) {
-      try {
-        getSocketExecuter().stopListening(this);
-        channel.close();
-      } catch (IOException e) {
-        //Dont Care
-      } finally {
-        this.callClosers();
-      }
+      IOUtils.closeQuietly(channel);
+      this.callClosers(error);
     }
   }
 
@@ -182,6 +177,10 @@ public class UDPServer extends Server {
   protected boolean needsWrite() {
     return !writeQueue.isEmpty();
   }
+  
+  protected SocketExecuterCommonBase getSocketExecuterCommonBase() {
+    return sei;
+  }
 
   /**
    * Allows you to write to the UDPServer directly without a UDPClient.
@@ -191,7 +190,7 @@ public class UDPServer extends Server {
    * @param remoteAddress the remote host/port to write too.
    * @return a {@link ListenableFuture} that will be completed once the ByteBuffer for this write is put on the socket.
    */
-  public ListenableFuture<?> write(final ByteBuffer bb, final InetSocketAddress remoteAddress) {
+  public ListenableFuture<Long> write(final ByteBuffer bb, final InetSocketAddress remoteAddress) {
     SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>();
     this.writeFutures.add(slf);
     writeQueue.add(new Pair<InetSocketAddress, ByteBuffer>(remoteAddress, bb));

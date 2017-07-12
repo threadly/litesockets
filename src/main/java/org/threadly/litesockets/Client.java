@@ -1,20 +1,21 @@
 package org.threadly.litesockets;
 
 import java.io.Closeable;
-import java.net.Socket;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.threadly.concurrent.event.ListenerHelper;
+import org.threadly.concurrent.SubmitterExecutor;
 import org.threadly.concurrent.future.ListenableFuture;
+import org.threadly.litesockets.buffers.MergedByteBuffers;
 import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
+import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.Clock;
-
+import org.threadly.util.ExceptionUtils;
 
 /**
  * <p>This is the base Client object for client communication.  Anything that reads or writes data
@@ -31,54 +32,32 @@ import org.threadly.util.Clock;
  * in the executer, but it will not write to the socket until added to the executer.
  * 
  * @author lwahlmeier
- *
  */
 public abstract class Client implements Closeable {
-
-  /**
-   * SocketOptions that can be set set on Clients.
-   * 
-   * @author lwahlmeier
-   * @deprecated this is deprecated in favor of {@link ClientOptions}
-   */
-  @Deprecated
-  public static enum SocketOption {
-    TCP_NODELAY, SEND_BUFFER_SIZE, RECV_BUFFER_SIZE, UDP_FRAME_SIZE, USE_NATIVE_BUFFERS
-  }
-
-  /**
-   * Default max buffer size (64k).  Read and write buffers are independent of each other.
-   */
-  protected static final int DEFAULT_MAX_BUFFER_SIZE = 65536;
-  /**
-   * When we hit the minimum read buffer size we will create a new one of this size (64k).
-   */
-  protected static final int NEW_READ_BUFFER_SIZE = 65536;
-  /**
-   * Minimum allowed readBuffer (4k).  If the readBuffer is lower then this we will create a new one.
-   */
-  protected static final int MIN_READ_BUFFER_SIZE = 4096;
-
-  protected static final ByteBuffer EMPTY_BYTEBUFFER = ByteBuffer.allocate(0);
-
+  protected final SubmitterExecutor clientExecutor;
   protected final ReuseableMergedByteBuffers readBuffers = new ReuseableMergedByteBuffers(false);
-  protected final SocketExecuter se;
+  protected final SocketExecuterCommonBase se;
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
   protected final Object readerLock = new Object();
   protected final Object writerLock = new Object();
   protected final ClientByteStats stats = new ClientByteStats();
   protected final AtomicBoolean closed = new AtomicBoolean(false);
-  protected final ListenerHelper<Reader> readerListener = new ListenerHelper<Reader>(Reader.class);
-  protected final ListenerHelper<CloseListener> closerListener = 
-      new ListenerHelper<CloseListener>(CloseListener.class);
+  protected final ConcurrentLinkedQueue<ClientCloseListener> closerListener = new ConcurrentLinkedQueue<>();
+  protected volatile Runnable readerCaller = null;
   protected volatile boolean useNativeBuffers = false;
   protected volatile boolean keepReadBuffer = true;
-  protected volatile int maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;
-  protected volatile int newReadBufferSize = NEW_READ_BUFFER_SIZE;
-  private ByteBuffer readByteBuffer = EMPTY_BYTEBUFFER;
+  protected volatile int maxBufferSize = IOUtils.DEFAULT_CLIENT_MAX_BUFFER_SIZE;
+  protected volatile int newReadBufferSize = IOUtils.DEFAULT_CLIENT_READ_BUFFER_SIZE;
+  private ByteBuffer readByteBuffer = IOUtils.EMPTY_BYTEBUFFER;
 
-  public Client(final SocketExecuter se) {
+  public Client(final SocketExecuterCommonBase se) {
     this.se = se;
+    this.clientExecutor = se.getExecutorFor(this);
+  }
+  
+  protected Client(final SocketExecuterCommonBase se, final SubmitterExecutor clientExecutor) {
+    this.se = se;
+    this.clientExecutor = clientExecutor;
   }
 
   /**
@@ -111,20 +90,24 @@ public abstract class Client implements Closeable {
   protected abstract void reduceWrite(int size);
 
   /**
-   * <p>Gets the raw Socket object for this Client. If the client does not have a Socket
-   * it will return null (ie {@link UDPClient}). This is basically getChannel().socket()</p>
-   * 
-   * @return the Socket for this client.
-   */
-  protected abstract Socket getSocket();
-
-  /**
    * <p>Returns the {@link SocketChannel} for this client.  If the client does not have a {@link SocketChannel} 
    * it will return null (ie {@link UDPClient}).</p>
    * 
    * @return the {@link SocketChannel}  for this client.
    */
   protected abstract SocketChannel getChannel();
+  
+  /**
+   * This is called when the SocketExecuter detects the socket can read.  This must be done on the clients ReadThread, 
+   * and not the thread calling this. 
+   */
+  protected abstract void doSocketRead(boolean doLocal);
+  
+  /**
+   * This is called when the SocketExecuter detects the socket can write.  This must be done on the clients ReadThread, 
+   * and not the thread calling this. 
+   */
+  protected abstract void doSocketWrite(boolean doLocal);
 
   /**
    * 
@@ -148,24 +131,11 @@ public abstract class Client implements Closeable {
   public abstract boolean canWrite();
 
   /**
-   * <p>This tells us if the client has timed out before it has been connected to the socket.  
-   * If the client has connected fully this will return false from that point on (even on a closed connection).</p>
+   * This allows you to set/get client options for this client connection.  Not all options can
+   * be set for every client.
    * 
-   * @return false if the client has been connected, true if it has not connected and the timeout limit has been reached.
+   * @return a {@link ClientOptions} object to set/get options for this client.
    */
-  public abstract boolean hasConnectionTimedOut();
-
-  /**
-   * <p>This lets you set lower level socket options for this client.  Mainly Buffer sizes and no delay options.</p>
-   * 
-   * @param so The {@link SocketOption} to set for the client.
-   * @param value The value for the socket option (1 for on, 0 for off).
-   * @return True if the option was set, false if not.
-   * @deprecated use the {@link #clientOptions()} call.
-   */
-  @Deprecated
-  public abstract boolean setSocketOption(SocketOption so, int value);
-
   public abstract ClientOptions clientOptions();
 
   /**
@@ -184,6 +154,14 @@ public abstract class Client implements Closeable {
    * @param timeout the time in milliseconds to wait for the client to connect.
    */
   public abstract void setConnectionTimeout(int timeout);
+  
+  /**
+   * <p>This tells us if the client has timed out before it has been connected to the socket.  
+   * If the client has connected fully this will return false from that point on (even on a closed connection).</p>
+   * 
+   * @return false if the client has been connected, true if it has not connected and the timeout limit has been reached.
+   */
+  public abstract boolean hasConnectionTimedOut();
 
   /**
    * <p>Used to get this clients connection timeout information.</p>
@@ -217,14 +195,37 @@ public abstract class Client implements Closeable {
    * @return A {@link ListenableFuture} that will be completed once the data has been fully written to the socket.
    */
   public abstract ListenableFuture<?> write(ByteBuffer bb);
+  
+  /**
+   * <p>This is called to write data to the clients socket.  Its important to note that there is no back
+   * pressure when adding writes so care should be taken to now allow the clients {@link #getWriteBufferSize()} to get
+   * to big.</p>
+   * 
+   * @param mbb The {@link MergedByteBuffers} to write onto the clients socket. 
+   * @return A {@link ListenableFuture} that will be completed once the data has been fully written to the socket.
+   */
+  public abstract ListenableFuture<?> write(MergedByteBuffers mbb);
+  
+  public abstract ListenableFuture<?> lastWriteFuture();
 
   /**
-   * <p>Closes this client.  Reads can still occur after this it called.  {@link CloseListener#onClose(Client)} will still be
+   * <p>Closes this client.  Reads can still occur after this it called.  {@link ClientCloseListener#onClose(Client)} will still be
    * called (if set) once all reads are done.</p>
    */
-  public abstract void close();
+  public void close() {
+    close(null);
+  }
+  
+  /**
+   * <p>Closes this client.  Reads can still occur after this it called.  {@link ClientCloseListener#onClose(Client)} will still be
+   * called (if set) once all reads are done.</p>
+   * 
+   * @param error The error that resulted in us closing this client, or {@code null} if closing normally
+   */
+  public abstract void close(Throwable error);
 
-
+  /*Implemented functions*/
+  
   protected void addReadStats(final int size) {
     stats.addRead(size);
   }
@@ -242,7 +243,7 @@ public abstract class Client implements Closeable {
    */
   protected ByteBuffer provideReadByteBuffer() {
     if(keepReadBuffer) {
-      if(readByteBuffer.remaining() < MIN_READ_BUFFER_SIZE) {
+      if(readByteBuffer.remaining() < IOUtils.DEFAULT_MIN_CLIENT_READ_BUFFER_SIZE) {
         if(useNativeBuffers) {
           readByteBuffer = ByteBuffer.allocateDirect(newReadBufferSize);
         } else {
@@ -260,17 +261,23 @@ public abstract class Client implements Closeable {
 
   }
 
-  /**
-   * <p>This is used to get the currently set {@link Closer} for this client.</p>
-   * 
-   * @return the current {@link Closer} interface for this client.
-   */
-  protected void callClosers() {
-    this.closerListener.call().onClose(this);
+  protected void callClosers(Throwable error) {
+    this.getClientsThreadExecutor().execute(()->{
+      while(!closerListener.isEmpty()) {
+        if (error == null) {
+          closerListener.poll().onClose(this);
+        } else {
+          closerListener.poll().onCloseWithError(this, error);
+        }
+      }
+    });
   }
-
+  
   protected void callReader() {
-    this.readerListener.call().onRead(this);
+    Runnable readerCaller = this.readerCaller;
+    if (readerCaller != null) {
+      getClientsThreadExecutor().execute(readerCaller);
+    }
   }
 
   /**
@@ -284,13 +291,12 @@ public abstract class Client implements Closeable {
    */
   protected void addReadBuffer(final ByteBuffer bb) {
     addReadStats(bb.remaining());
+    se.addReadAmount(bb.remaining());
     int start;
     int end;
-    synchronized(readerLock) {
-      start = readBuffers.remaining();
-      readBuffers.add(bb);
-      end = readBuffers.remaining();
-    }
+    start = readBuffers.remaining();
+    readBuffers.add(bb);
+    end = readBuffers.remaining();
     if(end > 0 && start == 0){
       callReader();
     }
@@ -299,7 +305,6 @@ public abstract class Client implements Closeable {
   /**
    * Returns true if this client can have reads added to it or false if its read buffers are full.
    * 
-
    * @return true if more reads can be added, false if not.
    */
   public boolean canRead() {
@@ -316,24 +321,15 @@ public abstract class Client implements Closeable {
   }
 
   /**
-   * This is used to get the currently set max buffer size.
+   * <p> This returns this clients {@link SubmitterExecutor}.</p>
    * 
-   * @return the current MaxBuffer size allowed.  The read and write buffer use this independently.
-   */
-  public int getMaxBufferSize() {
-    return this.maxBufferSize;
-  }
-
-  /**
-   * <p> This returns this clients {@link Executor}.</p>
-   * 
-   * <p> Its worth noting that operations done on this {@link Executor} can/will block Read callbacks on the 
+   * <p> Its worth noting that operations done on this {@link SubmitterExecutor} can/will block Read callbacks on the 
    * client, but it does provide you the ability to execute things on the clients read thread.</p>
    * 
-   * @return The {@link Executor} for the client.
+   * @return The {@link SubmitterExecutor} for the client.
    */
-  public Executor getClientsThreadExecutor() {
-    return se.getExecutorFor(this);
+  public SubmitterExecutor getClientsThreadExecutor() {
+    return clientExecutor;
   }
 
   /**
@@ -346,60 +342,42 @@ public abstract class Client implements Closeable {
   }
 
   /**
-   * <p>This adds a {@link CloseListener} for this client.  Once set the client will call .onClose 
+   * <p>This adds a {@link ClientCloseListener} for this client.  Once set the client will call .onClose 
    * on it once it a socket close is detected.</p> 
    * 
-   * @param closer sets this clients {@link CloseListener} callback.
+   * @param closer sets this clients {@link ClientCloseListener} callback.
    */
-  public void addCloseListener(final CloseListener closer) {
+  public void addCloseListener(final ClientCloseListener closer) {
     if(closed.get()) {
-      getClientsThreadExecutor().execute(new Runnable() {
-        @Override
-        public void run() {
-          closer.onClose(Client.this);
-        }});      
+      getClientsThreadExecutor().execute(()->closer.onClose(Client.this));      
     } else {
-      closerListener.addListener(closer, this.getClientsThreadExecutor());
+      closerListener.add(closer);
+      if(closed.get() && !closerListener.isEmpty()) {
+        this.callClosers(null);
+      }
     }
   }
 
   /**
    * <p>This sets the Reader for the client.  Once set data received on the socket will be callback 
    * on this Reader to be processed.  If no reader is set before connecting the client read data will just
-   * queue up till we hit the {@link #getMaxBufferSize()} size, then will be flushed to the first Reader added.</p>
+   * queue up till we hit the the max buffer size</p>
    * 
    * @param reader the {@link Reader} callback to set for this client.
    */
   public void setReader(final Reader reader) {
     if(! closed.get()) {
-      readerListener.clearListeners();
-      if(reader != null) {
-        readerListener.addListener(reader, this.getClientsThreadExecutor());
+      if (reader == null) {
+        readerCaller = null;
+      } else {
         synchronized(readerLock) {
-          if(this.getReadBufferSize() > 0) {
-            readerListener.call().onRead(this);
+          readerCaller = () -> reader.onRead(this);
+          if (this.getReadBufferSize() > 0) {
+            callReader();
           }
         }
       }
     }
-  }
-
-  /**
-   * <p>This allows you to set/change the max buffer size for this client object.
-   * This is the in java memory buffer not the additional socket buffer the OS might setup.</p>
-   * 
-   * <p>In general this should be set to the max size you can deal with.  The lower this is the more often we
-   * will end up adding/removing the client from the selectors.  Only the read buffer really follows this, 
-   * writes will buffer up as much as you let it.  You need room in your heap for buffers for all clients.
-   * This buffer is not kept at full size, so clients will rarely use that much memory assuming the the protocol parsing 
-   * and network are keeping up with the data going in/out.</p>
-   * 
-   * @param size max buffer size in bytes.
-   * @deprecated use the {@link #clientOptions()} and set the {@link ClientOptions#setMaxClientReadBuffer(int size)} call.
-   */
-  @Deprecated
-  public void setMaxBufferSize(final int size) {
-    clientOptions().setMaxClientReadBuffer(size);
   }
 
   /**
@@ -409,14 +387,13 @@ public abstract class Client implements Closeable {
    * @return a {@link ReuseableMergedByteBuffers} of the current read data for this client.
    */
   public ReuseableMergedByteBuffers getRead() {
-    ReuseableMergedByteBuffers mbb = null;
     synchronized(readerLock) {
-      mbb = readBuffers.duplicateAndClean();
+      ReuseableMergedByteBuffers mbb = readBuffers.duplicateAndClean();
+      if(mbb.remaining() >= maxBufferSize) {
+        se.setClientOperations(this);
+      }
+      return mbb;
     }
-    if(mbb.remaining() >= maxBufferSize) {
-      se.setClientOperations(this);
-    }
-    return mbb;
   }
 
   /**
@@ -497,17 +474,37 @@ public abstract class Client implements Closeable {
    * Used to notify when a Client is closed.
    * 
    * <p>It is also single threaded on the same thread key as the reads.
-   * No action must be taken when this is called but it is usually advised to do some kind of clean up or something
-   * as this client object will no longer be used for anything.</p>
+   * No action must be taken when this is called but it is usually advised to do some kind of clean 
+   * up or something as this client object will no longer be used for anything.</p>
    * 
+   * <p>If this closes with an error / exception {@link #onCloseWithError(Client, Throwable)} will 
+   * be invoked instead of {@link #onClose(Client)}.  By default however this implementation will 
+   * just delegate to {@link ExceptionUtils#handleException(Throwable)} and then invoke the forced 
+   * to implement {@link #onClose(Client)}.</p>
    */
-  public interface CloseListener {
+  public interface ClientCloseListener {
     /**
      * This notifies the callback about the client being closed.
      * 
      * @param client This is the client the close is being called for.
      */
     public void onClose(Client client);
+
+    /**
+     * This notifies the callback about the client being closed due to an exception.  Typically 
+     * these might represent a {@code IOException} from the connection being closed during a read. 
+     * 
+     * <p>By default this will invoked {@link ExceptionUtils#handleException(Throwable)} and then 
+     * invoke {@link #clone()}.  If you override this you must also invoke {@link #close()} if you 
+     * want that logic shared / reused during an error condition.</p>
+     * 
+     * @param client This is the client the close is being called for.
+     * @param error The exception which resulted in the client closing
+     */
+    public default void onCloseWithError(Client client, Throwable error) {
+      ExceptionUtils.handleException(error);
+      onClose(client);
+    }
   }
 
   /**
@@ -657,13 +654,7 @@ public abstract class Client implements Closeable {
     public int getUdpFrameSize();
   }
 
-  /**
-   * 
-   * @author lwahlmeier
-   *
-   */
   protected class BaseClientOptions implements ClientOptions {
-
     @Override
     public boolean setNativeBuffers(boolean enabled) {
       useNativeBuffers = enabled;
@@ -679,7 +670,7 @@ public abstract class Client implements Closeable {
     public boolean setReducedReadAllocations(boolean enabled) {
       keepReadBuffer = enabled;
       if(!keepReadBuffer) {
-        readByteBuffer = EMPTY_BYTEBUFFER;
+        readByteBuffer = IOUtils.EMPTY_BYTEBUFFER;
       }
       return true;
     }
@@ -750,7 +741,5 @@ public abstract class Client implements Closeable {
     public int getUdpFrameSize() {
       return -1;
     }
-
   }
 }
-

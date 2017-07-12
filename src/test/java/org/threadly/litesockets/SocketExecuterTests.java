@@ -3,7 +3,9 @@ package org.threadly.litesockets;
 import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.concurrent.ExecutionException;
 
 import org.junit.After;
 import org.junit.Before;
@@ -19,7 +21,7 @@ import org.threadly.util.Clock;
 public class SocketExecuterTests {
   PriorityScheduler PS;
   int port;
-  ThreadedSocketExecuter SE;
+  SocketExecuter SE;
   
   @Before
   public void start() {
@@ -46,7 +48,7 @@ public class SocketExecuterTests {
   }
   
   @Test
-  public void manyClientsTest() throws IOException, InterruptedException {
+  public void manyClientsTest() throws IOException, InterruptedException, ExecutionException {
     final int clientCount = 50;
     TCPServer server = SE.createTCPServer("localhost", port);
     final FakeTCPServerClient serverFC = new FakeTCPServerClient();
@@ -82,14 +84,35 @@ public class SocketExecuterTests {
     new TestCondition(){
       @Override
       public boolean get() {
-        return serverFC.getNumberOfClients() == clientCount;
+        return clients.size() == clientCount && SE.getClientCount() == clientCount*2;
       }
     }.blockTillTrue(10000);
+    
     assertEquals(clientCount*2, SE.getClientCount());
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return SE.getServerCount() == clientCount+1;
+      }
+    }.blockTillTrue(10000);
+    
     assertEquals(clientCount+1, SE.getServerCount());
     synchronized(clients) {
       for(TCPClient c: clients) {
+        c.connect().get();
+      }
+    }
+    
+    synchronized(clients) {
+      System.out.println("connected:"+clients.size());
+      for(TCPClient c: clients) {
+        System.out.println("doing close for:"+c);
         c.close();
+      }
+    }
+    synchronized(clients) {
+      for(TCPClient c: clients) {
+        c.write(ByteBuffer.wrap(" ".getBytes()));
       }
     }
     new TestCondition(){
@@ -98,7 +121,7 @@ public class SocketExecuterTests {
         //System.out.println("SE Clients:"+SE.getClientCount()+":"+SE.readSelector.keys().size());
         return serverFC.getNumberOfClients() == 0;
       }
-    }.blockTillTrue(10000);    
+    }.blockTillTrue(10000, 50);    
   }
   
   @Test
@@ -108,14 +131,15 @@ public class SocketExecuterTests {
     server.setClientAcceptor(serverFC);
     server.addCloseListener(serverFC);
     server.start();
-    SE.acceptScheduler.equals(new Runnable() {
-      @Override
-      public void run() {
-        try {
-          SE.acceptSelector.close();
-        } catch (IOException e) {
-        }        
-      }});
+//    if(SE == ThreadedSocketExecuter)
+//    SE.acceptScheduler.equals(new Runnable() {
+//      @Override
+//      public void run() {
+//        try {
+//          SE.acceptSelector.close();
+//        } catch (IOException e) {
+//        }        
+//      }});
 
     
   }

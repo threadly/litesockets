@@ -1,9 +1,8 @@
 package org.threadly.litesockets.buffers;
 
-import java.nio.BufferUnderflowException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
-
 
 /**
  * This class is used to combine multiple ByteBuffers into 1 simplish to use interface.
@@ -23,9 +22,6 @@ public interface MergedByteBuffers {
   short UNSIGNED_BYTE_MASK = 0xff;
   int UNSIGNED_SHORT_MASK = 0xffff;
   long UNSIGNED_INT_MASK = 0xffffffffL;
-  
-  ByteBuffer EMPTY_BYTEBUFFER = ByteBuffer.allocate(0);
-
   
   /**
    * This method allows you to add ByteBuffers to the MergedByteBuffers.  
@@ -50,18 +46,6 @@ public interface MergedByteBuffers {
    * @param mbb - The MergedByteBuffers to put into this MergedByteBuffers
    */
   public void add(final MergedByteBuffers ...mbb);
-
-  /**
-   * Make a complete copy of this MergedByteBuffer.  Both references should function independently, but
-   * they are still using the same ByteBuffer backing arrays so any change to the actual byte[] in the 
-   * backing ByteBuffers will change in both.
-   * 
-   * @deprecated changed to {@link #duplicate()}
-   * 
-   * @return a new MergedByteBuffers object that duplicates this one, but works independently.
-   */
-  @Deprecated
-  public MergedByteBuffers copy();
   
   /**
    * Make a complete duplicate of this MergedByteBuffer.  Both references should function independently, but
@@ -203,10 +187,10 @@ public interface MergedByteBuffers {
    * Fills the passed {@code byte[]} completely with data from the MergedByteBuffer. 
    * 
    * @param destBytes fills the given byteArray with the next bytes from the MergedByteBuffer.
-   * 
-   * @throws BufferUnderflowException if the {@code byte[]} is larger then the {@link #remaining()} in the MergedByteBuffer.
+   *
+   * @return number of bytes copied into destBytes.
    */
-  public void get(final byte[] destBytes);
+  public int get(final byte[] destBytes);
   
   /**
    * Fills the passed {@code byte[]} completely with data from the MergedByteBuffer. 
@@ -215,20 +199,9 @@ public interface MergedByteBuffers {
    * @param start starting position to fill in the byte[].
    * @param length how much data to copy into the buffer.
    * 
-   * @throws BufferUnderflowException if the {@code byte[]} is larger then the {@link #remaining()} in the MergedByteBuffer.
+   * @return number of bytes copied into destBytes.
    */
-  public void get(final byte[] destBytes, int start, int length);
-
-
-  /**
-   * Get the size of the next full {@link ByteBuffer} in the queue.
-   * 
-   * @deprecated renamed to {@link #nextBufferSize()}
-   * 
-   * @return the size of the next {@link ByteBuffer} in the queue.
-   */
-  @Deprecated
-  public int nextPopSize();
+  public int get(final byte[] destBytes, int start, int length);
 
   /**
    * Get the size of the next full {@link ByteBuffer} in the queue.
@@ -236,19 +209,6 @@ public interface MergedByteBuffers {
    * @return the size of the next {@link ByteBuffer} in the queue.
    */
   public int nextBufferSize();
-  
-  /**
-   * Get the next Complete {@link ByteBuffer} in its entirety.  This byteBuffer could be 
-   * any size and it will just pull it off the queue and return it.
-   * 
-   * If {@link #remaining()} is 0 you will get an empty {@link ByteBuffer}.
-   * 
-   * @deprecated renamed to {@link #popBuffer()}
-   * 
-   * @return the next byteBuffer in the queue.
-   */
-  @Deprecated
-  public ByteBuffer pop();
 
   /**
    * Get the next Complete {@link ByteBuffer} in its entirety.  This byteBuffer could be 
@@ -264,17 +224,6 @@ public interface MergedByteBuffers {
    * 
    * @param size size of the {@link ByteBuffer} to pull out of the MergedByteBuffer.
    * 
-   * @deprecated renamed to {@link #pullBuffer(int)}
-   * 
-   * @return a {@link ByteBuffer} of %SIZE% bytes.
-   */
-  @Deprecated
-  public ByteBuffer pull(final int size);
-
-  /**
-   * 
-   * @param size size of the {@link ByteBuffer} to pull out of the MergedByteBuffer.
-   * 
    * @return a {@link ByteBuffer} of %SIZE% bytes.
    */
   public ByteBuffer pullBuffer(final int size);
@@ -285,6 +234,14 @@ public interface MergedByteBuffers {
    * @param size the number of bytes to discard.
    */
   public void discard(final int size);
+
+  /**
+   * Similar to {@link #discard(int)} except that the bytes removed from this will be from the end 
+   * of the buffer and discard towards the head.
+   * 
+   * @param size the number of bytes to discard.
+   */
+  public void discardFromEnd(final int size);
 
   /**
    * This will return the specified number of bytes as a String object.
@@ -315,4 +272,6 @@ public interface MergedByteBuffers {
    * @return true if ByteByffers can be added to this {@link MergedByteBuffers} or false if they can not be.
    */
   public boolean isAppendable(); 
+  
+  public InputStream asInputStream();
 }

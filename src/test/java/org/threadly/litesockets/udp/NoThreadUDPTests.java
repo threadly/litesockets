@@ -28,7 +28,8 @@ public class NoThreadUDPTests extends UDPTest {
   }
   
   @After
-  public void stop() {
+  public void stop() throws InterruptedException {
+    SE.stopListening(server);
     server.close();
     SE.stop();
     PS.shutdownNow();
@@ -36,5 +37,9 @@ public class NoThreadUDPTests extends UDPTest {
     System.out.println("Used Memory:"
         + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
   }
-
+  
+  
+  public void manyUDPConnects() throws IOException, InterruptedException {
+    super.manyUDPConnects();
+  }
 }

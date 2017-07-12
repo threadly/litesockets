@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.UDPClient;
 import org.threadly.litesockets.UDPServer;
-import org.threadly.litesockets.Client.CloseListener;
+import org.threadly.litesockets.Client.ClientCloseListener;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server;
 import org.threadly.litesockets.Server.ClientAcceptor;
@@ -18,7 +18,7 @@ import org.threadly.litesockets.buffers.MergedByteBuffers;
 import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.litesockets.SocketExecuter;
 
-public class FakeUDPServerClient implements CloseListener, Reader, ClientAcceptor, ServerCloseListener {
+public class FakeUDPServerClient implements ClientCloseListener, Reader, ClientAcceptor, ServerCloseListener {
   SocketExecuter SE;
   Set<UDPServer> servers = new HashSet<UDPServer>();
   ConcurrentHashMap<UDPClient, MergedByteBuffers> clients = new ConcurrentHashMap<UDPClient, MergedByteBuffers>();

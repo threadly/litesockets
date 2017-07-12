@@ -16,6 +16,7 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
@@ -102,10 +103,10 @@ public class SSLUtils {
     int certPos = certString.indexOf(PEM_CERT_START);
     CertificateFactory factory = CertificateFactory.getInstance("X.509");
     while(certPos > -1) {
-      String data = certString.substring(certPos + PEM_CERT_START.length(), certString.indexOf(PEM_CERT_END)).replace("\n", "").replace("\r", ""); 
-      X509Certificate x5c = (X509Certificate) factory.generateCertificate(new ByteArrayInputStream(Base64.decode(data)));
+      String data = certString.substring(certPos + PEM_CERT_START.length(), certString.indexOf(PEM_CERT_END, certPos)).replace("\n", "").replace("\r", "");
+      X509Certificate x5c = (X509Certificate) factory.generateCertificate(new ByteArrayInputStream(Base64.getDecoder().decode(data)));
       certs.add(x5c);
-      certPos = certString.indexOf(PEM_CERT_START, certs.size());
+      certPos = certString.indexOf(PEM_CERT_START, certPos+PEM_CERT_START.length());
     }
     return certs;
   }
@@ -118,7 +119,8 @@ public class SSLUtils {
       throw new InvalidKeySpecException("could not find key!");
     }
     
-    PKCS8EncodedKeySpec keyspec = new PKCS8EncodedKeySpec(Base64.decode(keyString.substring(keyPos, keyEnd).trim().replace("\n", "").replace("\r", "")));
+    PKCS8EncodedKeySpec keyspec = new PKCS8EncodedKeySpec(Base64.getDecoder()
+        .decode(keyString.substring(keyPos, keyEnd).trim().replace("\n", "").replace("\r", "")));
     return (RSAPrivateKey) KeyFactory.getInstance("RSA").generatePrivate(keyspec);
   }
 

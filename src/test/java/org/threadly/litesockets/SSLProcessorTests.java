@@ -1,4 +1,4 @@
-package org.threadly.litesockets.utils;
+package org.threadly.litesockets;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -6,7 +6,6 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.net.Socket;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
@@ -23,12 +22,10 @@ import org.junit.Before;
 import org.junit.Test;
 import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
-import org.threadly.litesockets.Client;
-import org.threadly.litesockets.NoThreadSocketExecuter;
-import org.threadly.litesockets.SocketExecuter;
-import org.threadly.litesockets.WireProtocol;
 import org.threadly.litesockets.buffers.MergedByteBuffers;
 import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
+import org.threadly.litesockets.utils.SSLProcessor;
+import org.threadly.litesockets.utils.SSLUtils;
 
 public class SSLProcessorTests {
   static final String STRING = "hello";
@@ -45,7 +42,7 @@ public class SSLProcessorTests {
     LARGE_STRING = sb.toString();
     LARGE_STRINGBB = ByteBuffer.wrap(LARGE_STRING.getBytes());
   }
-  SocketExecuter SE;
+  SocketExecuterCommonBase SE;
   TrustManager[] myTMs = new TrustManager [] {new SSLUtils.FullTrustManager() };
   KeyStore KS;
   KeyManagerFactory kmf;
@@ -132,7 +129,6 @@ public class SSLProcessorTests {
 
     MergedByteBuffers dmbb = sp2.decrypt(mbb);
     assertEquals(STRING, dmbb.getAsString(dmbb.remaining()));
-    
   }
 
   @Test
@@ -178,7 +174,6 @@ public class SSLProcessorTests {
     
   }
 
-
   @Test
   public void largeEncrypted() throws IOException {
     FakeClient fc = new FakeClient(SE);
@@ -219,16 +214,13 @@ public class SSLProcessorTests {
       dmbb.add(tmpmbb);
     }
     assertEquals(LARGE_STRING, dmbb.getAsString(dmbb.remaining()));
-    
   }
   
-  
   public static class FakeClient extends Client {
-    
     MergedByteBuffers writeBuffers = new ReuseableMergedByteBuffers(false);
     SSLProcessor sp;
 
-    public FakeClient(SocketExecuter se) {
+    public FakeClient(SocketExecuterCommonBase se) {
       super(se);
     }
     
@@ -248,44 +240,31 @@ public class SSLProcessorTests {
 
     @Override
     public boolean hasConnectionTimedOut() {
-      // TODO Auto-generated method stub
-      return false;
-    }
-
-    @Deprecated
-    @Override
-    public boolean setSocketOption(SocketOption so, int value) {
-      // TODO Auto-generated method stub
       return false;
     }
 
     @Override
     public ListenableFuture<Boolean> connect() {
-      // TODO Auto-generated method stub
       return null;
     }
 
     @Override
     protected void setConnectionStatus(Throwable t) {
-      // TODO Auto-generated method stub
       
     }
 
     @Override
     public void setConnectionTimeout(int timeout) {
-      // TODO Auto-generated method stub
       
     }
 
     @Override
     public int getTimeout() {
-      // TODO Auto-generated method stub
       return 0;
     }
 
     @Override
     public int getWriteBufferSize() {
-      // TODO Auto-generated method stub
       return 0;
     }
 
@@ -296,43 +275,31 @@ public class SSLProcessorTests {
 
     @Override
     protected void reduceWrite(int size) {
-      // TODO Auto-generated method stub
       
     }
 
     @Override
     protected SocketChannel getChannel() {
-      // TODO Auto-generated method stub
       return null;
     }
 
     @Override
     public WireProtocol getProtocol() {
-      // TODO Auto-generated method stub
       return null;
     }
 
     @Override
-    protected Socket getSocket() {
-      // TODO Auto-generated method stub
-      return null;
-    }
-
-    @Override
-    public void close() {
-      // TODO Auto-generated method stub
+    public void close(Throwable error) {
       
     }
 
     @Override
     public SocketAddress getRemoteSocketAddress() {
-      // TODO Auto-generated method stub
       return null;
     }
 
     @Override
     public SocketAddress getLocalSocketAddress() {
-      // TODO Auto-generated method stub
       return null;
     }
     
@@ -344,11 +311,28 @@ public class SSLProcessorTests {
 
     @Override
     public ClientOptions clientOptions() {
-      // TODO Auto-generated method stub
       return null;
     }
-    
+
+    @Override
+    protected void doSocketRead(boolean doLocal) {
+      
+    }
+
+    @Override
+    protected void doSocketWrite(boolean doLocal) {
+      
+    }
+
+    @Override
+    public ListenableFuture<?> lastWriteFuture() {
+      return null;
+    }
+
+    @Override
+    public ListenableFuture<?> write(MergedByteBuffers mbb) {
+      writeBuffers.add(sp.encrypt(mbb));
+      return FutureUtils.immediateResultFuture(true);
+    }
   }
-  
-  
 }

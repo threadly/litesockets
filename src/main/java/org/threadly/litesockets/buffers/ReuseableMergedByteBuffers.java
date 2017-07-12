@@ -4,6 +4,7 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 
+import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.util.ArgumentVerifier;
 
 /**
@@ -32,7 +33,8 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
   }
   
   public ReuseableMergedByteBuffers(boolean readOnly, ByteBuffer ...bbs) {
-    super(readOnly, bbs);
+    super(readOnly);
+    add(bbs);
   }
   
   @Override
@@ -94,14 +96,16 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
   }
 
   @Override
-  public void get(byte[] destBytes, int start, int length) {
+  public int get(byte[] destBytes, int start, int length) {
     ArgumentVerifier.assertNotNull(destBytes, "byte[]");
-    if (currentSize < length) {
-      throw new BufferUnderflowException();
+    if(currentSize == 0) {
+      return -1;
     }
-    doGet(destBytes);
-    consumedSize += destBytes.length;
-    currentSize -= destBytes.length;
+    int toCopy = Math.min(length, currentSize); 
+    doGet(destBytes, start, toCopy);
+    consumedSize += toCopy;
+    currentSize -= toCopy;
+    return toCopy; 
   }
 
   @Override
@@ -115,7 +119,7 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
   @Override
   public ByteBuffer popBuffer() {
     if (currentSize == 0) {
-      return EMPTY_BYTEBUFFER;
+      return IOUtils.EMPTY_BYTEBUFFER;
     }
     return pullBuffer(availableBuffers.peekFirst().remaining());
   }
@@ -124,7 +128,7 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
   public ByteBuffer pullBuffer(final int size) {
     ArgumentVerifier.assertNotNegative(size, "size");
     if (size == 0) {
-      return EMPTY_BYTEBUFFER;
+      return IOUtils.EMPTY_BYTEBUFFER;
     }
     if (currentSize < size) {
       throw new BufferUnderflowException();
@@ -169,8 +173,35 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
     currentSize -= size;
   }
 
+  @Override
+  public void discardFromEnd(int size) {
+    ArgumentVerifier.assertNotNegative(size, "size");
+    if (currentSize < size) {
+      throw new BufferUnderflowException();
+    }
+    //We have logic here since we dont need to do any copying and we just drop the bytes
+    int toRemoveAmount = size;
+    while (toRemoveAmount > 0) {
+      final ByteBuffer buf = availableBuffers.peekLast();
+      final int bufRemaining = buf.remaining();
+      if (bufRemaining > toRemoveAmount) {
+        buf.limit(buf.limit() - toRemoveAmount);
+        toRemoveAmount = 0;
+      } else {
+        removeLastBuffer();
+        toRemoveAmount -= bufRemaining;
+      }
+    }
+    consumedSize += size;
+    currentSize -= size;
+  }
+
   protected ByteBuffer removeFirstBuffer() {
     return this.availableBuffers.pollFirst();
+  }
+
+  protected ByteBuffer removeLastBuffer() {
+    return this.availableBuffers.pollLast();
   }
 
   private void doGet(final byte[] destBytes) {
@@ -179,14 +210,11 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
   
   private void doGet(final byte[] destBytes, int start, int len) {
     int remainingToCopy = len;
-
     while (remainingToCopy > 0) {
       final ByteBuffer buf = availableBuffers.peek();
-
       final int toCopy = Math.min(buf.remaining(), remainingToCopy);
-      buf.get(destBytes, start+destBytes.length-remainingToCopy, toCopy);
+      buf.get(destBytes, start + len - remainingToCopy, toCopy);
       remainingToCopy -= toCopy;
-
       if (! buf.hasRemaining()) {
         removeFirstBuffer();
       }
@@ -213,11 +241,11 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
     int currentPos = 0;
     for(ByteBuffer bb: this.availableBuffers) {
       if(bb.remaining() > pos-currentPos) {
-        return bb.get(pos-currentPos);
+        return bb.get(bb.position()+pos-currentPos);
       } else {
         currentPos+=bb.remaining();
       }
     }
-    return 0;
+    throw new IndexOutOfBoundsException(pos + " > " + (remaining() - 1));
   }
 }

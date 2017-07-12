@@ -20,6 +20,7 @@ import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
 import org.threadly.litesockets.buffers.MergedByteBuffers;
 import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
+import org.threadly.litesockets.buffers.SimpleMergedByteBuffers;
 import org.threadly.util.ExceptionUtils;
 
 /**
@@ -41,7 +42,6 @@ public class SSLProcessor {
    * 
    */
   public static final int PREALLOCATE_BUFFER_MULTIPLIER = 3;
-  private static final ByteBuffer EMPTY_BYTEBUFFER = ByteBuffer.allocate(0);
 
   private final AtomicBoolean finishedHandshake = new AtomicBoolean(false); 
   private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
@@ -83,7 +83,7 @@ public class SSLProcessor {
       try {
         ssle.beginHandshake();
         if(ssle.getHandshakeStatus() == NEED_WRAP) {
-          client.write(EMPTY_BYTEBUFFER);
+          client.write(IOUtils.EMPTY_BYTEBUFFER);
         }
         client.getClientsSocketExecuter().watchFuture(handshakeFuture, client.getTimeout());
       } catch (SSLException e) {
@@ -119,17 +119,16 @@ public class SSLProcessor {
   }
 
   public MergedByteBuffers encrypt(final ByteBuffer buffer) {
-    final MergedByteBuffers mbb = new ReuseableMergedByteBuffers(false);
+    return encrypt(new SimpleMergedByteBuffers(false, buffer));
+  }
+  
+  public MergedByteBuffers encrypt(final MergedByteBuffers lmbb) {
     if(!startedHandshake.get()){
-      mbb.add(buffer);
-      return mbb;
+      return lmbb;
     }
-    ByteBuffer oldBB = buffer.duplicate();
-    if(finishedHandshake.get() && this.tempBuffers.remaining() > 0) {
-      tempBuffers.add(buffer);
-      oldBB = tempBuffers.pullBuffer(tempBuffers.remaining());
-    }
-    
+    final MergedByteBuffers mbb = new ReuseableMergedByteBuffers(false);
+    tempBuffers.add(lmbb);
+    ByteBuffer oldBB = tempBuffers.pullBuffer(tempBuffers.remaining());
     ByteBuffer newBB; 
     ByteBuffer tmpBB;
     boolean gotFinished = false;
@@ -168,7 +167,7 @@ public class SSLProcessor {
     if(gotFinished && finishedHandshake.compareAndSet(false, true)) {
       handshakeFuture.setResult(ssle.getSession());
       if(tempBuffers.remaining() > 0) {
-        mbb.add(encrypt(EMPTY_BYTEBUFFER));
+        mbb.add(encrypt(IOUtils.EMPTY_BYTEBUFFER));
       }
     }
     return mbb;
@@ -189,6 +188,7 @@ public class SSLProcessor {
     encryptedReadBuffers.add(bb);
     final ByteBuffer encBB = encryptedReadBuffers.pullBuffer(encryptedReadBuffers.remaining());
     while(encBB.remaining() > 0) {
+      int lastSize = encBB.remaining();
       final ByteBuffer dbb = getDecryptedByteBuffer();
       final ByteBuffer newBB = dbb.duplicate();
       SSLEngineResult res;
@@ -205,7 +205,7 @@ public class SSLProcessor {
       newBB.limit(dbb.position());
       if(newBB.hasRemaining()) {
         mbb.add(newBB);
-      } else if (res.getStatus() == Status.BUFFER_UNDERFLOW) {
+      } else if (res.getStatus() == Status.BUFFER_UNDERFLOW || (lastSize > 0 && lastSize == encBB.remaining())) {
         if(encBB.hasRemaining()) {
           encryptedReadBuffers.add(encBB);
         }
@@ -220,7 +220,7 @@ public class SSLProcessor {
     if(this.finishedHandshake.compareAndSet(false, true)){
       handshakeFuture.setResult(ssle.getSession());
       if(tempBuffers.remaining() > 0) {
-        client.write(EMPTY_BYTEBUFFER); //make the client write to flush tempBuffers
+        client.write(IOUtils.EMPTY_BYTEBUFFER); //make the client write to flush tempBuffers
       }
     }
   }
@@ -238,7 +238,7 @@ public class SSLProcessor {
       runTasks();
     } break;
     case NEED_WRAP: {
-      client.write(EMPTY_BYTEBUFFER);
+      client.write(IOUtils.EMPTY_BYTEBUFFER);
     } break;
 
     default: {

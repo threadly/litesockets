@@ -3,15 +3,16 @@ package org.threadly.litesockets.buffers;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 
+import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.util.ArgumentVerifier;
 
 /**
  *  This is a lower overhead Implementation of {@link MergedByteBuffers}.
- *  It is not appendable and can only process the buffers it is contructed with.
+ *  It is not appendable and can only process the buffers it is constructed with.
  * 
  */
 public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
-  private static final ByteBuffer[] EMPTY_BUFFER_ARRAY = new ByteBuffer[] {EMPTY_BYTEBUFFER};
+  private static final ByteBuffer[] EMPTY_BUFFER_ARRAY = new ByteBuffer[] {IOUtils.EMPTY_BYTEBUFFER};
   
   
   private final ByteBuffer[] bba;
@@ -59,7 +60,7 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
     while (remainingToCopy > 0) {
       final ByteBuffer buf = getNextBuffer();
       final int toCopy = Math.min(buf.remaining(), remainingToCopy);
-      buf.get(destBytes, start+destBytes.length - remainingToCopy, toCopy);
+      buf.get(destBytes, start + len - remainingToCopy, toCopy);
       remainingToCopy -= toCopy;
     }
   }
@@ -72,7 +73,7 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
     if(bba[this.currentBuffer].hasRemaining()) {
       return bba[currentBuffer];
     }
-    return EMPTY_BYTEBUFFER;
+    return IOUtils.EMPTY_BYTEBUFFER;
   }
 
   @Override
@@ -118,13 +119,15 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
   }
 
   @Override
-  public void get(byte[] destBytes, int start, int length) {
+  public int get(byte[] destBytes, int start, int length) {
     ArgumentVerifier.assertNotNull(destBytes, "byte[]");
-    if (remaining() < destBytes.length) {
-      throw new BufferUnderflowException();
+    if(!hasRemaining()) {
+      return -1;
     }
-    doGet(destBytes, start, length);
-    consumedSize += destBytes.length;
+    int toCopy = Math.min(length, remaining()); 
+    doGet(destBytes, start, toCopy);
+    consumedSize += toCopy;
+    return toCopy;
   }
 
   @Override
@@ -163,7 +166,7 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
   public ByteBuffer pullBuffer(int size) {
     ArgumentVerifier.assertNotNegative(size, "size");
     if (size == 0) {
-      return EMPTY_BYTEBUFFER;
+      return IOUtils.EMPTY_BYTEBUFFER;
     }
     if (remaining() < size) {
       throw new BufferUnderflowException();
@@ -201,6 +204,29 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
         toRemoveAmount = 0;
       } else {
         currentBuffer++;
+        toRemoveAmount -= bufRemaining;
+      }
+    }
+    consumedSize += size;
+  }
+
+  @Override
+  public void discardFromEnd(int size) {
+    ArgumentVerifier.assertNotNegative(size, "size");
+    if (remaining() < size) {
+      throw new BufferUnderflowException();
+    }
+    //We have logic here since we dont need to do any copying and we just drop the bytes
+    int currentIndex = bba.length;
+    int toRemoveAmount = size;
+    while (toRemoveAmount > 0) {
+      final ByteBuffer buf = bba[--currentIndex];
+      final int bufRemaining = buf.remaining();
+      if (bufRemaining > toRemoveAmount) {
+        buf.limit(buf.limit() - toRemoveAmount);
+        toRemoveAmount = 0;
+      } else {
+        bba[currentIndex] = IOUtils.EMPTY_BYTEBUFFER;
         toRemoveAmount -= bufRemaining;
       }
     }

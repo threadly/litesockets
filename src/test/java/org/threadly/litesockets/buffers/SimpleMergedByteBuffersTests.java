@@ -2,6 +2,7 @@ package org.threadly.litesockets.buffers;
 
 import static org.junit.Assert.*;
 
+import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.Random;
@@ -21,6 +22,15 @@ public class SimpleMergedByteBuffersTests {
         + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
   }
   
+  @Test
+  public void indexPatternTest() {
+    String st = "HTTP/1.1 101 Switching Protocols\r\nAccept: */*\r\nSec-WebSocket-Accept: W5bRv0dwYtd1GPxLJnXACYizcbU=\r\nUser-Agent: litesockets\r\n\r\n";
+    MergedByteBuffers mbb = new ReuseableMergedByteBuffers();
+    mbb.add(st.getBytes());
+    assertEquals("HTTP/1.1 101 Switching Protocols", mbb.getAsString(mbb.indexOf("\r\n")));
+    mbb.discard(2);
+    assertEquals(88, mbb.indexOf("\r\n\r\n"));
+  }
   
   @Test
   public void searchSpaning() {
@@ -34,6 +44,20 @@ public class SimpleMergedByteBuffersTests {
     mbb.discard(17);
     assertEquals("testingCrap", mbb.getAsString("testingCrap".length()));
     
+  }
+  
+  @Test
+  public void GetArrayOffset() throws IOException {
+    String st = "HTTP/1.1 101 Switching Protocols\r\nAccept: */*\r\nSec-WebSocket-Accept: W5bRv0dwYtd1GPxLJnXACYizcbU=\r\nUser-Agent: litesockets\r\n\r\n";
+    SimpleMergedByteBuffers mbb = new SimpleMergedByteBuffers(false, ByteBuffer.wrap(st.getBytes()));
+    byte[] ba = new byte[mbb.remaining()];
+    System.out.println(mbb.remaining());
+    for(int i=0; i<ba.length; i++) {
+      mbb.get(ba, i, 1);
+    }
+    System.out.println(new String(ba).length());
+    System.out.println(mbb.remaining());
+    assertEquals(st, new String(ba));
   }
 
   @Test
@@ -233,16 +257,47 @@ public class SimpleMergedByteBuffersTests {
     assertEquals(size, mbb.getTotalConsumedBytes());
   }
   
-  @Test(expected=BufferUnderflowException.class)
+  @Test
+  public void discardFromEndAllBuffers() {
+    Random rnd = new Random();
+    MergedByteBuffers mbb = new SimpleMergedByteBuffers(false, ByteBuffer.allocate(rnd.nextInt(300)), ByteBuffer.allocate(rnd.nextInt(300)), ByteBuffer.allocate(rnd.nextInt(300)));
+    int size = mbb.remaining();
+    mbb.discardFromEnd(size);
+    assertEquals(0, mbb.remaining());
+    assertEquals(size, mbb.getTotalConsumedBytes());
+  }
+  
+  @Test
+  public void discardHalfFromEndBuffers() {
+    MergedByteBuffers mbb = new SimpleMergedByteBuffers(false, ByteBuffer.allocate(100), ByteBuffer.allocate(100), ByteBuffer.allocate(100));
+    
+    MergedByteBuffers expectedStart = mbb.duplicate();
+    int size = mbb.remaining();
+    mbb.discardFromEnd(size / 2);
+    
+    assertEquals(size / 2, mbb.remaining());
+    assertEquals(size / 2, mbb.getTotalConsumedBytes());
+    while (mbb.hasRemaining()) {
+      assertEquals(expectedStart.get(), mbb.get());
+    }
+  }
+  
+  @Test
   public void badArrayGet() {
     MergedByteBuffers mbb = new SimpleMergedByteBuffers(false);
-    mbb.get(new byte[100]);
+    assertEquals(-1, mbb.get(new byte[100]));
   }
   
   @Test(expected=BufferUnderflowException.class)
   public void discardUnderFlow() {
     MergedByteBuffers mbb = new SimpleMergedByteBuffers(false);
     mbb.discard(100);
+  }
+  
+  @Test(expected=BufferUnderflowException.class)
+  public void discardFromEndUnderFlow() {
+    MergedByteBuffers mbb = new SimpleMergedByteBuffers(false);
+    mbb.discardFromEnd(100);
   }
   
   @Test(expected=IllegalArgumentException.class)
