@@ -171,14 +171,17 @@ public abstract class AbstractMergedByteBuffers implements MergedByteBuffers {
   
   protected static int findIndexOf(AbstractMergedByteBuffers abb, final byte[] pattern, int fromPosition) {
     ArgumentVerifier.assertNotNull(pattern, "byte[]");
+    ArgumentVerifier.assertGreaterThanZero(pattern.length, "pattern length");
     final int total = abb.remaining();
     if(total < fromPosition){
       return -1;
     }
+    if (fromPosition < 0) {
+      fromPosition = 0;
+    }
 
     int patPos = 0;
     int bufPos = fromPosition;
-
 
     byte[] prevMatched = new byte[pattern.length];
     while(total-bufPos >= pattern.length-patPos) {
