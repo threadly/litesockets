@@ -21,6 +21,7 @@ import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.litesockets.buffers.SimpleMergedByteBuffers;
 import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.litesockets.utils.SSLProcessor;
+import org.threadly.litesockets.utils.SSLProcessor.EncryptionException;
 import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.Clock;
 import org.threadly.util.ExceptionUtils;
@@ -158,7 +159,14 @@ public class TCPClient extends Client {
             writeFutures.clear();
             writeBuffers.discard(writeBuffers.remaining());
           }
+          if(!connectionFuture.isDone()) {
+            connectionFuture.setFailure(error);
+          }
+          if(sslProcessor != null) {
+            sslProcessor.failHandshake(error);
+          }
         }});
+
       this.callClosers(error);
     }
   }
@@ -182,7 +190,12 @@ public class TCPClient extends Client {
   public ReuseableMergedByteBuffers getRead() {
     ReuseableMergedByteBuffers mbb = super.getRead();
     if(sslProcessor != null && sslProcessor.handShakeStarted() && mbb.remaining() > 0) {
-      mbb = sslProcessor.decrypt(mbb);
+      try {
+        mbb = sslProcessor.decrypt(mbb);
+      } catch(EncryptionException e) {
+        this.close(e);
+        return new ReuseableMergedByteBuffers(false);
+      }
     }
     return mbb;
   }
@@ -220,7 +233,12 @@ public class TCPClient extends Client {
       lastWriteFuture = slf;
       final boolean needNotify = !canWrite();
       if(sslProcessor != null && sslProcessor.handShakeStarted()) {
-        writeBuffers.add(sslProcessor.encrypt(mbb));
+        try {
+          writeBuffers.add(sslProcessor.encrypt(mbb));
+        } catch (EncryptionException e) {
+          this.close(e);
+          return lastWriteFuture;
+        }
       } else {
         writeBuffers.add(mbb);
       }
