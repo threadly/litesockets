@@ -25,6 +25,7 @@ import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.litesockets.buffers.MergedByteBuffers;
 import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.litesockets.utils.SSLProcessor;
+import org.threadly.litesockets.utils.SSLProcessor.EncryptionException;
 import org.threadly.litesockets.utils.SSLUtils;
 
 public class SSLProcessorTests {
@@ -67,13 +68,14 @@ public class SSLProcessorTests {
   
   @After
   public void stop() {
+    SE.stopIfRunning();
     System.gc();
     System.out.println("Used Memory:"
         + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
   }
   
   @Test
-  public void notEncrypted() {
+  public void notEncrypted() throws EncryptionException {
     FakeClient fc = new FakeClient(SE);
     SSLProcessor sp = new SSLProcessor(fc, sslCtx.createSSLEngine());
     MergedByteBuffers mbb = sp.encrypt(STRINGBB.duplicate());
@@ -83,7 +85,7 @@ public class SSLProcessorTests {
   }
   
   @Test
-  public void encrypted() throws IOException {
+  public void encrypted() throws IOException, EncryptionException {
     FakeClient fc = new FakeClient(SE);
     SSLEngine see = sslCtx.createSSLEngine();
     see.setEnabledCipherSuites(SIMPLE_ENCRYPT);
@@ -132,7 +134,7 @@ public class SSLProcessorTests {
   }
 
   @Test
-  public void noCommonCipher() throws IOException {
+  public void noCommonCipher() throws IOException, EncryptionException {
     FakeClient fc = new FakeClient(SE);
     SSLEngine see = sslCtx.createSSLEngine();
     see.setEnabledCipherSuites(SIMPLE_ENCRYPT);
@@ -175,7 +177,7 @@ public class SSLProcessorTests {
   }
 
   @Test
-  public void largeEncrypted() throws IOException {
+  public void largeEncrypted() throws IOException, EncryptionException {
     FakeClient fc = new FakeClient(SE);
     SSLEngine see = sslCtx.createSSLEngine();
     see.setEnabledCipherSuites(SIMPLE_ENCRYPT);
@@ -305,7 +307,11 @@ public class SSLProcessorTests {
     
     @Override
     public ListenableFuture<?> write(final ByteBuffer bb) {
-      writeBuffers.add(sp.encrypt(bb));
+      try {
+        writeBuffers.add(sp.encrypt(bb));
+      } catch (EncryptionException e) {
+        close(e);
+      }
       return FutureUtils.immediateResultFuture(true);
     }
 
@@ -331,7 +337,11 @@ public class SSLProcessorTests {
 
     @Override
     public ListenableFuture<?> write(MergedByteBuffers mbb) {
-      writeBuffers.add(sp.encrypt(mbb));
+      try {
+        writeBuffers.add(sp.encrypt(mbb));
+      } catch (EncryptionException e) {
+        close(e);
+      }
       return FutureUtils.immediateResultFuture(true);
     }
   }

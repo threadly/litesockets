@@ -12,6 +12,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -23,7 +24,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.threadly.concurrent.PriorityScheduler;
+import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
+import org.threadly.litesockets.Client.ClientCloseListener;
 import org.threadly.litesockets.Client.Reader;
 import org.threadly.litesockets.Server;
 import org.threadly.litesockets.Server.ClientAcceptor;
@@ -36,6 +39,7 @@ import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.litesockets.utils.SSLUtils;
 import org.threadly.test.concurrent.TestCondition;
+import org.threadly.util.ExceptionUtils;
 
 public class SSLTests {
   PriorityScheduler PS;
@@ -87,10 +91,52 @@ public class SSLTests {
     server.setSSLContext(sslCtx);
     server.setDoHandshake(true);    
     serverFC.addTCPServer(server);
+
+    final TCPClient client = SE.createTCPClient("localhost", port);
+
+    client.startSSL();
+  }
+  
+  @Test
+  public void failSSLonPlainConnectionWrite() throws Exception {
+    final SettableListenableFuture<Boolean> gotError = new SettableListenableFuture<Boolean>();
+    TCPServer server = SE.createTCPServer("localhost", port);
+    server.setSSLContext(sslCtx);
+    server.setDoHandshake(true);
+    serverFC.addTCPServer(server);
     
     final TCPClient client = SE.createTCPClient("localhost", port);
+    client.connect().get();
     
-    client.startSSL();
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.getAllClients().size() == 1;
+      }
+    }.blockTillTrue(5000);
+    
+    serverFC.getAllClients().get(0).addCloseListener(new ClientCloseListener() {
+
+      @Override
+      public void onClose(Client client) {
+
+      }
+      
+      @Override
+      public void onCloseWithError(Client client, Throwable error) {
+        gotError.setResult(true);
+      }  
+    });
+    
+    client.write(TCPTests.SMALL_TEXT_BUFFER.duplicate());
+    
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return SE.getClientCount() == 0;
+      }
+    }.blockTillTrue(5000);
+    assertTrue(gotError.get());
   }
   
   @Test

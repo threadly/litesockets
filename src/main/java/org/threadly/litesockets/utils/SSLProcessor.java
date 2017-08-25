@@ -118,11 +118,11 @@ public class SSLProcessor {
     return decryptedReadBuffer;
   }
 
-  public MergedByteBuffers encrypt(final ByteBuffer buffer) {
+  public MergedByteBuffers encrypt(final ByteBuffer buffer) throws EncryptionException {
     return encrypt(new SimpleMergedByteBuffers(false, buffer));
   }
   
-  public MergedByteBuffers encrypt(final MergedByteBuffers lmbb) {
+  public MergedByteBuffers encrypt(final MergedByteBuffers lmbb) throws EncryptionException {
     if(!startedHandshake.get()){
       return lmbb;
     }
@@ -151,7 +151,7 @@ public class SSLProcessor {
       } catch (SSLHandshakeException e) {
         this.handshakeFuture.setFailure(e);
         client.close();
-        break;
+        throw new EncryptionException(e);
       } catch (SSLException e) {
         throw new EncryptionException(e);
       }
@@ -173,13 +173,13 @@ public class SSLProcessor {
     return mbb;
   }
   
-  public MergedByteBuffers decrypt(final ByteBuffer bb) {
+  public MergedByteBuffers decrypt(final ByteBuffer bb) throws EncryptionException {
     MergedByteBuffers mbb = new ReuseableMergedByteBuffers(false);
     mbb.add(bb);
     return decrypt(mbb);
   }
   
-  public ReuseableMergedByteBuffers decrypt(final MergedByteBuffers bb) {
+  public ReuseableMergedByteBuffers decrypt(final MergedByteBuffers bb) throws EncryptionException {
     final ReuseableMergedByteBuffers mbb = new ReuseableMergedByteBuffers(false);
     if(!this.startedHandshake.get()) {
       mbb.add(bb);
@@ -214,6 +214,10 @@ public class SSLProcessor {
     }
     return mbb;
 
+  }
+  
+  public void failHandshake(Throwable t) {
+    handshakeFuture.setFailure(t);
   }
   
   private void finishHandshake() {
@@ -254,7 +258,7 @@ public class SSLProcessor {
    * @author lwahlmeier
    *
    */
-  public static class EncryptionException extends RuntimeException {
+  public static class EncryptionException extends Exception {
 
     private static final long serialVersionUID = -2713992763314654069L;
     public EncryptionException(final Throwable t) {
