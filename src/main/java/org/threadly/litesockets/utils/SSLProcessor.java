@@ -217,9 +217,7 @@ public class SSLProcessor {
   }
   
   public void failHandshake(Throwable t) {
-    if(!handshakeFuture.isDone()) {
-      handshakeFuture.setFailure(t);
-    }
+    handshakeFuture.setFailure(t);
   }
   
   private void finishHandshake() {

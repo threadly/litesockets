@@ -159,9 +159,7 @@ public class TCPClient extends Client {
             writeFutures.clear();
             writeBuffers.discard(writeBuffers.remaining());
           }
-          if(!connectionFuture.isDone()) {
-            connectionFuture.setFailure(error);
-          }
+          connectionFuture.setFailure(error);
           if(sslProcessor != null) {
             sslProcessor.failHandshake(error);
           }
