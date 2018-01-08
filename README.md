@@ -3,6 +3,16 @@ Light weight socket library which relies heavily on threadly concurrency tools.
 
 Made for highly concurrent applications generally more server side though would more then work for clients.
 
+Include the litesockets library into your project from maven central: 
+
+```script
+<dependency>
+	<groupId>org.threadly</groupId>
+	<artifactId>litesockets</artifactId>
+	<version>4.1</version>
+</dependency>
+```
+
 ## Concepts
 
 The main concept behind litesockets is that every "Client" should be treaded in a single threaded manor.  Not that they cant farm off tasks in a multiThreaded way at some point, but all reading and writing to the socket ~~should~~ must occour in a single threaded manor so that the order of the packets from the wire is guaranteed.
