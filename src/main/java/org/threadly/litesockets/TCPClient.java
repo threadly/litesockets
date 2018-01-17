@@ -41,7 +41,7 @@ public class TCPClient extends Client {
   private final Deque<Pair<Long, SettableListenableFuture<Long>>> writeFutures = new ArrayDeque<>(8);
   private final TCPSocketOptions tso = new TCPSocketOptions();
   protected final AtomicBoolean startedConnection = new AtomicBoolean(false);
-  protected final SettableListenableFuture<Boolean> connectionFuture = new SettableListenableFuture<>(false);
+  protected final SettableListenableFuture<Boolean> connectionFuture;
   protected final SocketChannel channel;
   protected final InetSocketAddress remoteAddress;
 
@@ -63,6 +63,7 @@ public class TCPClient extends Client {
    */
   protected TCPClient(final SocketExecuterCommonBase sei, final String host, final int port) throws IOException {
     super(sei);
+    connectionFuture = makeClientSettableListenableFuture();
     remoteAddress = new InetSocketAddress(host, port);
     channel = SocketChannel.open();
     channel.configureBlocking(false);
@@ -81,6 +82,7 @@ public class TCPClient extends Client {
     if(! channel.isOpen()) {
       throw new ClosedChannelException();
     }
+    connectionFuture = makeClientSettableListenableFuture();
     connectionFuture.setResult(true);
     if(channel.isBlocking()) {
       channel.configureBlocking(false);
@@ -227,7 +229,7 @@ public class TCPClient extends Client {
       return FutureUtils.immediateFailureFuture(new IOException("Connection is Closed"));
     }
     synchronized(writerLock) {
-      final SettableListenableFuture<Long> slf = new SettableListenableFuture<>(false);
+      final SettableListenableFuture<Long> slf = makeClientSettableListenableFuture();
       lastWriteFuture = slf;
       final boolean needNotify = !canWrite();
       if(sslProcessor != null && sslProcessor.handShakeStarted()) {

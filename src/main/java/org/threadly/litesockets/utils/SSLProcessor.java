@@ -18,6 +18,7 @@ import javax.net.ssl.SSLSession;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.Client;
+import org.threadly.litesockets.ClientSettableListenableFuture;
 import org.threadly.litesockets.buffers.MergedByteBuffers;
 import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.litesockets.buffers.SimpleMergedByteBuffers;
@@ -45,7 +46,7 @@ public class SSLProcessor {
 
   private final AtomicBoolean finishedHandshake = new AtomicBoolean(false); 
   private final AtomicBoolean startedHandshake = new AtomicBoolean(false);
-  private final SettableListenableFuture<SSLSession> handshakeFuture = new SettableListenableFuture<SSLSession>(false);
+  private final SettableListenableFuture<SSLSession> handshakeFuture;
   private final MergedByteBuffers encryptedReadBuffers = new ReuseableMergedByteBuffers(false);
   private final MergedByteBuffers tempBuffers = new ReuseableMergedByteBuffers(false); 
   private final SSLEngine ssle;
@@ -54,6 +55,7 @@ public class SSLProcessor {
   private ByteBuffer decryptedReadBuffer;
 
   public SSLProcessor(final Client client, final SSLEngine ssle) {
+    this.handshakeFuture = new ClientSettableListenableFuture<>(client);
     this.client = client;
     this.ssle = ssle;
   }

@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.threadly.concurrent.SubmitterExecutor;
 import org.threadly.concurrent.future.ListenableFuture;
+import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.buffers.MergedByteBuffers;
 import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.litesockets.utils.IOUtils;
@@ -58,6 +59,10 @@ public abstract class Client implements Closeable {
   protected Client(final SocketExecuterCommonBase se, final SubmitterExecutor clientExecutor) {
     this.se = se;
     this.clientExecutor = clientExecutor;
+  }
+  
+  protected <T> SettableListenableFuture<T> makeClientSettableListenableFuture() {
+    return new ClientSettableListenableFuture<>(clientExecutor);
   }
 
   /**
@@ -144,8 +149,9 @@ public abstract class Client implements Closeable {
    * 
    * <p>If there is an error connecting {@link #close()} will also be called on the client.</p>
    * 
-   * @return A {@link ListenableFuture} that will complete when the socket is connected, or fail if we cant connect.
+   * @return A {@link ListenableFuture} that will complete when the socket is connected, or fail if we can't connect.
    */
+  // TODO - change return type to `ListenableFuture<?>` for ls 5.0
   public abstract ListenableFuture<Boolean> connect();
 
   /**
@@ -653,7 +659,7 @@ public abstract class Client implements Closeable {
      */
     public int getUdpFrameSize();
   }
-
+  
   protected class BaseClientOptions implements ClientOptions {
     @Override
     public boolean setNativeBuffers(boolean enabled) {
