@@ -44,7 +44,7 @@ public abstract class Client implements Closeable {
   protected final ClientByteStats stats = new ClientByteStats();
   protected final AtomicBoolean closed = new AtomicBoolean(false);
   protected final ConcurrentLinkedQueue<ClientCloseListener> closerListener = new ConcurrentLinkedQueue<>();
-  protected volatile Runnable readerCaller = null;
+  protected volatile ReaderRunner readerCaller = null;
   protected volatile boolean useNativeBuffers = false;
   protected volatile boolean keepReadBuffer = true;
   protected volatile int maxBufferSize = IOUtils.DEFAULT_CLIENT_MAX_BUFFER_SIZE;
@@ -279,10 +279,14 @@ public abstract class Client implements Closeable {
     });
   }
   
-  protected void callReader() {
+  protected void callReader(boolean onClientThread) {
     Runnable readerCaller = this.readerCaller;
     if (readerCaller != null) {
-      getClientsThreadExecutor().execute(readerCaller);
+      if (onClientThread) {
+        readerCaller.run();
+      } else {
+        getClientsThreadExecutor().execute(readerCaller);
+      }
     }
   }
 
@@ -294,8 +298,11 @@ public abstract class Client implements Closeable {
    * 
    * 
    * @param bb the {@link ByteBuffer} to add to the clients readBuffer.
+   * @param onClientThread {@code true} if being invoked on client thread, false if unknown or known to be a different thread
    */
-  protected void addReadBuffer(final ByteBuffer bb) {
+  protected void addReadBuffer(final ByteBuffer bb, boolean onClientThread) {
+    // not synchronized because even if not on the client thread
+    // we assume read buffers are added by a single thread
     addReadStats(bb.remaining());
     se.addReadAmount(bb.remaining());
     int start;
@@ -304,7 +311,7 @@ public abstract class Client implements Closeable {
     readBuffers.add(bb);
     end = readBuffers.remaining();
     if(end > 0 && start == 0){
-      callReader();
+      callReader(onClientThread);
     }
   }
 
@@ -323,7 +330,9 @@ public abstract class Client implements Closeable {
    * @return the current size of the ReadBuffer.
    */
   public int getReadBufferSize() {
-    return readBuffers.remaining();
+    synchronized (readerLock) {
+      return readBuffers.remaining();
+    }
   }
 
   /**
@@ -377,9 +386,9 @@ public abstract class Client implements Closeable {
         readerCaller = null;
       } else {
         synchronized(readerLock) {
-          readerCaller = () -> reader.onRead(this);
-          if (this.getReadBufferSize() > 0) {
-            callReader();
+          readerCaller = new ReaderRunner(reader);
+          if (readBuffers.remaining() > 0) {
+            callReader(false);
           }
         }
       }
@@ -424,6 +433,25 @@ public abstract class Client implements Closeable {
    */
   public SimpleByteStats getStats() {
     return stats;
+  }
+  
+  /**
+   * Small class for executing a {@link Reader} while making sure that the reader to be executed is 
+   * also the current one.
+   */
+  private class ReaderRunner implements Runnable {
+    private final Reader reader;
+
+    public ReaderRunner(Reader reader) {
+      this.reader = reader;
+    }
+
+    @Override
+    public void run() {
+      if (Client.this.readerCaller == this) {
+        reader.onRead(Client.this);
+      }
+    }
   }
 
   /**

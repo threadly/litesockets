@@ -258,7 +258,7 @@ public class UDPServer extends Server {
         }
         final UDPClient udpc = us.clients.get(isa);
         if(udpc.canRead()) {
-          udpc.addReadBuffer(bb);
+          udpc.addReadBuffer(bb, true);
         }
       }
     }

@@ -68,12 +68,12 @@ public class UDPClient extends Client {
   }
   
   @Override
-  protected void addReadBuffer(final ByteBuffer bb) {
+  protected void addReadBuffer(final ByteBuffer bb, boolean onClientThread) {
     addReadStats(bb.remaining());
     synchronized(readerLock) {
       readBuffers.add(bb);
     }
-    callReader();
+    callReader(onClientThread);
   }
 
   @Override

@@ -360,7 +360,7 @@ public class TCPClient extends Client {
         final ByteBuffer resultBuffer = readByteBuffer.slice();
         readByteBuffer.position(origPos+size);
         resultBuffer.limit(size);
-        addReadBuffer(resultBuffer);
+        addReadBuffer(resultBuffer, ! doLocal);
         if(!doLocal) {
           se.setClientOperations(TCPClient.this);
         }
@@ -368,7 +368,6 @@ public class TCPClient extends Client {
         close();
         return;
       } 
-
     } catch (IOException e) {
       ExceptionUtils.handleException(e);
       close();

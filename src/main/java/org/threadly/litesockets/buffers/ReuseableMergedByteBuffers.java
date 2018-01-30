@@ -59,8 +59,6 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
     return mbb;
   }
 
-
-
   @Override
   protected void addToFront(ByteBuffer bb) {
     this.availableBuffers.addFirst(bb.duplicate());
