@@ -73,7 +73,7 @@ public class UDPClient extends Client {
     synchronized(readerLock) {
       readBuffers.add(bb);
     }
-    callReader();
+    callReader(true); // buffers should be added from client thread
   }
 
   @Override
@@ -105,7 +105,7 @@ public class UDPClient extends Client {
   @Override
   public void close(Throwable error) {
     if(this.setClose()) {
-      callClosers(error);
+      callClosers(false, error);
     }
   }
 

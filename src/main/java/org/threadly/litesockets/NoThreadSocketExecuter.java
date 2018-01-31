@@ -104,15 +104,13 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
     if(commonSelector != null && commonSelector.isOpen()) {
       closeSelector(schedulerPool, commonSelector);
     }
-    while(localNoThreadScheduler.hasTaskReadyToRun()) {
-      try {
-        localNoThreadScheduler.tick(null);
-      } catch(Exception e) {
-        ExceptionUtils.handleException(e);
-      }
-    }
+    executeSchedulerTasks();
     clients.clear();
     servers.clear();
+  }
+  
+  private void executeSchedulerTasks() {
+    localNoThreadScheduler.tick(ExceptionUtils::handleException);
   }
 
   private void doClientOperations(final Client client) {
@@ -181,7 +179,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
     while(isRunning() && !wakeUp && (runOnce || Clock.accurateForwardProgressingMillis() - startTime <= delay)) {
       try {
         commonSelector.selectNow();  //We have to do this before we tick for windows
-        localNoThreadScheduler.tick(null);
+        executeSchedulerTasks();
         commonSelector.selectedKeys().clear();
         commonSelector.select(Math.min(delay, SELECT_TIME_MS));
         if(isRunning()) {
@@ -235,7 +233,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
           //Also for windows bug, canceled keys are not removed till we select again.
           //So we just have to at the end of the loop.
           commonSelector.selectNow();
-          localNoThreadScheduler.tick(null);
+          executeSchedulerTasks();
         }
       } catch (IOException e) {
         //There is really nothing to do here but try again, usually this is because of shutdown.

@@ -169,8 +169,9 @@ public class IOUtils {
       }
       synchronized(currentBB) {
         while(true) {
-          if(c.getReadBufferSize() > 0) {
-            currentBB.add(c.getRead());
+          ReuseableMergedByteBuffers mbb = c.getRead();
+          if(mbb.hasRemaining()) {
+            currentBB.add(mbb);
           }
           if(currentBB.remaining() >= len) {
             currentBB.get(ba, offset, len);
@@ -201,8 +202,9 @@ public class IOUtils {
           if(currentBB.remaining() > 0) {
             return currentBB.get() & MergedByteBuffers.UNSIGNED_BYTE_MASK;
           } else {
-            if(c.getReadBufferSize() > 0) {
-              currentBB.add(c.getRead());
+            ReuseableMergedByteBuffers mbb = c.getRead();
+            if(mbb.hasRemaining()) {
+              currentBB.add(mbb);
             } else if(isClosed) {
               return -1;
             } else {

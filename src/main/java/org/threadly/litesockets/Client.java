@@ -267,8 +267,8 @@ public abstract class Client implements Closeable {
 
   }
 
-  protected void callClosers(Throwable error) {
-    this.getClientsThreadExecutor().execute(()->{
+  protected void callClosers(boolean invokedOnClientThread, Throwable error) {
+    runListener(()->{
       while(!closerListener.isEmpty()) {
         if (error == null) {
           closerListener.poll().onClose(this);
@@ -276,13 +276,21 @@ public abstract class Client implements Closeable {
           closerListener.poll().onCloseWithError(this, error);
         }
       }
-    });
+    }, invokedOnClientThread);
   }
   
-  protected void callReader() {
+  protected void callReader(boolean invokedOnClientThread) {
     Runnable readerCaller = this.readerCaller;
     if (readerCaller != null) {
-      getClientsThreadExecutor().execute(readerCaller);
+      runListener(readerCaller, invokedOnClientThread);
+    }
+  }
+  
+  private void runListener(Runnable listener, boolean invokedOnClientThread) {
+    if (invokedOnClientThread) {
+      ExceptionUtils.runRunnable(listener); // make sure errors from listener don't escape
+    } else {
+      getClientsThreadExecutor().execute(listener);
     }
   }
 
@@ -304,7 +312,7 @@ public abstract class Client implements Closeable {
     readBuffers.add(bb);
     end = readBuffers.remaining();
     if(end > 0 && start == 0){
-      callReader();
+      callReader(true); // we assume all buffers are added from the clients thread
     }
   }
 
@@ -359,7 +367,7 @@ public abstract class Client implements Closeable {
     } else {
       closerListener.add(closer);
       if(closed.get() && !closerListener.isEmpty()) {
-        this.callClosers(null);
+        this.callClosers(false, null);
       }
     }
   }
@@ -379,7 +387,7 @@ public abstract class Client implements Closeable {
         synchronized(readerLock) {
           readerCaller = () -> reader.onRead(this);
           if (this.getReadBufferSize() > 0) {
-            callReader();
+            callReader(false);  // we can't assume this is the reader thread
           }
         }
       }
