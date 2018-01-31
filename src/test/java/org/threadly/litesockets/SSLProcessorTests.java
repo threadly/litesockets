@@ -112,11 +112,11 @@ public class SSLProcessorTests {
     while(true) {
       if(fc.canWrite()) {
         ByteBuffer bb = fc.getWriteBuffer();
-        fc2.addReadBuffer(bb, false);
+        fc2.addReadBuffer(bb);
         sp2.decrypt(fc2.getRead());
       } else if(fc2.canWrite()) {
         ByteBuffer bb = fc2.getWriteBuffer();
-        fc.addReadBuffer(bb, false);
+        fc.addReadBuffer(bb);
         sp.decrypt(fc.getRead());
       } else {
         break;
@@ -161,11 +161,11 @@ public class SSLProcessorTests {
     while(true) {
       if(fc.canWrite()) {
         ByteBuffer bb = fc.getWriteBuffer();
-        fc2.addReadBuffer(bb, false);
+        fc2.addReadBuffer(bb);
         sp2.decrypt(fc2.getRead());
       } else if(fc2.canWrite()) {
         ByteBuffer bb = fc2.getWriteBuffer();
-        fc.addReadBuffer(bb, false);
+        fc.addReadBuffer(bb);
         sp.decrypt(fc.getRead());
       } else {
         break;
@@ -195,11 +195,11 @@ public class SSLProcessorTests {
     while(true) {
       if(fc.canWrite()) {
         ByteBuffer bb = fc.getWriteBuffer();
-        fc2.addReadBuffer(bb, false);
+        fc2.addReadBuffer(bb);
         sp2.decrypt(fc2.getRead());
       } else if(fc2.canWrite()) {
         ByteBuffer bb = fc2.getWriteBuffer();
-        fc.addReadBuffer(bb, false);
+        fc.addReadBuffer(bb);
         sp.decrypt(fc.getRead());
       } else {
         break;
@@ -231,8 +231,8 @@ public class SSLProcessorTests {
     }
     
     @Override
-    public void addReadBuffer(ByteBuffer  bb, boolean onClientThread) {
-      super.addReadBuffer(bb, onClientThread);
+    public void addReadBuffer(ByteBuffer  bb) {
+      super.addReadBuffer(bb);
     }
 
     @Override
