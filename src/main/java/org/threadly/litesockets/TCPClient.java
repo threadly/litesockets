@@ -148,9 +148,8 @@ public class TCPClient extends Client {
   public void close(Throwable error) {
     if(setClose()) {
       se.setClientOperations(this);
-      this.getClientsThreadExecutor().execute(new Runnable() {
-        @Override
-        public void run() {
+      this.getClientsThreadExecutor().execute(() -> {
+        try {
           synchronized(writerLock) {
             if(writeFutures.size() > 0) {
               final ClosedChannelException cce = new ClosedChannelException();
@@ -165,9 +164,10 @@ public class TCPClient extends Client {
           if(sslProcessor != null) {
             sslProcessor.failHandshake(error);
           }
-        }});
-
-      this.callClosers(error);
+        } finally {
+          callClosers(true, error);
+        }
+      });
     }
   }
 

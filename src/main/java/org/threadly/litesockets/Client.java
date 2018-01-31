@@ -267,8 +267,8 @@ public abstract class Client implements Closeable {
 
   }
 
-  protected void callClosers(Throwable error) {
-    this.getClientsThreadExecutor().execute(()->{
+  protected void callClosers(boolean invokedOnClientThread, Throwable error) {
+    runListener(()->{
       while(!closerListener.isEmpty()) {
         if (error == null) {
           closerListener.poll().onClose(this);
@@ -276,17 +276,21 @@ public abstract class Client implements Closeable {
           closerListener.poll().onCloseWithError(this, error);
         }
       }
-    });
+    }, invokedOnClientThread);
   }
   
   protected void callReader(boolean invokedOnClientThread) {
     Runnable readerCaller = this.readerCaller;
     if (readerCaller != null) {
-      if (invokedOnClientThread) {
-        ExceptionUtils.runRunnable(readerCaller); // make sure errors from reader don't escape
-      } else {
-        getClientsThreadExecutor().execute(readerCaller);
-      }
+      runListener(readerCaller, invokedOnClientThread);
+    }
+  }
+  
+  private void runListener(Runnable listener, boolean invokedOnClientThread) {
+    if (invokedOnClientThread) {
+      ExceptionUtils.runRunnable(listener); // make sure errors from listener don't escape
+    } else {
+      getClientsThreadExecutor().execute(listener);
     }
   }
 
@@ -363,7 +367,7 @@ public abstract class Client implements Closeable {
     } else {
       closerListener.add(closer);
       if(closed.get() && !closerListener.isEmpty()) {
-        this.callClosers(null);
+        this.callClosers(false, null);
       }
     }
   }

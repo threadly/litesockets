@@ -105,7 +105,7 @@ public class UDPClient extends Client {
   @Override
   public void close(Throwable error) {
     if(this.setClose()) {
-      callClosers(error);
+      callClosers(false, error);
     }
   }
 
