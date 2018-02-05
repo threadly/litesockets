@@ -81,7 +81,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
     super(scheduler);
     int ps = -1;
     if(numberOfSelectors == -1) {
-       ps = Runtime.getRuntime().availableProcessors()/2;
+       ps = Math.max(1,  Runtime.getRuntime().availableProcessors()/2);
     } else {
       ps = numberOfSelectors;
     }
