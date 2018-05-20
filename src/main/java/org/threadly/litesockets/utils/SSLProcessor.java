@@ -100,7 +100,11 @@ public class SSLProcessor {
     while(hs == NEED_TASK) {
       final Runnable task = ssle.getDelegatedTask();
       if(task != null) {
-        ExceptionUtils.runRunnable(task);
+        try {
+          task.run();
+        } catch (Throwable t) {
+          ExceptionUtils.handleException(t);
+        }
       }
       hs = ssle.getHandshakeStatus();
     }

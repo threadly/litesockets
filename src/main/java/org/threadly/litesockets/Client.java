@@ -288,7 +288,11 @@ public abstract class Client implements Closeable {
   
   private void runListener(Runnable listener, boolean invokedOnClientThread) {
     if (invokedOnClientThread) {
-      ExceptionUtils.runRunnable(listener); // make sure errors from listener don't escape
+      try {
+        listener.run();
+      } catch (Throwable t) {
+        ExceptionUtils.handleException(t);
+      }
     } else {
       getClientsThreadExecutor().execute(listener);
     }
