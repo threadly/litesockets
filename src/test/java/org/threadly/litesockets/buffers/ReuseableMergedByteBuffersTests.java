@@ -9,6 +9,7 @@ import java.util.Random;
 
 import org.junit.After;
 import org.junit.Test;
+import org.threadly.util.StringUtils;
 
 public class ReuseableMergedByteBuffersTests {
   
@@ -27,6 +28,23 @@ public class ReuseableMergedByteBuffersTests {
     while (mbb.hasRemaining()) {
       assertEquals(bb.get(), mbb.get());
     }
+  }
+  
+  @Test
+  public void addMergedByteBuffersWithLimitTest() {
+    int size = 256;
+    ByteBuffer bb = ByteBuffer.wrap(StringUtils.makeRandomString(size).getBytes());
+    MergedByteBuffers mbbOut = new ReuseableMergedByteBuffers(false, bb);
+    MergedByteBuffers mbbIn = new ReuseableMergedByteBuffers(false);
+
+    assertEquals(size, mbbOut.remaining());
+    mbbIn.add(mbbOut, size / 2);
+    assertEquals(size / 2, mbbOut.remaining());
+    assertEquals(size / 2, mbbIn.remaining());
+
+    mbbIn.add(mbbOut, size / 2);
+    assertEquals(0, mbbOut.remaining());
+    assertEquals(size, mbbIn.remaining());
   }
   
   @Test
