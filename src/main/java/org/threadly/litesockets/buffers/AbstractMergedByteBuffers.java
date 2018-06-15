@@ -67,12 +67,27 @@ public abstract class AbstractMergedByteBuffers implements MergedByteBuffers {
   @Override
   public void add(final MergedByteBuffers ...mbbs) {
     for(MergedByteBuffers mbb: mbbs) {
-      while(mbb.remaining() > 0) {
+      while(mbb.hasRemaining()) {
         ByteBuffer bb = mbb.popBuffer();
         if(bb.hasRemaining()) {
           doAppend(bb);
         }
       }
+    }
+  }
+
+  @Override
+  public void add(final MergedByteBuffers mbb, int maxLength) {
+    while(maxLength > 0 && mbb.hasRemaining()) {
+      int buffSize = mbb.nextBufferSize();
+      if (buffSize == 0) {
+        mbb.popBuffer();
+      } else if (buffSize <= maxLength) {
+        doAppend(mbb.popBuffer());
+      } else {
+        doAppend(mbb.pullBuffer(maxLength));
+      }
+      maxLength -= buffSize;
     }
   }
   

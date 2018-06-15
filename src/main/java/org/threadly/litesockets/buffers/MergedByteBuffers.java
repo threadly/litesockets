@@ -48,6 +48,15 @@ public interface MergedByteBuffers {
   public void add(final MergedByteBuffers ...mbb);
   
   /**
+   * This method allows you to add a MergedByteBuffers to another MergedByteBuffers.  
+   * All must be done in order of how you want to pull the data back out.
+   * 
+   * @param mbb - The MergedByteBuffers to put into this MergedByteBuffers
+   * @param maxLength - Maximum number of bytes to copy out of provided mbb
+   */
+  public void add(MergedByteBuffers mbb, int maxLength);
+  
+  /**
    * Make a complete duplicate of this MergedByteBuffer.  Both references should function independently, but
    * they are still using the same ByteBuffer backing arrays so any change to the actual byte[] in the 
    * backing ByteBuffers will change in both.
