@@ -40,7 +40,6 @@ public abstract class Client implements Closeable {
   protected final SocketExecuterCommonBase se;
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
   protected final Object readerLock = new Object();
-  protected final Object writerLock = new Object();
   protected final ClientByteStats stats = new ClientByteStats();
   protected final AtomicBoolean closed = new AtomicBoolean(false);
   protected final ConcurrentLinkedQueue<ClientCloseListener> closerListener = new ConcurrentLinkedQueue<>();
@@ -308,14 +307,18 @@ public abstract class Client implements Closeable {
    * @param bb the {@link ByteBuffer} to add to the clients readBuffer.
    */
   protected void addReadBuffer(final ByteBuffer bb) {
+    if (! bb.hasRemaining()) {
+      return;
+    }
     addReadStats(bb.remaining());
     se.addReadAmount(bb.remaining());
     int start;
-    int end;
-    start = readBuffers.remaining();
-    readBuffers.add(bb);
-    end = readBuffers.remaining();
-    if(end > 0 && start == 0){
+    // synchronize to ensure readBuffers are not modified by non-client thread getRead call
+    synchronized (readerLock) {
+      start = readBuffers.remaining();
+      readBuffers.add(bb);
+    }
+    if(start == 0){
       callReader(true); // we assume all buffers are added from the clients thread
     }
   }

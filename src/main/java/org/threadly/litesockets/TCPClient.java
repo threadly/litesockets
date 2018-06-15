@@ -40,6 +40,7 @@ public class TCPClient extends Client {
   private final ReuseableMergedByteBuffers writeBuffers = new ReuseableMergedByteBuffers();
   private final Deque<Pair<Long, SettableListenableFuture<Long>>> writeFutures = new ArrayDeque<>(8);
   private final TCPSocketOptions tso = new TCPSocketOptions();
+  protected final Object writerLock = new Object();
   protected final AtomicBoolean startedConnection = new AtomicBoolean(false);
   protected final SettableListenableFuture<Boolean> connectionFuture;
   protected final SocketChannel channel;
