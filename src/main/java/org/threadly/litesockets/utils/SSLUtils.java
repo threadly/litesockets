@@ -52,7 +52,7 @@ public class SSLUtils {
   }
 
   public static TrustManager[] getOpenTrustManager() {
-    return new TrustManager [] {new SSLUtils.FullTrustManager() };
+    return new TrustManager [] { new SSLUtils.FullTrustManager() };
   }
 
 
@@ -98,7 +98,10 @@ public class SSLUtils {
   }
 
   public static List<X509Certificate> getPEMFileCerts(File certFile) throws CertificateException, IOException {
-    String certString = fileToString(certFile, MAX_PEM_FILE_SIZE);
+    return getPEMCerts(fileToString(certFile, MAX_PEM_FILE_SIZE));
+  }
+
+  public static List<X509Certificate> getPEMCerts(String certString) throws CertificateException, IOException {
     List<X509Certificate> certs = new ArrayList<X509Certificate>();
     int certPos = certString.indexOf(PEM_CERT_START);
     CertificateFactory factory = CertificateFactory.getInstance("X.509");
@@ -112,7 +115,10 @@ public class SSLUtils {
   }
 
   public static RSAPrivateKey getPEMFileKey(File keyFile) throws IOException, InvalidKeySpecException, NoSuchAlgorithmException {
-    String keyString = fileToString(keyFile, MAX_PEM_FILE_SIZE);
+    return getPEMKey(fileToString(keyFile, MAX_PEM_FILE_SIZE));
+  }
+
+  public static RSAPrivateKey getPEMKey(String keyString) throws IOException, InvalidKeySpecException, NoSuchAlgorithmException {
     int keyPos = keyString.indexOf(PEM_KEY_START)+PEM_KEY_START.length();
     int keyEnd = keyString.indexOf(PEM_KEY_END);
     if(keyPos == -1 || keyEnd == -1) {
@@ -133,12 +139,18 @@ public class SSLUtils {
    * @return a {@link KeyManagerFactory} using the provided cert and file.
    * @throws KeyStoreException Thrown if there is any kind of error opening or parsing the PEM files.
    */
-  public static KeyManagerFactory generateKeyStoreFromPEM(File certFile, File keyFile) throws KeyStoreException{
+  public static KeyManagerFactory generateKeyStoreFromPEM(File certFile, File keyFile) throws KeyStoreException {
+    try {
+      return generateKeyStore(getPEMFileCerts(certFile), getPEMFileKey(keyFile));
+    } catch (CertificateException | InvalidKeySpecException | NoSuchAlgorithmException | 
+             IOException e) {
+      throw new KeyStoreException(e);
+    }
+  }
+
+  public static KeyManagerFactory generateKeyStore(List<X509Certificate> certs, RSAPrivateKey key) throws KeyStoreException {
     char[] password = UUID.randomUUID().toString().toCharArray();
     try {
-      List<X509Certificate> certs = getPEMFileCerts(certFile);
-      RSAPrivateKey key = getPEMFileKey(keyFile);
-
       KeyStore keystore = KeyStore.getInstance("JKS");
       keystore.load(null);
       for(int i=0; i<certs.size(); i++) {
