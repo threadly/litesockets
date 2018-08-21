@@ -149,6 +149,8 @@ public class SSLProcessor {
         }
         if(!finishedHandshake.get() && res.getHandshakeStatus() == FINISHED) {
           gotFinished = true;
+        } else if (res.getStatus() == SSLEngineResult.Status.CLOSED) {
+          throw new EncryptionException("got ssl close_notify closing connection");
         } else {
           while (ssle.getHandshakeStatus() == NEED_TASK) {
             runTasks();
@@ -265,10 +267,14 @@ public class SSLProcessor {
    *
    */
   public static class EncryptionException extends Exception {
-
     private static final long serialVersionUID = -2713992763314654069L;
+    
     public EncryptionException(final Throwable t) {
       super(t);
+    }
+
+    public EncryptionException(String msg) {
+      super(msg);
     }
   }
 }
