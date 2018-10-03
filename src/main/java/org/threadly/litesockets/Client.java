@@ -396,8 +396,6 @@ public abstract class Client implements Closeable {
           readerCaller = () -> reader.onRead(this);
           if (this.getReadBufferSize() > 0) {
             callReader(false);  // we can't assume this is the reader thread
-          } else {
-            callReader(false);  
           }
         }
       }
