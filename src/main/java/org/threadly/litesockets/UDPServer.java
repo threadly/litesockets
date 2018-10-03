@@ -157,14 +157,14 @@ public class UDPServer extends Server {
   protected int doWrite() {
     WriteData wd = writeQueue.poll();
     if(wd != null) {
+      int size = 0;
       try {
-        return channel.send(wd.getBuffer(), wd.getAddress());
-      } catch (IOException e) {
+        size = channel.send(wd.getBuffer(), wd.getAddress());
+        wd.getSlf().setResult((long)size);
+        return size;
+      } catch (Exception e) {
+        wd.getSlf().setFailure(e);
         return 0;
-      } finally {
-        if(wd.getSlf() != null && !wd.getSlf().isDone()) {
-          wd.getSlf().setResult(0L);
-        }
       }
     }
     return 0;
@@ -187,7 +187,7 @@ public class UDPServer extends Server {
    * @return a {@link ListenableFuture} that will be completed once the ByteBuffer for this write is put on the socket.
    */
   public ListenableFuture<Long> write(final ByteBuffer bb, final InetSocketAddress remoteAddress) {
-    SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>();
+    SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>(false);
     WriteData wd = new WriteData(slf, remoteAddress, bb);
     this.writeQueue.add(wd);
     getSocketExecuter().setUDPServerOperations(this, true);
@@ -208,7 +208,7 @@ public class UDPServer extends Server {
     long size = 0;
     try {
       size = channel.send(bb, remoteAddress);
-    } catch (IOException e) {
+    } catch (Exception e) {
       return FutureUtils.immediateFailureFuture(e);
     }
     return FutureUtils.immediateResultFuture(size);
