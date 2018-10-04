@@ -46,6 +46,7 @@ public abstract class Client implements Closeable {
   protected volatile Runnable readerCaller = null;
   protected volatile boolean useNativeBuffers = false;
   protected volatile boolean keepReadBuffer = true;
+  protected volatile boolean directUdpWrites = false;
   protected volatile int maxBufferSize = IOUtils.DEFAULT_CLIENT_MAX_BUFFER_SIZE;
   protected volatile int newReadBufferSize = IOUtils.DEFAULT_CLIENT_READ_BUFFER_SIZE;
   private ByteBuffer readByteBuffer = IOUtils.EMPTY_BYTEBUFFER;
@@ -54,12 +55,12 @@ public abstract class Client implements Closeable {
     this.se = se;
     this.clientExecutor = se.getExecutorFor(this);
   }
-  
-  protected Client(final SocketExecuterCommonBase se, final SubmitterExecutor clientExecutor) {
+
+  protected Client(final SocketExecuterCommonBase se, final SubmitterExecutor lclientExecutor) {
     this.se = se;
-    this.clientExecutor = clientExecutor;
+    this.clientExecutor = lclientExecutor;
   }
-  
+
   protected <T> SettableListenableFuture<T> makeClientSettableListenableFuture() {
     return new ClientSettableListenableFuture<>(clientExecutor);
   }
@@ -100,13 +101,13 @@ public abstract class Client implements Closeable {
    * @return the {@link SocketChannel}  for this client.
    */
   protected abstract SocketChannel getChannel();
-  
+
   /**
    * This is called when the SocketExecuter detects the socket can read.  This must be done on the clients ReadThread, 
    * and not the thread calling this. 
    */
   protected abstract void doSocketRead(boolean doLocal);
-  
+
   /**
    * This is called when the SocketExecuter detects the socket can write.  This must be done on the clients ReadThread, 
    * and not the thread calling this. 
@@ -159,7 +160,7 @@ public abstract class Client implements Closeable {
    * @param timeout the time in milliseconds to wait for the client to connect.
    */
   public abstract void setConnectionTimeout(int timeout);
-  
+
   /**
    * <p>This tells us if the client has timed out before it has been connected to the socket.  
    * If the client has connected fully this will return false from that point on (even on a closed connection).</p>
@@ -200,7 +201,7 @@ public abstract class Client implements Closeable {
    * @return A {@link ListenableFuture} that will be completed once the data has been fully written to the socket.
    */
   public abstract ListenableFuture<?> write(ByteBuffer bb);
-  
+
   /**
    * <p>This is called to write data to the clients socket.  Its important to note that there is no back
    * pressure when adding writes so care should be taken to now allow the clients {@link #getWriteBufferSize()} to get
@@ -210,7 +211,7 @@ public abstract class Client implements Closeable {
    * @return A {@link ListenableFuture} that will be completed once the data has been fully written to the socket.
    */
   public abstract ListenableFuture<?> write(MergedByteBuffers mbb);
-  
+
   public abstract ListenableFuture<?> lastWriteFuture();
 
   /**
@@ -220,7 +221,7 @@ public abstract class Client implements Closeable {
   public void close() {
     close(null);
   }
-  
+
   /**
    * <p>Closes this client.  Reads can still occur after this it called.  {@link ClientCloseListener#onClose(Client)} will still be
    * called (if set) once all reads are done.</p>
@@ -230,7 +231,7 @@ public abstract class Client implements Closeable {
   public abstract void close(Throwable error);
 
   /*Implemented functions*/
-  
+
   protected void addReadStats(final int size) {
     stats.addRead(size);
   }
@@ -277,14 +278,14 @@ public abstract class Client implements Closeable {
       }
     }, invokedOnClientThread);
   }
-  
+
   protected void callReader(boolean invokedOnClientThread) {
     Runnable readerCaller = this.readerCaller;
     if (readerCaller != null) {
       runListener(readerCaller, invokedOnClientThread);
     }
   }
-  
+
   private void runListener(Runnable listener, boolean invokedOnClientThread) {
     if (invokedOnClientThread) {
       try {
@@ -673,8 +674,24 @@ public abstract class Client implements Closeable {
      * @return frame size in bytes.
      */
     public int getUdpFrameSize();
+
+    /**
+     * Direct writes are used for UDPClients.  This will cause a write w/o using the selector to deal
+     * with buffering.  This allows for much more control on timing, but also could easily allow
+     * overwriting of the socket buffer causing dropped packets.
+     * 
+     * @return true if directWrites are enabled, false if they are disabled.
+     */
+    public boolean directUdpWrites();
+
+    /**
+     * Set if directWrites are enabled or disabled on this client.
+     * 
+     * @param dw set to true to enable, anf false to disable.
+     */
+    public void setDirectUdpWrites(boolean dw);
   }
-  
+
   protected class BaseClientOptions implements ClientOptions {
     @Override
     public boolean setNativeBuffers(boolean enabled) {
@@ -761,6 +778,16 @@ public abstract class Client implements Closeable {
     @Override
     public int getUdpFrameSize() {
       return -1;
+    }
+
+    @Override
+    public boolean directUdpWrites() {
+      return directUdpWrites;
+    }
+
+    @Override
+    public void setDirectUdpWrites(boolean dw) {
+      directUdpWrites = dw;
     }
   }
 }

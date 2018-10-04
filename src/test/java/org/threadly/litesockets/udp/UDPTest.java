@@ -139,6 +139,37 @@ public class UDPTest {
     newServer.close();
   }  
   
+  @Test
+  public void simpleUDPDirectWriteTest() throws IOException {
+    final int newPort = PortUtils.findUDPPort();
+    final FakeUDPServerClient newFC = new FakeUDPServerClient(SE);
+    final UDPServer newServer = SE.createUDPServer("localhost", newPort);
+    newFC.AddUDPServer(newServer);
+    final UDPClient c = newServer.createUDPClient("127.0.0.1", port);
+    c.clientOptions().setDirectUdpWrites(true);
+    newFC.accept(c);
+    c.write(ByteBuffer.wrap(GET.getBytes()));
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clientList.size() == 1;
+      }
+    }.blockTillTrue(5000);
+    final UDPClient rc = serverFC.clientList.get(0);
+    rc.clientOptions().setDirectUdpWrites(true);
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        return serverFC.clients.get(rc).remaining() > 0;
+      }
+    }.blockTillTrue(5000);
+    System.out.println(serverFC.clients.get(rc).remaining());
+    assertEquals(GET, serverFC.clients.get(rc).getAsString(serverFC.clients.get(rc).remaining()));
+    newServer.close();
+    c.close();
+    newServer.close();
+  }  
+  
   
   @Test
   public void simpleUDPTestNativeBuffers() throws IOException {

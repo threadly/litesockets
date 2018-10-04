@@ -9,10 +9,10 @@ import java.nio.channels.SelectableChannel;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import org.threadly.concurrent.future.FutureUtils;
 import org.threadly.concurrent.future.ListenableFuture;
 import org.threadly.concurrent.future.SettableListenableFuture;
 import org.threadly.litesockets.utils.IOUtils;
-import org.threadly.util.Pair;
 
 
 /**
@@ -32,14 +32,11 @@ public class UDPServer extends Server {
   /**
    * UDPFilter enum.
    * 
-   * @author lwahlmeier
-   *
    */
   public static enum UDPFilterMode {WhiteList, BlackList};
 
   private final ConcurrentHashMap<InetSocketAddress, UDPClient> clients = new ConcurrentHashMap<>();
-  private final ConcurrentLinkedQueue<Pair<InetSocketAddress, ByteBuffer>> writeQueue = new ConcurrentLinkedQueue<>();
-  private final ConcurrentLinkedQueue<SettableListenableFuture<Long>> writeFutures = new ConcurrentLinkedQueue<>();
+  private final ConcurrentLinkedQueue<WriteData> writeQueue = new ConcurrentLinkedQueue<>();
   private final ConcurrentHashMap<InetAddress, Integer> filter = new ConcurrentHashMap<>();
   private final DatagramChannel channel;
   private volatile UDPFilterMode filterMode = UDPFilterMode.BlackList;
@@ -158,17 +155,16 @@ public class UDPServer extends Server {
   }
 
   protected int doWrite() {
-    Pair<InetSocketAddress, ByteBuffer> wdp = writeQueue.poll();
-    SettableListenableFuture<Long> slf = writeFutures.poll();
-    if(wdp != null) {
+    WriteData wd = writeQueue.poll();
+    if(wd != null) {
+      int size = 0;
       try {
-        return channel.send(wdp.getRight(), wdp.getLeft());
-      } catch (IOException e) {
+        size = channel.send(wd.getBuffer(), wd.getAddress());
+        wd.getSlf().setResult((long)size);
+        return size;
+      } catch (Exception e) {
+        wd.getSlf().setFailure(e);
         return 0;
-      } finally {
-        if(slf != null) {
-          slf.setResult(0L);
-        }
       }
     }
     return 0;
@@ -177,7 +173,7 @@ public class UDPServer extends Server {
   protected boolean needsWrite() {
     return !writeQueue.isEmpty();
   }
-  
+
   protected SocketExecuterCommonBase getSocketExecuterCommonBase() {
     return sei;
   }
@@ -191,11 +187,31 @@ public class UDPServer extends Server {
    * @return a {@link ListenableFuture} that will be completed once the ByteBuffer for this write is put on the socket.
    */
   public ListenableFuture<Long> write(final ByteBuffer bb, final InetSocketAddress remoteAddress) {
-    SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>();
-    this.writeFutures.add(slf);
-    writeQueue.add(new Pair<InetSocketAddress, ByteBuffer>(remoteAddress, bb));
+    SettableListenableFuture<Long> slf = new SettableListenableFuture<Long>(false);
+    WriteData wd = new WriteData(slf, remoteAddress, bb);
+    this.writeQueue.add(wd);
     getSocketExecuter().setUDPServerOperations(this, true);
     return slf;
+  }
+
+  /**
+   * Write the buffer immediately to the channel.  This write is not added to the write queue and processed when
+   * we know we can write a udpPacket.  This can allow for better timing on your writes when you need it, but
+   * can also cause problem is this is called many times in a row with no regard for socket buffers as udp
+   * will drop packets. 
+   * 
+   * @param bb the buffer to write.
+   * @param remoteAddress the address to write too.
+   * @return a future with the result of the write.  This will be completed.
+   */
+  public ListenableFuture<Long> writeDirect(final ByteBuffer bb, final InetSocketAddress remoteAddress) {
+    long size = 0;
+    try {
+      size = channel.send(bb, remoteAddress);
+    } catch (Exception e) {
+      return FutureUtils.immediateFailureFuture(e);
+    }
+    return FutureUtils.immediateResultFuture(size);
   }
 
   /**
@@ -274,7 +290,7 @@ public class UDPServer extends Server {
    *
    */
   public interface UDPReader {
-    
+
     /**
      * This is called whenever the UDPServer reads data from the socket.
      * 
@@ -283,5 +299,31 @@ public class UDPServer extends Server {
      * @return true if the data should be passed onto the UDPClient, false if it should not be.
      */
     public boolean onUDPRead(ByteBuffer bb, InetSocketAddress isa);
+  }
+
+  private static class WriteData {
+
+    private final SettableListenableFuture<Long> slf;
+    private final InetSocketAddress address;
+    private final ByteBuffer buffer;
+
+    public WriteData(SettableListenableFuture<Long> slf, InetSocketAddress address, ByteBuffer buffer) {
+      this.slf = slf;
+      this.address = address;
+      this.buffer = buffer;
+    }
+
+    public SettableListenableFuture<Long> getSlf() {
+      return slf;
+    }
+
+    public InetSocketAddress getAddress() {
+      return address;
+    }
+
+    public ByteBuffer getBuffer() {
+      return buffer;
+    }
+
   }
 }

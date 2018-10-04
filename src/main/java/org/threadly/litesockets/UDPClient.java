@@ -35,7 +35,6 @@ public class UDPClient extends Client {
   protected final UDPServer udpServer;
   
   private volatile ListenableFuture<Long> lastWriteFuture = IOUtils.FINISHED_LONG_FUTURE;
-  
 
   protected UDPClient(final InetSocketAddress sa, final UDPServer server) {
     super(server.getSocketExecuterCommonBase(), 
@@ -161,10 +160,15 @@ public class UDPClient extends Client {
   
   @Override
   public ListenableFuture<?> write(final MergedByteBuffers mbb) {
-    addWriteStats(mbb.remaining());
     if(!closed.get()) {
-      lastWriteFuture = udpServer.write(mbb.pullBuffer(mbb.remaining()), remoteAddress);
-      return lastWriteFuture;
+      addWriteStats(mbb.remaining());
+      if(this.clientOptions().directUdpWrites()) {
+        lastWriteFuture = udpServer.writeDirect(mbb.pullBuffer(mbb.remaining()), remoteAddress);
+        return lastWriteFuture;
+      } else {
+        lastWriteFuture = udpServer.write(mbb.pullBuffer(mbb.remaining()), remoteAddress);
+        return lastWriteFuture;
+      }
     }
     return lastWriteFuture;
   }
