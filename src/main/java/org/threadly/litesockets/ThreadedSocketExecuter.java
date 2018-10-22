@@ -6,6 +6,7 @@ import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.nio.channels.spi.SelectorProvider;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -28,6 +29,7 @@ import org.threadly.util.ExceptionUtils;
 public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   private final SelectorThread[] clientSelectors;
   private final KeyDistributedExecutor clientDistributer;
+
   private final int selectors;
   
   /**
@@ -57,7 +59,17 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
    * @param scheduler the {@link SubmitterScheduler} to be used for client/server callbacks.
    */
   public ThreadedSocketExecuter(final SubmitterScheduler scheduler) {
-    this(scheduler, Integer.MAX_VALUE, -1);
+    this(scheduler, Integer.MAX_VALUE, -1, SelectorProvider.provider());
+  }
+  
+  /**
+   * <p>Here you can provide a {@link SubmitterScheduler} for this {@link SocketExecuter}.  This will be used
+   * on accept, read, and close callback events.</p>
+   * 
+   * @param scheduler the {@link SubmitterScheduler} to be used for client/server callbacks.
+   */
+  public ThreadedSocketExecuter(final SubmitterScheduler scheduler, SelectorProvider sp) {
+    this(scheduler, Integer.MAX_VALUE, -1, sp);
   }
   
   /**
@@ -67,7 +79,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
    * @param maxTasksPerCycle the max number of tasks to run on a clients thread before returning the thread back to the pool.
    */
   public ThreadedSocketExecuter(final SubmitterScheduler scheduler, final int maxTasksPerCycle) {
-    this(scheduler, maxTasksPerCycle, -1);
+    this(scheduler, maxTasksPerCycle, -1, SelectorProvider.provider());
   }
   
   /**
@@ -77,8 +89,8 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
    * @param maxTasksPerCycle the max number of tasks to run on a clients thread before returning the thread back to the pool.
    * @param numberOfSelectors the number of selector threads to run.  Default is core/2.
    */
-  public ThreadedSocketExecuter(final SubmitterScheduler scheduler, final int maxTasksPerCycle, final int numberOfSelectors) {
-    super(scheduler);
+  public ThreadedSocketExecuter(final SubmitterScheduler scheduler, final int maxTasksPerCycle, final int numberOfSelectors, SelectorProvider sp) {
+    super(scheduler, sp);
     int ps = -1;
     if(numberOfSelectors == -1) {
        ps = Math.max(1,  Runtime.getRuntime().availableProcessors()/2);

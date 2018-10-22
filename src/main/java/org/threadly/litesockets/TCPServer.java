@@ -31,7 +31,7 @@ public class TCPServer extends Server {
    */
   protected TCPServer(final SocketExecuterCommonBase se, final String host, final int port) throws IOException {
     super(se);
-    socket = ServerSocketChannel.open();
+    socket = se.getSelectorProvider().openServerSocketChannel();
     socket.socket().setReuseAddress(true);
     socket.socket().bind(new InetSocketAddress(host, port), 100);
     socket.configureBlocking(false);

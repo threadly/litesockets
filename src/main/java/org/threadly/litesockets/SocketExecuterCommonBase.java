@@ -7,6 +7,7 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.channels.spi.SelectorProvider;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.logging.Logger;
@@ -32,29 +33,39 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   protected final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<>();
   protected final SocketExecuterByteStats stats = new SocketExecuterByteStats();
   protected final WatchdogCache dogCache;
+  protected final SelectorProvider sp;
   protected volatile boolean verboseLogging = false;
   protected Selector readSelector;
   protected Selector writeSelector;
   protected Selector acceptSelector;
 
   SocketExecuterCommonBase(final SubmitterScheduler scheduler) {
-    this(scheduler,scheduler,scheduler,scheduler);
+    this(scheduler,scheduler,scheduler,scheduler, SelectorProvider.provider());
+  }
+  SocketExecuterCommonBase(final SubmitterScheduler scheduler, SelectorProvider sp) {
+    this(scheduler,scheduler,scheduler,scheduler, sp);
   }
 
   SocketExecuterCommonBase(final SubmitterScheduler acceptScheduler, 
       final SubmitterScheduler readScheduler, 
       final SubmitterScheduler writeScheduler, 
-      final SubmitterScheduler ssi) {
+      final SubmitterScheduler ssi,
+      SelectorProvider sp) {
     log.setParent(Logger.getGlobal());
     ArgumentVerifier.assertNotNull(ssi, "ThreadScheduler");    
     ArgumentVerifier.assertNotNull(acceptScheduler, "Accept Scheduler");
     ArgumentVerifier.assertNotNull(readScheduler, "Read Scheduler");
     ArgumentVerifier.assertNotNull(writeScheduler, "Write Scheduler");
+    this.sp = sp;
     schedulerPool = ssi;
     dogCache = new WatchdogCache(ssi, true);
     this.acceptScheduler = acceptScheduler;
     this.readScheduler = readScheduler;
     this.writeScheduler = writeScheduler;
+  }
+  
+  protected SelectorProvider getSelectorProvider() {
+    return sp;
   }
 
   protected void addReadAmount(int size) {
@@ -182,9 +193,9 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     dogCache.watch(lf, delay);
   }
 
-  protected static Selector openSelector() {
+  protected Selector openSelector() {
     try {
-      return Selector.open();
+      return sp.openSelector();
     } catch (IOException e) {
       throw new StartupException(e);
     }

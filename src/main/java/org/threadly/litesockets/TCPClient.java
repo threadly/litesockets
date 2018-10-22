@@ -66,7 +66,7 @@ public class TCPClient extends Client {
     super(sei);
     connectionFuture = makeClientSettableListenableFuture();
     remoteAddress = new InetSocketAddress(host, port);
-    channel = SocketChannel.open();
+    channel = sei.getSelectorProvider().openSocketChannel();
     channel.configureBlocking(false);
   }
 
