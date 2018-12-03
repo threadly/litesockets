@@ -11,10 +11,12 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.security.KeyStore;
 import java.util.Arrays;
+import java.util.concurrent.ExecutionException;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 
 import org.junit.After;
@@ -27,6 +29,7 @@ import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.litesockets.utils.SSLProcessor;
 import org.threadly.litesockets.utils.SSLProcessor.EncryptionException;
 import org.threadly.litesockets.utils.SSLUtils;
+import org.threadly.test.concurrent.TestCondition;
 
 public class SSLProcessorTests {
   static final String STRING = "hello";
@@ -48,7 +51,7 @@ public class SSLProcessorTests {
   KeyStore KS;
   KeyManagerFactory kmf;
   SSLContext sslCtx;
-  
+
   @Before
   public void start() throws Exception {
     SE = new NoThreadSocketExecuter();
@@ -65,7 +68,7 @@ public class SSLProcessorTests {
     sslCtx.init(kmf.getKeyManagers(), myTMs, null);
     System.out.println(Arrays.toString(sslCtx.createSSLEngine().getSupportedCipherSuites()));
   }
-  
+
   @After
   public void stop() {
     SE.stopIfRunning();
@@ -73,7 +76,7 @@ public class SSLProcessorTests {
     System.out.println("Used Memory:"
         + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024));
   }
-  
+
   @Test
   public void notEncrypted() throws EncryptionException {
     FakeClient fc = new FakeClient(SE);
@@ -83,45 +86,52 @@ public class SSLProcessorTests {
     MergedByteBuffers mbb2 = sp.decrypt(mbb);
     assertEquals(STRING, mbb2.duplicate().getAsString(mbb2.remaining()));
   }
-  
+
   @Test
-  public void encrypted() throws IOException, EncryptionException {
+  public void encrypted() throws Exception {
     FakeClient fc = new FakeClient(SE);
     SSLEngine see = sslCtx.createSSLEngine();
-    see.setEnabledCipherSuites(SIMPLE_ENCRYPT);
     see.setUseClientMode(true);
     SSLProcessor sp = new SSLProcessor(fc, see);
     fc.setSSLProcessor(sp);
     FakeClient fc2 = new FakeClient(SE);
     SSLEngine see2 = sslCtx.createSSLEngine();
-    see2.setEnabledCipherSuites(SIMPLE_ENCRYPT);
     see2.setUseClientMode(false);
-    SSLProcessor sp2 = new SSLProcessor(fc2, see2);
+    final SSLProcessor sp2 = new SSLProcessor(fc2, see2);
     fc2.setSSLProcessor(sp2);
     assertFalse(sp2.isEncrypted());
     assertFalse(sp.isEncrypted());
     assertFalse(sp.handShakeStarted());
-    sp.doHandShake();
+    ListenableFuture<SSLSession> x = sp.doHandShake();
     assertTrue(sp.handShakeStarted());
     assertFalse(sp2.handShakeStarted());
     sp2.doHandShake();
     assertTrue(sp2.handShakeStarted());
-    
+
     assertFalse(sp2.isEncrypted());
     assertFalse(sp.isEncrypted());
-    while(true) {
-      if(fc.canWrite()) {
-        ByteBuffer bb = fc.getWriteBuffer();
-        fc2.addReadBuffer(bb);
-        sp2.decrypt(fc2.getRead());
-      } else if(fc2.canWrite()) {
-        ByteBuffer bb = fc2.getWriteBuffer();
-        fc.addReadBuffer(bb);
-        sp.decrypt(fc.getRead());
-      } else {
-        break;
+        
+    new TestCondition(){
+      @Override
+      public boolean get() {
+        try {
+          if(fc.canWrite()) {
+            ByteBuffer bb = fc.getWriteBuffer();
+            fc2.addReadBuffer(bb);
+            sp2.decrypt(fc2.getRead());
+          } else if(fc2.canWrite()) {
+            ByteBuffer bb = fc2.getWriteBuffer();
+            fc.addReadBuffer(bb);
+            sp.decrypt(fc.getRead());
+          } else {
+            return sp2.isEncrypted() && sp.isEncrypted();
+          }
+        } catch(Exception e) {
+          return false;
+        }
+        return false;
       }
-    }
+    }.blockTillTrue(5000);
     assertTrue(sp2.isEncrypted());
     assertTrue(sp.isEncrypted());
     MergedByteBuffers mbb = sp.encrypt(STRINGBB.duplicate());
@@ -155,7 +165,7 @@ public class SSLProcessorTests {
     assertFalse(sp2.handShakeStarted());
     sp2.doHandShake();
     assertTrue(sp2.handShakeStarted());
-    
+
     assertFalse(sp2.isEncrypted());
     assertFalse(sp.isEncrypted());
     while(true) {
@@ -173,20 +183,18 @@ public class SSLProcessorTests {
     }
     assertFalse(sp2.isEncrypted());
     assertFalse(sp.isEncrypted());
-    
+
   }
 
   @Test
   public void largeEncrypted() throws IOException, EncryptionException {
     FakeClient fc = new FakeClient(SE);
     SSLEngine see = sslCtx.createSSLEngine();
-    see.setEnabledCipherSuites(SIMPLE_ENCRYPT);
     see.setUseClientMode(true);
     SSLProcessor sp = new SSLProcessor(fc, see);
     fc.setSSLProcessor(sp);
     FakeClient fc2 = new FakeClient(SE);
     SSLEngine see2 = sslCtx.createSSLEngine();
-    see2.setEnabledCipherSuites(SIMPLE_ENCRYPT);
     see2.setUseClientMode(false);
     SSLProcessor sp2 = new SSLProcessor(fc2, see2);
     fc2.setSSLProcessor(sp2);
@@ -217,7 +225,7 @@ public class SSLProcessorTests {
     }
     assertEquals(LARGE_STRING, dmbb.getAsString(dmbb.remaining()));
   }
-  
+
   public static class FakeClient extends Client {
     MergedByteBuffers writeBuffers = new ReuseableMergedByteBuffers(false);
     SSLProcessor sp;
@@ -225,11 +233,11 @@ public class SSLProcessorTests {
     public FakeClient(SocketExecuterCommonBase se) {
       super(se);
     }
-    
+
     public void setSSLProcessor(SSLProcessor sp) {
       this.sp = sp;
     }
-    
+
     @Override
     public void addReadBuffer(ByteBuffer  bb) {
       super.addReadBuffer(bb);
@@ -252,12 +260,12 @@ public class SSLProcessorTests {
 
     @Override
     protected void setConnectionStatus(Throwable t) {
-      
+
     }
 
     @Override
     public void setConnectionTimeout(int timeout) {
-      
+
     }
 
     @Override
@@ -277,7 +285,7 @@ public class SSLProcessorTests {
 
     @Override
     protected void reduceWrite(int size) {
-      
+
     }
 
     @Override
@@ -292,7 +300,7 @@ public class SSLProcessorTests {
 
     @Override
     public void close(Throwable error) {
-      
+
     }
 
     @Override
@@ -304,7 +312,7 @@ public class SSLProcessorTests {
     public SocketAddress getLocalSocketAddress() {
       return null;
     }
-    
+
     @Override
     public ListenableFuture<?> write(final ByteBuffer bb) {
       try {
@@ -322,12 +330,12 @@ public class SSLProcessorTests {
 
     @Override
     protected void doSocketRead(boolean doLocal) {
-      
+
     }
 
     @Override
     protected void doSocketWrite(boolean doLocal) {
-      
+
     }
 
     @Override
