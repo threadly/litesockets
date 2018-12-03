@@ -179,7 +179,7 @@ public class TCPClient extends Client {
 
   @Override
   public boolean canWrite() {
-    return writeBuffers.remaining() > 0 ;
+    return writeBuffers.remaining() + this.currentWriteBuffer.remaining() > 0 ;
   }
 
   @Override
