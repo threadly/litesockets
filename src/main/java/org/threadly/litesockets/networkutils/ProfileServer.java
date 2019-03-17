@@ -137,11 +137,7 @@ public class ProfileServer extends AbstractService implements ClientAcceptor, Re
     }
     if(mbb.remaining() > 100) {
       client.setReader(null);
-      client.write(BAD_DATA.duplicate()).addListener(new Runnable() {
-        @Override
-        public void run() {
-          client.close();
-        }});
+      client.write(BAD_DATA.duplicate()).listener(client::close);
     }
         
   }

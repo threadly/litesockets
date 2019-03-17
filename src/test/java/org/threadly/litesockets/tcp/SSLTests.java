@@ -12,7 +12,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -39,7 +38,6 @@ import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.litesockets.utils.PortUtils;
 import org.threadly.litesockets.utils.SSLUtils;
 import org.threadly.test.concurrent.TestCondition;
-import org.threadly.util.ExceptionUtils;
 
 public class SSLTests {
   PriorityScheduler PS;
@@ -333,7 +331,7 @@ public class SSLTests {
               if(tmp.equals("DO_SSL")) {
                 sslc.write(ByteBuffer.wrap("DO_SSL".getBytes()));
                 System.out.println("DOSSL-Server");
-                sslc.startSSL().addListener(new Runnable() {
+                sslc.startSSL().listener(new Runnable() {
                   @Override
                   public void run() {
                     didSSL = true;
@@ -367,7 +365,7 @@ public class SSLTests {
           String tmp = mbb.getAsString(6);
           if(tmp.equals("DO_SSL")) {
             System.out.println("DOSSL");
-            sslclient.startSSL().addListener(new Runnable() {
+            sslclient.startSSL().listener(new Runnable() {
               @Override
               public void run() {
                 didSSL = true;
