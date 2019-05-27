@@ -88,8 +88,6 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   protected void startupService() {
     commonSelector = openSelector();
     this.acceptSelector = commonSelector;
-    this.readSelector = commonSelector;
-    this.writeSelector = commonSelector;
   }
 
   @Override

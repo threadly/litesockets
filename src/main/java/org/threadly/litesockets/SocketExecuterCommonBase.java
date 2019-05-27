@@ -23,39 +23,28 @@ import org.threadly.util.ArgumentVerifier;
  *  This is a common base class for the Threaded and NoThread SocketExecuters. 
  */
 abstract class SocketExecuterCommonBase extends AbstractService implements SocketExecuter {
-  private final Logger log = Logger.getLogger(this.getClass().toString());
-  protected final SubmitterScheduler acceptScheduler;
-  protected final SubmitterScheduler readScheduler;
-  protected final SubmitterScheduler writeScheduler;
+  protected final Logger log = Logger.getLogger(this.getClass().toString());
   protected final SubmitterScheduler schedulerPool;
+  protected final SubmitterScheduler acceptScheduler;
   protected final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<>();
   protected final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<>();
   protected final SocketExecuterByteStats stats = new SocketExecuterByteStats();
   protected final WatchdogCache dogCache;
   protected volatile boolean perConnectionStatsEnabled = true;
-  protected volatile boolean verboseLogging = false;
-  protected Selector readSelector;
-  protected Selector writeSelector;
   protected Selector acceptSelector;
 
   SocketExecuterCommonBase(final SubmitterScheduler scheduler) {
-    this(scheduler,scheduler,scheduler,scheduler);
+    this(scheduler, scheduler);
   }
 
-  SocketExecuterCommonBase(final SubmitterScheduler acceptScheduler, 
-      final SubmitterScheduler readScheduler, 
-      final SubmitterScheduler writeScheduler, 
-      final SubmitterScheduler ssi) {
+  SocketExecuterCommonBase(final SubmitterScheduler acceptScheduler, final SubmitterScheduler ssi) {
     log.setParent(Logger.getGlobal());
     ArgumentVerifier.assertNotNull(ssi, "ThreadScheduler");    
     ArgumentVerifier.assertNotNull(acceptScheduler, "Accept Scheduler");
-    ArgumentVerifier.assertNotNull(readScheduler, "Read Scheduler");
-    ArgumentVerifier.assertNotNull(writeScheduler, "Write Scheduler");
+    
     schedulerPool = ssi;
     dogCache = new WatchdogCache(ssi, true);
     this.acceptScheduler = acceptScheduler;
-    this.readScheduler = readScheduler;
-    this.writeScheduler = writeScheduler;
   }
 
   public void setPerConnectionStatsEnabled(boolean enabled) {
