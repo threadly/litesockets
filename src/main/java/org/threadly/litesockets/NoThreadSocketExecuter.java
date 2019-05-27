@@ -40,7 +40,15 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
    * Constructs a NoThreadSocketExecuter.  {@link #start()} must still be called before using it.
    */
   public NoThreadSocketExecuter() {
-    super(new NoThreadScheduler());
+    this(new NoThreadScheduler()); 
+  }
+  
+  /**
+   * Constructs a NoThreadSocketExecuter.  {@link #start()} must still be called before using it.
+   */
+  public NoThreadSocketExecuter(NoThreadScheduler scheduler) {
+    super(scheduler);
+
     localNoThreadScheduler = (NoThreadScheduler)schedulerPool; 
   }
 
