@@ -21,6 +21,13 @@ import org.threadly.util.Service;
  *
  */
 public interface SocketExecuter extends Service {
+  /**
+   * By default per-connection stats will be enabled.  Stats can always be disabled on a per-Client 
+   * basis, but this allows the default state of the stats to be enabled / disabled.
+   * 
+   * @param enabled {@code false} if stats should not be collected per-connection by default
+   */
+  public void setPerConnectionStatsEnabled(boolean enabled);
   
   /**
    * This will create a UDPServer on the specified {@link SocketExecuter}.

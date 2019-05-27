@@ -32,6 +32,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   protected final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<>();
   protected final SocketExecuterByteStats stats = new SocketExecuterByteStats();
   protected final WatchdogCache dogCache;
+  protected volatile boolean perConnectionStatsEnabled = true;
   protected volatile boolean verboseLogging = false;
   protected Selector readSelector;
   protected Selector writeSelector;
@@ -57,11 +58,15 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     this.writeScheduler = writeScheduler;
   }
 
-  protected void addReadAmount(int size) {
+  public void setPerConnectionStatsEnabled(boolean enabled) {
+    perConnectionStatsEnabled = enabled;
+  }
+
+  protected void recordReadStatst(int size) {
     stats.addRead(size);
   }
 
-  protected void addWriteAmount(int size) {
+  protected void recordWriteStats(int size) {
     stats.addWrite(size);
   }
 
@@ -74,7 +79,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   @Override
   public TCPClient createTCPClient(final String host, final int port) throws IOException {
     checkRunning();
-    TCPClient tc = new TCPClient(this, host, port);
+    TCPClient tc = new TCPClient(this, host, port, perConnectionStatsEnabled);
     clients.put(((Client)tc).getChannel(), tc);
     return tc;
   }
@@ -83,7 +88,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   @Override
   public TCPClient createTCPClient(final SocketChannel sc) throws IOException {
     checkRunning();
-    final TCPClient tc = new TCPClient(this, sc);
+    final TCPClient tc = new TCPClient(this, sc, perConnectionStatsEnabled);
     clients.put(((Client)tc).getChannel(), tc);
     this.setClientOperations(tc);
     return tc;
@@ -170,10 +175,6 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
 
   @Override
   public SimpleByteStats getStats() {
-    return stats;
-  }
-
-  protected SocketExecuterByteStats writeableStats() {
     return stats;
   }
 

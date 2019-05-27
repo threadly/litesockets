@@ -310,7 +310,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
                     if(server != null) {
                       if(server instanceof UDPServer) {
                         UDPServer us = (UDPServer) server;
-                        stats.addWrite(us.doWrite());
+                        recordWriteStats(us.doWrite());
                         setUDPServerOperations(us, true);
                       }
                     }

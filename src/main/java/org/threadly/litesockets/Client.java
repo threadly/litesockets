@@ -14,7 +14,6 @@ import org.threadly.litesockets.buffers.MergedByteBuffers;
 import org.threadly.litesockets.buffers.ReuseableMergedByteBuffers;
 import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.litesockets.utils.SimpleByteStats;
-import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.Clock;
 import org.threadly.util.ExceptionUtils;
 
@@ -40,9 +39,9 @@ public abstract class Client implements Closeable {
   protected final SocketExecuterCommonBase se;
   protected final long startTime = Clock.lastKnownForwardProgressingMillis();
   protected final Object readerLock = new Object();
-  protected final ClientByteStats stats = new ClientByteStats();
   protected final AtomicBoolean closed = new AtomicBoolean(false);
   protected final ConcurrentLinkedQueue<ClientCloseListener> closerListener = new ConcurrentLinkedQueue<>();
+  protected volatile ClientByteStats stats;
   protected volatile Runnable readerCaller = null;
   protected volatile boolean useNativeBuffers = false;
   protected volatile boolean keepReadBuffer = true;
@@ -51,12 +50,17 @@ public abstract class Client implements Closeable {
   protected volatile int newReadBufferSize = IOUtils.DEFAULT_CLIENT_READ_BUFFER_SIZE;
   private ByteBuffer readByteBuffer = IOUtils.EMPTY_BYTEBUFFER;
 
-  public Client(final SocketExecuterCommonBase se) {
+  public Client(final SocketExecuterCommonBase se, final boolean statsEnabled) {
+    setStatsEnabled(statsEnabled);
+    
     this.se = se;
     this.clientExecutor = se.getExecutorFor(this);
   }
 
-  protected Client(final SocketExecuterCommonBase se, final SubmitterExecutor lclientExecutor) {
+  protected Client(final SocketExecuterCommonBase se, final SubmitterExecutor lclientExecutor, 
+                   final boolean statsEnabled) {
+    setStatsEnabled(statsEnabled);
+    
     this.se = se;
     this.clientExecutor = lclientExecutor;
   }
@@ -232,11 +236,11 @@ public abstract class Client implements Closeable {
 
   /*Implemented functions*/
 
-  protected void addReadStats(final int size) {
+  protected void recordReadStats(final int size) {
     stats.addRead(size);
   }
 
-  protected void addWriteStats(final int size) {
+  protected void recordWriteStats(final int size) {
     stats.addWrite(size);
   }
 
@@ -311,8 +315,8 @@ public abstract class Client implements Closeable {
     if (! bb.hasRemaining()) {
       return;
     }
-    addReadStats(bb.remaining());
-    se.addReadAmount(bb.remaining());
+    recordReadStats(bb.remaining());
+    se.recordReadStatst(bb.remaining());
     int start;
     // synchronize to ensure readBuffers are not modified by non-client thread getRead call
     synchronized (readerLock) {
@@ -441,24 +445,49 @@ public abstract class Client implements Closeable {
   public SimpleByteStats getStats() {
     return stats;
   }
+  
+  /**
+   * Can be invoked with {@code false} to disable stat collection on client.  This can reduce 
+   * minor memory and performance overheads.
+   * 
+   * @param enabled {@code false} to disable stat collection, or {@code true} to enable / reset stats
+   */
+  public void setStatsEnabled(boolean enabled) {
+    if (enabled) {
+      ClientByteStats stats = this.stats;
+      if (stats == ClientByteStats.NO_OP_STATS || stats == null) {
+        this.stats = new ClientByteStats();
+      } else {
+        stats.resetStats();
+      }
+    } else {
+      stats = ClientByteStats.NO_OP_STATS;
+    }
+  }
 
   /**
    * Implementation of the SimpleByteStats.
    */
   private static class ClientByteStats extends SimpleByteStats {
-    public ClientByteStats() {
-      super();
-    }
+    public static final ClientByteStats NO_OP_STATS = new ClientByteStats() {
+      @Override
+      protected void addWrite(final int size) {
+        // ignored
+      }
+
+      @Override
+      protected void addRead(final int size) {
+        // ignored
+      }
+    };
 
     @Override
     protected void addWrite(final int size) {
-      ArgumentVerifier.assertNotNegative(size, "size");
       super.addWrite(size);
     }
 
     @Override
     protected void addRead(final int size) {
-      ArgumentVerifier.assertNotNegative(size, "size");
       super.addRead(size);
     }
   }
