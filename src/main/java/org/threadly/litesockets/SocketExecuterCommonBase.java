@@ -51,7 +51,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     perConnectionStatsEnabled = enabled;
   }
 
-  protected void recordReadStatst(int size) {
+  protected void recordReadStats(int size) {
     stats.addRead(size);
   }
 

@@ -316,7 +316,7 @@ public abstract class Client implements Closeable {
       return;
     }
     recordReadStats(bb.remaining());
-    se.recordReadStatst(bb.remaining());
+    se.recordReadStats(bb.remaining());
     int start;
     // synchronize to ensure readBuffers are not modified by non-client thread getRead call
     synchronized (readerLock) {
