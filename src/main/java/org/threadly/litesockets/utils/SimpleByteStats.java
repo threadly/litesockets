@@ -9,18 +9,6 @@ import org.threadly.util.Clock;
  * Simple class for trying byteStats.  This implementation only tracks global stats. 
  */
 public class SimpleByteStats {
-  public static final SimpleByteStats NO_OP_BYTE_STAT_INSTANCE = new SimpleByteStats() {
-    @Override
-    protected void addWrite(final int size) {
-      // ignored
-    }
-    
-    @Override
-    protected void addRead(final int size) {
-      // ignored
-    }
-  };
-  
   private final LongAdder bytesRead = new LongAdder();
   private final LongAdder bytesWritten = new LongAdder();
   private volatile long startTime = Clock.lastKnownForwardProgressingMillis();
