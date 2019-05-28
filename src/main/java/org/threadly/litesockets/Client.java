@@ -124,13 +124,11 @@ public abstract class Client implements Closeable {
    */
   public abstract SocketAddress getRemoteSocketAddress();
 
-
   /**
    * 
    * @return the local {@link SocketAddress} this client is using.
    */
   public abstract SocketAddress getLocalSocketAddress();
-
 
   /**
    * Returns true if this client has data pending in its write buffers.  False if there is no data pending write.
@@ -519,7 +517,6 @@ public abstract class Client implements Closeable {
      */
     public void onRead(Client client);
   }
-
 
   /**
    * Used to notify when a Client is closed.
