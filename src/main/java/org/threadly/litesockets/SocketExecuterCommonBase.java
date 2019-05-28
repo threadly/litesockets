@@ -47,6 +47,25 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     this.acceptScheduler = acceptScheduler;
   }
 
+  @Override
+  public long getTotalPendingWriteBytes() {
+    long result = 0;
+    for (Client c : clients.values()) {
+      result += c.getWriteBufferSize();
+    }
+    return result;
+  }
+  
+  @Override
+  public long getTotalPendingReadBytes() {
+    long result = 0;
+    for (Client c : clients.values()) {
+      result += c.getReadBufferSize();
+    }
+    return result;
+  }
+
+  @Override
   public void setPerConnectionStatsEnabled(boolean enabled) {
     perConnectionStatsEnabled = enabled;
   }

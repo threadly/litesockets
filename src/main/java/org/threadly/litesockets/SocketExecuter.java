@@ -29,6 +29,23 @@ public interface SocketExecuter extends Service {
    */
   public void setPerConnectionStatsEnabled(boolean enabled);
   
+  
+  /**
+   * Check the total number of bytes pending to be sent by clients.  This is data which has been 
+   * provided to the client to write, but is waiting on the network and kernel to accept the write.
+   * 
+   * @return The total number of bytes pending to write by clients
+   */
+  public long getTotalPendingWriteBytes();
+  
+  /**
+   * Check the total amount of pending reads across all associated clients.  Bytes here indicate 
+   * that the client has been notified a read is available but has not consumed it.
+   * 
+   * @return The total number of bytes pending to read by clients
+   */
+  public long getTotalPendingReadBytes();
+  
   /**
    * This will create a UDPServer on the specified {@link SocketExecuter}.
    * 
