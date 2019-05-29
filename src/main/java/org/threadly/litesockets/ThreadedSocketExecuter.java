@@ -28,7 +28,6 @@ import org.threadly.util.ExceptionUtils;
 public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
   private final SelectorThread[] clientSelectors;
   private final KeyDistributedExecutor clientDistributer;
-  private final int selectors;
   
   /**
    * <p>This constructor creates its own {@link SingleThreadScheduler} Threadpool to use for client operations.  This is generally 
@@ -79,22 +78,22 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
    */
   public ThreadedSocketExecuter(final SubmitterScheduler scheduler, final int maxTasksPerCycle, final int numberOfSelectors) {
     super(scheduler);
+    
     int ps = -1;
-    if(numberOfSelectors == -1) {
-       ps = Math.max(1,  Runtime.getRuntime().availableProcessors()/2);
+    if(numberOfSelectors <= 0) {
+      ps = Math.max(1,  Runtime.getRuntime().availableProcessors()/2);
     } else {
       ps = numberOfSelectors;
     }
     clientSelectors = new SelectorThread[ps];
     clientDistributer = new KeyDistributedExecutor(schedulerPool, maxTasksPerCycle);
-    this.selectors = ps;
   }
   
   private SelectorThread getSelectorFor(Object obj) {
-    if(selectors == 1) {
+    if(clientSelectors.length == 1) {
       return clientSelectors[0];
     } 
-    return clientSelectors[obj.hashCode()%selectors];
+    return clientSelectors[obj.hashCode() % clientSelectors.length];
   }
 
   @Override
@@ -142,7 +141,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
 
   @Override
   protected void startupService() {
-    for(int i=0; i<selectors; i++) {
+    for(int i=0; i < clientSelectors.length; i++) {
       clientSelectors[i] = new SelectorThread(i);
     }
   }
@@ -310,7 +309,7 @@ public class ThreadedSocketExecuter extends SocketExecuterCommonBase {
                     if(server != null) {
                       if(server instanceof UDPServer) {
                         UDPServer us = (UDPServer) server;
-                        stats.addWrite(us.doWrite());
+                        recordWriteStats(us.doWrite());
                         setUDPServerOperations(us, true);
                       }
                     }

@@ -62,8 +62,10 @@ public class TCPClient extends Client {
    * @param port The port to connect this client too.
    * @throws IOException - This is thrown if there are any problems making the socket.
    */
-  protected TCPClient(final SocketExecuterCommonBase sei, final String host, final int port) throws IOException {
-    super(sei);
+  protected TCPClient(final SocketExecuterCommonBase sei, final String host, final int port, 
+                      final boolean statsEnabled) throws IOException {
+    super(sei, statsEnabled);
+    
     connectionFuture = makeClientSettableListenableFuture();
     remoteAddress = new InetSocketAddress(host, port);
     channel = SocketChannel.open();
@@ -78,8 +80,10 @@ public class TCPClient extends Client {
    * @param channel the {@link SocketChannel} to use for this client.
    * @throws IOException if there is anything wrong with the {@link SocketChannel} this will be thrown.
    */
-  protected TCPClient(final SocketExecuterCommonBase sei, final SocketChannel channel) throws IOException {
-    super(sei);
+  protected TCPClient(final SocketExecuterCommonBase sei, final SocketChannel channel, 
+                      final boolean statsEnabled) throws IOException {
+    super(sei, statsEnabled);
+    
     if(! channel.isOpen()) {
       throw new ClosedChannelException();
     }
@@ -279,7 +283,7 @@ public class TCPClient extends Client {
   @Override
   protected void reduceWrite(final int size) {
     synchronized(writerLock) {
-      addWriteStats(size);
+      recordWriteStats(size);
       if(currentWriteBuffer.remaining() == 0) {
         while(this.writeFutures.peekFirst() != null && writeFutures.peekFirst().getLeft() <= writeBuffers.getTotalConsumedBytes()) {
           final Pair<Long, SettableListenableFuture<Long>> p = writeFutures.pollFirst();
@@ -336,7 +340,7 @@ public class TCPClient extends Client {
       wrote = channel.write(getWriteBuffer());
       if(wrote > 0) {
         reduceWrite(wrote);
-        se.addWriteAmount(wrote);
+        se.recordWriteStats(wrote);
       }
       if(!doLocal) {
         se.setClientOperations(TCPClient.this);

@@ -40,7 +40,15 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
    * Constructs a NoThreadSocketExecuter.  {@link #start()} must still be called before using it.
    */
   public NoThreadSocketExecuter() {
-    super(new NoThreadScheduler());
+    this(new NoThreadScheduler()); 
+  }
+  
+  /**
+   * Constructs a NoThreadSocketExecuter.  {@link #start()} must still be called before using it.
+   */
+  public NoThreadSocketExecuter(NoThreadScheduler scheduler) {
+    super(scheduler);
+
     localNoThreadScheduler = (NoThreadScheduler)schedulerPool; 
   }
 
@@ -88,8 +96,6 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
   protected void startupService() {
     commonSelector = openSelector();
     this.acceptSelector = commonSelector;
-    this.readSelector = commonSelector;
-    this.writeSelector = commonSelector;
   }
 
   @Override
@@ -219,7 +225,7 @@ public class NoThreadSocketExecuter extends SocketExecuterCommonBase {
                     if(server != null) {
                       if(server instanceof UDPServer) {
                         UDPServer us = (UDPServer) server;
-                        stats.addWrite(us.doWrite());
+                        recordWriteStats(us.doWrite());
                         setUDPServerOperations(us, true);
                       }
                     }

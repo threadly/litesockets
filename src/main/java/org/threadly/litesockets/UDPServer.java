@@ -236,7 +236,8 @@ public class UDPServer extends Server {
   public UDPClient createUDPClient(final String host, final int port) {
     final InetSocketAddress sa = new InetSocketAddress(host,port);
     if(! clients.containsKey(sa)) {
-      final UDPClient c = new UDPClient(new InetSocketAddress(host, port), this);
+      final UDPClient c = new UDPClient(new InetSocketAddress(host, port), this, 
+                                        sei.perConnectionStatsEnabled);
       clients.putIfAbsent(sa, c);
     }
     return clients.get(sa);
@@ -265,7 +266,7 @@ public class UDPServer extends Server {
       UDPReader reader = us.setUDPReader;
       if(reader == null || reader.onUDPRead(bb.duplicate(), isa)) {
         if(! us.clients.containsKey(isa)) {
-          UDPClient udpc = new UDPClient(isa, us);
+          UDPClient udpc = new UDPClient(isa, us, us.sei.perConnectionStatsEnabled);
           udpc = us.clients.putIfAbsent(isa, udpc);
           if(udpc == null) {
             udpc = us.clients.get(isa);

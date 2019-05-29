@@ -2,8 +2,8 @@ package org.threadly.litesockets.utils;
 
 import java.util.concurrent.atomic.LongAdder;
 
+import org.threadly.util.ArgumentVerifier;
 import org.threadly.util.Clock;
-
 
 /**
  * Simple class for trying byteStats.  This implementation only tracks global stats. 
@@ -11,18 +11,17 @@ import org.threadly.util.Clock;
 public class SimpleByteStats {
   private final LongAdder bytesRead = new LongAdder();
   private final LongAdder bytesWritten = new LongAdder();
-  
   private volatile long startTime = Clock.lastKnownForwardProgressingMillis();
-
-  public SimpleByteStats() {
-    //Nothing needed
-  }
   
   protected void addWrite(final int size) {
+    ArgumentVerifier.assertNotNegative(size, "size");
+    
     bytesWritten.add(size);
   }
   
   protected void addRead(final int size) {
+    ArgumentVerifier.assertNotNegative(size, "size");
+    
     bytesRead.add(size);
   }
   
@@ -41,7 +40,7 @@ public class SimpleByteStats {
   }
     
   /**
-   * @return the average rate per second that byte have been read, since creation.
+   * @return the average rate per second that byte have been read, since creation or {@link #resetStats()}
    */
   public double getReadRate() {
     final double sec = (Clock.lastKnownForwardProgressingMillis() - startTime)/1000.0;
@@ -49,7 +48,7 @@ public class SimpleByteStats {
   }
   
   /**
-   * @return the average rate per second that byte have been written, since creation.
+   * @return the average rate per second that byte have been written, since creation or {@link #resetStats()}
    */
   public double getWriteRate() {
     final double sec = (Clock.lastKnownForwardProgressingMillis() - startTime)/1000.0;
@@ -57,8 +56,8 @@ public class SimpleByteStats {
   }
   
   /**
-   * Resets all stats.
-   * 
+   * Resets all stats.  This can be particularly useful when using the 
+   * {@link #getReadRate()} / {@link #getWriteRate()}.
    */
   public void resetStats() {
     startTime = Clock.lastKnownForwardProgressingMillis();

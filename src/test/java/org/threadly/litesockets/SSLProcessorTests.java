@@ -11,7 +11,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.security.KeyStore;
 import java.util.Arrays;
-import java.util.concurrent.ExecutionException;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -231,7 +230,7 @@ public class SSLProcessorTests {
     SSLProcessor sp;
 
     public FakeClient(SocketExecuterCommonBase se) {
-      super(se);
+      super(se, true);
     }
 
     public void setSSLProcessor(SSLProcessor sp) {

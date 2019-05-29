@@ -21,6 +21,30 @@ import org.threadly.util.Service;
  *
  */
 public interface SocketExecuter extends Service {
+  /**
+   * By default per-connection stats will be enabled.  Stats can always be disabled on a per-Client 
+   * basis, but this allows the default state of the stats to be enabled / disabled.
+   * 
+   * @param enabled {@code false} if stats should not be collected per-connection by default
+   */
+  public void setPerConnectionStatsEnabled(boolean enabled);
+  
+  
+  /**
+   * Check the total number of bytes pending to be sent by clients.  This is data which has been 
+   * provided to the client to write, but is waiting on the network and kernel to accept the write.
+   * 
+   * @return The total number of bytes pending to write by clients
+   */
+  public long getTotalPendingWriteBytes();
+  
+  /**
+   * Check the total amount of pending reads across all associated clients.  Bytes here indicate 
+   * that the client has been notified a read is available but has not consumed it.
+   * 
+   * @return The total number of bytes pending to read by clients
+   */
+  public long getTotalPendingReadBytes();
   
   /**
    * This will create a UDPServer on the specified {@link SocketExecuter}.

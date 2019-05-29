@@ -23,45 +23,58 @@ import org.threadly.util.ArgumentVerifier;
  *  This is a common base class for the Threaded and NoThread SocketExecuters. 
  */
 abstract class SocketExecuterCommonBase extends AbstractService implements SocketExecuter {
-  private final Logger log = Logger.getLogger(this.getClass().toString());
-  protected final SubmitterScheduler acceptScheduler;
-  protected final SubmitterScheduler readScheduler;
-  protected final SubmitterScheduler writeScheduler;
+  protected final Logger log = Logger.getLogger(this.getClass().toString());
   protected final SubmitterScheduler schedulerPool;
+  protected final SubmitterScheduler acceptScheduler;
   protected final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<>();
   protected final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<>();
   protected final SocketExecuterByteStats stats = new SocketExecuterByteStats();
   protected final WatchdogCache dogCache;
-  protected volatile boolean verboseLogging = false;
-  protected Selector readSelector;
-  protected Selector writeSelector;
+  protected volatile boolean perConnectionStatsEnabled = true;
   protected Selector acceptSelector;
 
   SocketExecuterCommonBase(final SubmitterScheduler scheduler) {
-    this(scheduler,scheduler,scheduler,scheduler);
+    this(scheduler, scheduler);
   }
 
-  SocketExecuterCommonBase(final SubmitterScheduler acceptScheduler, 
-      final SubmitterScheduler readScheduler, 
-      final SubmitterScheduler writeScheduler, 
-      final SubmitterScheduler ssi) {
+  SocketExecuterCommonBase(final SubmitterScheduler acceptScheduler, final SubmitterScheduler ssi) {
     log.setParent(Logger.getGlobal());
     ArgumentVerifier.assertNotNull(ssi, "ThreadScheduler");    
     ArgumentVerifier.assertNotNull(acceptScheduler, "Accept Scheduler");
-    ArgumentVerifier.assertNotNull(readScheduler, "Read Scheduler");
-    ArgumentVerifier.assertNotNull(writeScheduler, "Write Scheduler");
+    
     schedulerPool = ssi;
     dogCache = new WatchdogCache(ssi, true);
     this.acceptScheduler = acceptScheduler;
-    this.readScheduler = readScheduler;
-    this.writeScheduler = writeScheduler;
   }
 
-  protected void addReadAmount(int size) {
+  @Override
+  public long getTotalPendingWriteBytes() {
+    long result = 0;
+    for (Client c : clients.values()) {
+      result += c.getWriteBufferSize();
+    }
+    return result;
+  }
+  
+  @Override
+  public long getTotalPendingReadBytes() {
+    long result = 0;
+    for (Client c : clients.values()) {
+      result += c.getReadBufferSize();
+    }
+    return result;
+  }
+
+  @Override
+  public void setPerConnectionStatsEnabled(boolean enabled) {
+    perConnectionStatsEnabled = enabled;
+  }
+
+  protected void recordReadStats(int size) {
     stats.addRead(size);
   }
 
-  protected void addWriteAmount(int size) {
+  protected void recordWriteStats(int size) {
     stats.addWrite(size);
   }
 
@@ -74,7 +87,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   @Override
   public TCPClient createTCPClient(final String host, final int port) throws IOException {
     checkRunning();
-    TCPClient tc = new TCPClient(this, host, port);
+    TCPClient tc = new TCPClient(this, host, port, perConnectionStatsEnabled);
     clients.put(((Client)tc).getChannel(), tc);
     return tc;
   }
@@ -83,7 +96,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   @Override
   public TCPClient createTCPClient(final SocketChannel sc) throws IOException {
     checkRunning();
-    final TCPClient tc = new TCPClient(this, sc);
+    final TCPClient tc = new TCPClient(this, sc, perConnectionStatsEnabled);
     clients.put(((Client)tc).getChannel(), tc);
     this.setClientOperations(tc);
     return tc;
@@ -170,10 +183,6 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
 
   @Override
   public SimpleByteStats getStats() {
-    return stats;
-  }
-
-  protected SocketExecuterByteStats writeableStats() {
     return stats;
   }
 
