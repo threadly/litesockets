@@ -135,7 +135,7 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
     currentSize -= size;
     final ByteBuffer first = availableBuffers.peek();
     if(first.remaining() == size) {
-      return removeFirstBuffer().slice();
+      return removeFirstBuffer();
     } else if(first.remaining() > size) {
       final ByteBuffer bb = first.duplicate();
       bb.limit(bb.position()+size);

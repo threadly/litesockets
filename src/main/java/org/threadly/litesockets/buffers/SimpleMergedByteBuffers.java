@@ -140,7 +140,7 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
     ByteBuffer bb = getNextBuffer();
     consumedSize += bb.remaining();
     currentBuffer++;
-    return bb.slice();
+    return bb.duplicate();
   }
 
   @Override
@@ -175,9 +175,9 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
     final ByteBuffer first = getNextBuffer();
     if(first.remaining() == size) {
       currentBuffer++;
-      return first.slice();
+      return first.duplicate();
     } else if(first.remaining() > size) {
-      final ByteBuffer bb = first.duplicate().slice();
+      final ByteBuffer bb = first.duplicate();
       bb.limit(bb.position()+size);
       first.position(first.position()+size);
       return bb;

@@ -59,7 +59,7 @@ public abstract class AbstractMergedByteBuffers implements MergedByteBuffers {
   public void add(final ByteBuffer ...buffers) {
     for(ByteBuffer buffer: buffers) {
       if(buffer.hasRemaining()) {
-        doAppend(buffer.slice());
+        doAppend(buffer.duplicate());
       }
     }
   }

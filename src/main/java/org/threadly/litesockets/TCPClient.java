@@ -362,9 +362,9 @@ public class TCPClient extends Client {
       size = channel.read(readByteBuffer);
       if(size > 0) {
         readByteBuffer.position(origPos);
-        final ByteBuffer resultBuffer = readByteBuffer.slice();
+        final ByteBuffer resultBuffer = readByteBuffer.duplicate();
         readByteBuffer.position(origPos+size);
-        resultBuffer.limit(size);
+        resultBuffer.limit(resultBuffer.position()+size);
         addReadBuffer(resultBuffer);
         if(!doLocal) {
           se.setClientOperations(TCPClient.this);
