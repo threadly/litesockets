@@ -159,6 +159,12 @@ public class TransactionalByteBuffers extends ReuseableMergedByteBuffers {
       super.discard(size);
     }
   }
+  
+  @Override
+  protected void doAppend(final ByteBuffer bb) {
+    // TODO - need to slice due to rollback logic requiring an absolute position of zero
+    super.doAppend(bb.slice());
+  }
 
   @Override
   protected ByteBuffer removeFirstBuffer() {
