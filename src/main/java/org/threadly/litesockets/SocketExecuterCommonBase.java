@@ -13,7 +13,7 @@ import java.util.logging.Logger;
 
 import org.threadly.concurrent.SubmitterScheduler;
 import org.threadly.concurrent.future.ListenableFuture;
-import org.threadly.concurrent.future.WatchdogCache;
+import org.threadly.concurrent.future.watchdog.MixedTimeWatchdog;
 import org.threadly.litesockets.utils.IOUtils;
 import org.threadly.litesockets.utils.SimpleByteStats;
 import org.threadly.util.AbstractService;
@@ -29,7 +29,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
   protected final ConcurrentHashMap<SocketChannel, Client> clients = new ConcurrentHashMap<>();
   protected final ConcurrentHashMap<SelectableChannel, Server> servers = new ConcurrentHashMap<>();
   protected final SocketExecuterByteStats stats = new SocketExecuterByteStats();
-  protected final WatchdogCache dogCache;
+  protected final MixedTimeWatchdog dogCache;
   protected volatile boolean perConnectionStatsEnabled = true;
   protected Selector acceptSelector;
 
@@ -43,7 +43,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
     ArgumentVerifier.assertNotNull(acceptScheduler, "Accept Scheduler");
     
     schedulerPool = ssi;
-    dogCache = new WatchdogCache(ssi, true);
+    dogCache = new MixedTimeWatchdog(ssi, true);
     this.acceptScheduler = acceptScheduler;
   }
 
@@ -188,7 +188,7 @@ abstract class SocketExecuterCommonBase extends AbstractService implements Socke
 
   @Override
   public void watchFuture(final ListenableFuture<?> lf, final long delay) {
-    dogCache.watch(lf, delay);
+    dogCache.watch(delay, lf);
   }
 
   protected static Selector openSelector() {

@@ -9,7 +9,7 @@ Include the litesockets library into your project from maven central:
 <dependency>
 	<groupId>org.threadly</groupId>
 	<artifactId>litesockets</artifactId>
-	<version>4.10</version>
+	<version>4.11</version>
 </dependency>
 ```
 
