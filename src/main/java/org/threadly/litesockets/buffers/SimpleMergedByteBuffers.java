@@ -12,7 +12,7 @@ import org.threadly.util.ArgumentVerifier;
  * 
  */
 public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
-  private static final ByteBuffer[] EMPTY_BUFFER_ARRAY = new ByteBuffer[] {IOUtils.EMPTY_BYTEBUFFER};
+  private static final ByteBuffer[] EMPTY_BUFFER_ARRAY = new ByteBuffer[] {};
   
   
   private final ByteBuffer[] bba;
@@ -66,14 +66,12 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
   }
   
   private ByteBuffer getNextBuffer() {
-    while(!this.bba[this.currentBuffer].hasRemaining() && bba.length > currentBuffer+1 ) {
-      this.bba[this.currentBuffer] = null;
+    ByteBuffer nextBuffer = IOUtils.EMPTY_BYTEBUFFER;
+    while(bba.length > currentBuffer && ! (nextBuffer = bba[currentBuffer]).hasRemaining()) {
+      bba[currentBuffer] = null;
       currentBuffer++;
     }
-    if(bba[this.currentBuffer].hasRemaining()) {
-      return bba[currentBuffer];
-    }
-    return IOUtils.EMPTY_BYTEBUFFER;
+    return nextBuffer;
   }
 
   @Override
@@ -138,9 +136,11 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
   @Override
   public ByteBuffer popBuffer() {
     ByteBuffer bb = getNextBuffer();
-    consumedSize += bb.remaining();
-    currentBuffer++;
-    return bb.duplicate();
+    if (bb.hasRemaining()) {
+      consumedSize += bb.remaining();
+      currentBuffer++;
+    }
+    return bb;
   }
 
   @Override
@@ -154,12 +154,7 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
 
   @Override
   public boolean hasRemaining() {
-    for(int i=currentBuffer; i<bba.length; i++) {
-      if(bba[i].hasRemaining()) {
-        return true;
-      }
-    }
-    return false;
+    return getNextBuffer().hasRemaining();
   }
 
   @Override
@@ -236,11 +231,11 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
   @Override
   protected byte get(int pos) {
     int currentPos = 0;
-    for(ByteBuffer bb: this.bba) {
-      if(bb != null && bb.remaining() > pos-currentPos) {
-        return bb.get(pos-currentPos);
+    for (int i = currentBuffer; i < this.bba.length; i++) {
+      if(this.bba[i].remaining() > pos-currentPos) {
+        return this.bba[i].get(pos-currentPos);
       } else {
-        currentPos+=bb.remaining();
+        currentPos+=this.bba[i].remaining();
       }
     }
     return 0;

@@ -62,7 +62,6 @@ public class SimpleMergedByteBuffersTests {
 
   @Test
   public void getInts() {
-    
     ByteBuffer[] bba = new ByteBuffer[200]; 
     for(int i = 0; i<200; i++) {
       ByteBuffer bb = ByteBuffer.allocate(4);
@@ -238,7 +237,6 @@ public class SimpleMergedByteBuffersTests {
   
   @Test
   public void popBuffer() {
-
     Random rnd = new Random();
     int size = Math.abs(rnd.nextInt(300))+10;
     MergedByteBuffers mbb = new SimpleMergedByteBuffers(false, ByteBuffer.allocate(size), ByteBuffer.allocate(rnd.nextInt(300)), ByteBuffer.allocate(rnd.nextInt(300)), ByteBuffer.allocate(rnd.nextInt(300)));
