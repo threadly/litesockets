@@ -135,7 +135,7 @@ public class TransactionalByteBuffers extends ReuseableMergedByteBuffers {
   public ByteBuffer pullBuffer(final int size) {
     if(lock.isLocked()) {
       if(lock.isHeldByCurrentThread()) {
-        final ByteBuffer bb = super.pullBuffer(size);
+        final ByteBuffer bb = super.pullBuffer(size).duplicate();
         consumedSinceBegin+=size;
         return bb;
       } else {
