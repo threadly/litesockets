@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.After;
@@ -60,6 +61,27 @@ public class TransactionalByteBuffersTests {
     for(int i=0; i<s.getBytes().length; i++) {
       assertEquals(s.getBytes()[i], tbb.get());
     }
+  }
+  
+
+  @Test
+  public void rollBackWithBuffersActive() {
+    int bufferSize = 1000000;
+    TransactionalByteBuffers tbb = new TransactionalByteBuffers();
+    tbb.add(ByteBuffer.allocate(bufferSize));
+    ArrayList<ByteBuffer> lbb =new ArrayList<>();
+    tbb.begin();
+    while(tbb.hasRemaining()) {
+      lbb.add(tbb.pullBuffer(Math.min(100, tbb.remaining())));
+    }
+    tbb.rollback();
+    int countSize = 0;
+    for (ByteBuffer bb : lbb) {
+      countSize+=bb.remaining(); 
+    }
+    assertEquals(bufferSize, countSize);
+    assertEquals(bufferSize, tbb.remaining());
+    
   }
   
   @Test
