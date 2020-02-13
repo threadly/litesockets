@@ -58,9 +58,7 @@ public abstract class AbstractMergedByteBuffers implements MergedByteBuffers {
   @Override
   public void add(final ByteBuffer ...buffers) {
     for(ByteBuffer buffer: buffers) {
-      if(buffer.hasRemaining()) {
-        doAppend(buffer.duplicate());
-      }
+      doAppend(buffer);
     }
   }
 
@@ -68,10 +66,7 @@ public abstract class AbstractMergedByteBuffers implements MergedByteBuffers {
   public void add(final MergedByteBuffers ...mbbs) {
     for(MergedByteBuffers mbb: mbbs) {
       while(mbb.hasRemaining()) {
-        ByteBuffer bb = mbb.popBuffer();
-        if(bb.hasRemaining()) {
-          doAppend(bb);
-        }
+        doAppend(mbb.popBuffer());
       }
     }
   }

@@ -14,17 +14,18 @@ import org.threadly.util.ArgumentVerifier;
 public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
   private static final ByteBuffer[] EMPTY_BUFFER_ARRAY = new ByteBuffer[] {};
   
-  
   private final ByteBuffer[] bba;
   private int currentBuffer = 0;
   protected long consumedSize = 0;
   
   public SimpleMergedByteBuffers(boolean readOnly, ByteBuffer ...bbs) {
     super(readOnly);
-    for(ByteBuffer bb: bbs) {
-      if(bb == null) {
+    
+    for (int i = 0; i < bbs.length; i++) {
+      if(bbs[i] == null) {
         throw new IllegalArgumentException("Can not add null buffers!");
       }
+      bbs[i] = bbs[i].duplicate();
     }
     if(bbs.length > 0) {
       bba = bbs;
@@ -48,10 +49,6 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
       bba[count] = bb;
       count++;
     }
-  }
-  
-  private void doGet(final byte[] destBytes) {
-    doGet(destBytes, 0, destBytes.length);
   }
   
   private void doGet(final byte[] destBytes, int start, int len) {
@@ -88,7 +85,7 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
   public SimpleMergedByteBuffers duplicate() {
     ByteBuffer[] bba2 = new ByteBuffer[bba.length-currentBuffer];
     for(int i=currentBuffer; i<bba.length; i++) {
-      bba2[i-currentBuffer] = bba[i].duplicate();
+      bba2[i-currentBuffer] = bba[i];
     }
     return new SimpleMergedByteBuffers(markReadOnly, bba2);
   }
@@ -97,7 +94,7 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
   public SimpleMergedByteBuffers duplicateAndClean() {
     SimpleMergedByteBuffers smbb = duplicate();
     currentBuffer = bba.length;
-    for(int i=0; i<bba.length; i++) {
+    for(int i=currentBuffer; i<bba.length; i++) {
       bba[i] = null;
     }
     return smbb;
@@ -170,7 +167,7 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
     final ByteBuffer first = getNextBuffer();
     if(first.remaining() == size) {
       currentBuffer++;
-      return first.duplicate();
+      return first;
     } else if(first.remaining() > size) {
       final ByteBuffer bb = first.duplicate();
       bb.limit(bb.position()+size);
@@ -178,7 +175,7 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
       return bb;
     } else {
       final byte[] result = new byte[size];
-      doGet(result);
+      doGet(result, 0, size);
       return ByteBuffer.wrap(result);
     }
   }

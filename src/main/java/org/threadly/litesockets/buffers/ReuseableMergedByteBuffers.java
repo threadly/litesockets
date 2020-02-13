@@ -39,15 +39,17 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
   
   @Override
   protected void doAppend(final ByteBuffer bb) {
-    availableBuffers.add(bb);
-    currentSize+=bb.remaining();
+    if (bb.hasRemaining()) {
+      availableBuffers.add(bb.duplicate());
+      currentSize+=bb.remaining();
+    }
   }
 
   @Override
   public ReuseableMergedByteBuffers duplicate() {
     final ReuseableMergedByteBuffers mbb  = new ReuseableMergedByteBuffers(markReadOnly);
     for(final ByteBuffer bb: this.availableBuffers) {
-      mbb.add(bb.duplicate());
+      mbb.doAppend(bb);
     }
     return mbb;
   }
@@ -61,7 +63,7 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
 
   @Override
   protected void addToFront(ByteBuffer bb) {
-    this.availableBuffers.addFirst(bb.duplicate());
+    this.availableBuffers.addFirst(bb);
     this.currentSize+=bb.remaining();
   }
 
