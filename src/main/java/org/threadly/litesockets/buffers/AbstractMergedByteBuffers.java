@@ -31,7 +31,6 @@ public abstract class AbstractMergedByteBuffers implements MergedByteBuffers {
   }
   
   protected abstract void doAppend(final ByteBuffer bb);
-  protected abstract void addToFront(final ByteBuffer bb);
   protected abstract byte get(int pos);
   public abstract AbstractMergedByteBuffers duplicate();
   public abstract AbstractMergedByteBuffers duplicateAndClean();

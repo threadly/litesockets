@@ -77,11 +77,6 @@ public class SimpleMergedByteBuffers extends AbstractMergedByteBuffers {
   }
 
   @Override
-  protected void addToFront(ByteBuffer bb) {
-    throw new UnsupportedOperationException("Can not add to this buffer!");
-  }
-
-  @Override
   public SimpleMergedByteBuffers duplicate() {
     ByteBuffer[] bba2 = new ByteBuffer[bba.length-currentBuffer];
     for(int i=currentBuffer; i<bba.length; i++) {

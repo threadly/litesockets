@@ -62,12 +62,6 @@ public class ReuseableMergedByteBuffers extends AbstractMergedByteBuffers {
   }
 
   @Override
-  protected void addToFront(ByteBuffer bb) {
-    this.availableBuffers.addFirst(bb);
-    this.currentSize+=bb.remaining();
-  }
-
-  @Override
   public int remaining() {
     return currentSize;
   }
